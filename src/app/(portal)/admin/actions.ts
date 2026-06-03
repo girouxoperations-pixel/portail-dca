@@ -76,3 +76,58 @@ export async function supprimerMembre(id: string) {
 
   revalidatePath('/admin')
 }
+
+// ── Assigner MVP du mois ─────────────────────────────────────────────
+export async function assignerMVP(formData: FormData) {
+  const { userId } = await requireAdmin()
+  const db = createAdminClient()
+
+  const memberId = (formData.get('member_id') as string)?.trim()
+  if (!memberId) throw new Error('Membre requis')
+
+  const now   = new Date()
+  const month = now.getMonth() + 1
+  const year  = now.getFullYear()
+
+  // Vérifier qu'aucun MVP n'a déjà été assigné ce mois
+  const { data: existing } = await db
+    .from('paye_entries')
+    .select('id')
+    .eq('month', month)
+    .eq('year', year)
+    .eq('client_name', '🏆 Bonus MVP')
+    .limit(1)
+
+  if (existing && existing.length > 0) {
+    throw new Error('Un MVP a déjà été assigné pour ce mois')
+  }
+
+  const { data: profil } = await db
+    .from('profiles').select('role').eq('id', memberId).single()
+  if (!profil) throw new Error('Membre introuvable')
+
+  const MOIS_FR = [
+    'Janvier','Février','Mars','Avril','Mai','Juin',
+    'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
+  ]
+  const isSetter = profil.role === 'setter'
+
+  const { error } = await db.from('paye_entries').insert({
+    period_label:      `MVP — ${MOIS_FR[now.getMonth()]} ${year}`,
+    client_name:       '🏆 Bonus MVP',
+    month,
+    year,
+    montant:           500,
+    commission:        isSetter ? null : 500,
+    commission_setter: isSetter ? 500 : null,
+    closer_id:         isSetter ? null : memberId,
+    setter_id:         isSetter ? memberId : null,
+    statut:            'En attente',
+    notes:             `Bonus MVP du mois de ${MOIS_FR[now.getMonth()]} ${year}`,
+    created_by:        userId,
+  })
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/admin')
+  revalidatePath('/payes')
+}
