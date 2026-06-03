@@ -29,7 +29,7 @@ const ROUTE_RULES: { prefix: string; roles: string[] }[] = [
   { prefix: '/admin',   roles: ['admin', 'csm']              },
   { prefix: '/closer',  roles: ['admin', 'csm', 'closer']    },
   { prefix: '/setter',  roles: ['admin', 'csm', 'setter']    },
-  { prefix: '/feedback',roles: ['admin', 'csm', 'closer']    },
+  { prefix: '/feedback',roles: ['admin', 'csm', 'closer', 'setter'] },
 ]
 
 export async function proxy(request: NextRequest) {

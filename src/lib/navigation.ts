@@ -51,6 +51,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
   setter: [
     { label: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard },
     { label: 'Mon Suivi',  href: '/setter',      icon: Users           },
+    { label: 'Feedback',   href: '/feedback',    icon: MessageSquare   },
     { label: 'Ma Paie',    href: '/payes',        icon: Banknote        },
     { label: 'Documents',  href: '/documents',   icon: FolderOpen      },
   ],
