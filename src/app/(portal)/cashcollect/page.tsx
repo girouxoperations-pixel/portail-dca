@@ -1,0 +1,46 @@
+import { redirect } from 'next/navigation'
+import { createClient }      from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import CashCollectView from '@/components/cashcollect/CashCollectView'
+
+export default async function CashCollectPage() {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profil } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (!profil) redirect('/login')
+
+  const role = profil.role as string
+  if (role !== 'admin' && role !== 'csm') redirect('/dashboard')
+
+  const db    = createAdminClient()
+  const annee = new Date().getFullYear()
+
+  const [
+    { data: entrees },
+    { data: closers },
+    { data: setters },
+  ] = await Promise.all([
+    db.from('cash_entries')
+      .select('*')
+      .eq('year', annee)
+      .order('entry_date', { ascending: false }),
+    db.from('profiles').select('id, full_name').eq('role', 'closer'),
+    db.from('profiles').select('id, full_name').eq('role', 'setter'),
+  ])
+
+  return (
+    <CashCollectView
+      entrees={entrees  ?? []}
+      closers={closers  ?? []}
+      setters={setters  ?? []}
+      isAdmin={role === 'admin'}
+    />
+  )
+}
