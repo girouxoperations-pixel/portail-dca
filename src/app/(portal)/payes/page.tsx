@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import AdminView      from '@/components/payes/AdminView'
 import PersonnelView  from '@/components/payes/PersonnelView'
 
+import { MOIS_FR, getPalier } from '@/lib/constants'
+
 // ── Constantes ──────────────────────────────────────────────────────
 
 const MOIS_COURTS = [
@@ -11,27 +13,10 @@ const MOIS_COURTS = [
   'Juil','Aoû','Sep','Oct','Nov','Déc',
 ]
 
-const MOIS_FR = [
-  'Janvier','Février','Mars','Avril','Mai','Juin',
-  'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
-]
-
-const PALIERS = [
-  { seuil: 130_000, closer: 1_800, setter:   900 },
-  { seuil: 100_000, closer: 1_500, setter:   750 },
-  { seuil:  85_000, closer: 1_200, setter:   600 },
-  { seuil:  70_000, closer: 1_000, setter:   500 },
-  { seuil:  50_000, closer:   700, setter:   350 },
-]
-
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function debutMois(now = new Date()) {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-}
-
-function getPalier(collected: number) {
-  return PALIERS.find(p => collected >= p.seuil) ?? null
 }
 
 function genPeriodes(year: number) {

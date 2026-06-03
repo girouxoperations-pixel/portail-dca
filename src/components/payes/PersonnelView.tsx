@@ -2,8 +2,11 @@
 
 import { CheckCircle2, Clock, Trophy, Award } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { dollar } from '@/lib/constants'
+import Badge      from '@/components/ui/Badge'
+import PageHeader from '@/components/layout/PageHeader'
 
-// ── Types ─────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────
 
 interface PayeEntry {
   id: string
@@ -21,42 +24,21 @@ interface PayeEntry {
 }
 
 interface BonusTier {
-  seuil: number
+  seuil:  number
   closer: number
   setter: number
 }
 
 interface Props {
-  entrees:    PayeEntry[]
-  role:       string
-  userId:     string
+  entrees:     PayeEntry[]
+  role:        string
+  userId:      string
   myCollected: number
-  myBonus:    BonusTier | null
-  moisLabel:  string
+  myBonus:     BonusTier | null
+  moisLabel:   string
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
-
-function dollar(n: number) {
-  return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n)} $`
-}
-
-function BadgeStatut({ statut }: { statut: string }) {
-  const isPaye = statut === 'Payé'
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium',
-        isPaye ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600',
-      )}
-    >
-      {isPaye ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-      {statut}
-    </span>
-  )
-}
-
-// ── Composant ─────────────────────────────────────────────────────
+// ── Composant ─────────────────────────────────────────────────────────
 
 export default function PersonnelView({
   entrees, role, myCollected, myBonus, moisLabel,
@@ -71,13 +53,9 @@ export default function PersonnelView({
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* En-tête */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Mes Payes</h1>
-        <p className="text-sm text-gray-500 mt-0.5">{moisLabel}</p>
-      </div>
 
-      {/* Carte bonus du mois */}
+      <PageHeader titre="Mes Payes" subtitle={moisLabel} />
+
       <div
         className={cn(
           'rounded-xl border p-5 flex items-center gap-4',
@@ -104,14 +82,11 @@ export default function PersonnelView({
           </p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-2xl font-bold tabular-nums text-gray-900">
-            {dollar(totalCommission)}
-          </p>
+          <p className="text-2xl font-bold tabular-nums text-gray-900">{dollar(totalCommission)}</p>
           <p className="text-xs text-gray-400">Commissions totales</p>
         </div>
       </div>
 
-      {/* Tableau */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-50">
           <h3 className="text-sm font-semibold text-gray-900">
@@ -144,27 +119,20 @@ export default function PersonnelView({
                   const maComm = isCloser ? e.commission : e.commission_setter
                   return (
                     <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-800 max-w-[160px] truncate">
-                        {e.client_name}
-                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-800 max-w-[160px] truncate">{e.client_name}</td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{e.period_label}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">
-                        {dollar(e.montant)}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-violet-700">
-                        {dollar(maComm)}
-                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(e.montant)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-violet-700">{dollar(maComm)}</td>
                       <td className="px-4 py-3 text-right">
-                        {bonusMois !== null ? (
-                          <span className="text-xs font-semibold text-amber-600">
-                            +{dollar(bonusMois)}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-300">—</span>
-                        )}
+                        {bonusMois !== null
+                          ? <span className="text-xs font-semibold text-amber-600">+{dollar(bonusMois)}</span>
+                          : <span className="text-xs text-gray-300">—</span>
+                        }
                       </td>
                       <td className="px-4 py-3">
-                        <BadgeStatut statut={e.statut} />
+                        <Badge variant={e.statut === 'Payé' ? 'green' : 'amber'} icon={e.statut === 'Payé' ? <CheckCircle2 size={10} /> : <Clock size={10} />}>
+                          {e.statut}
+                        </Badge>
                       </td>
                     </tr>
                   )
@@ -172,17 +140,11 @@ export default function PersonnelView({
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold">
-                  <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide" colSpan={3}>
-                    Total
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-violet-700">
-                    {dollar(totalCommission)}
-                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide" colSpan={3}>Total</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-violet-700">{dollar(totalCommission)}</td>
                   <td className="px-4 py-3 text-right">
                     {bonusMois !== null && (
-                      <span className="text-xs font-semibold text-amber-600">
-                        +{dollar(bonusMois)}
-                      </span>
+                      <span className="text-xs font-semibold text-amber-600">+{dollar(bonusMois)}</span>
                     )}
                   </td>
                   <td />

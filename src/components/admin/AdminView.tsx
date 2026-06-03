@@ -9,6 +9,7 @@ import {
 import {
   inviterMembre, modifierMembre, supprimerMembre, assignerMVP,
 } from '@/app/(portal)/admin/actions'
+import { PALIERS, dollar, getPalier } from '@/lib/constants'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -58,14 +59,6 @@ const ROLE_LABEL: Record<string, string> = {
   admin: 'Administrateur', csm: 'CSM', closer: 'Closer', setter: 'Setter',
 }
 
-const PALIERS = [
-  { seuil: 130_000, closer: 1_800, setter:   900 },
-  { seuil: 100_000, closer: 1_500, setter:   750 },
-  { seuil:  85_000, closer: 1_200, setter:   600 },
-  { seuil:  70_000, closer: 1_000, setter:   500 },
-  { seuil:  50_000, closer:   700, setter:   350 },
-]
-
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function initiales(name: string | null) {
@@ -75,14 +68,6 @@ function initiales(name: string | null) {
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-CA', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
-function dollar(n: number) {
-  return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n)} $`
-}
-
-function getPalier(collected: number) {
-  return PALIERS.find(p => collected >= p.seuil) ?? null
 }
 
 function progressVersPalier(collected: number) {
