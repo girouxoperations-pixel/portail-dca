@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  creerCashCollect, modifierCollecte, supprimerCashCollect,
+  creerCashCollect, modifierCashEntry, supprimerCashCollect,
 } from '@/app/(portal)/cashcollect/actions'
 import { MOIS_FR, MOIS_COURT, PALIERS, dollar, currentMonthKey, formatDate, getPalier } from '@/lib/constants'
 import MetricCard  from '@/components/ui/MetricCard'
@@ -191,57 +191,96 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
   )
 }
 
-// ── Modal modifier collecté ────────────────────────────────────────────
+// ── Modal modifier deal complet ────────────────────────────────────────
 
-function ModalModifierCollecte({ entry, onClose }: { entry: CashEntry; onClose: () => void }) {
-  const [newCollected, setNewCollected] = useState(entry.collected)
-  const [pending, startTransition]      = useTransition()
-  const newACollecter = Math.max(0, entry.montant_courant - newCollected)
+function ModalModifier({ entry, closers, setters, onClose }: { entry: CashEntry; closers: Profil[]; setters: Profil[]; onClose: () => void }) {
+  const [collected, setCollected] = useState(entry.collected)
+  const [montant,   setMontant]   = useState(entry.montant_courant)
+  const [pending, startTransition] = useTransition()
+  const aCollecter = Math.max(0, montant - collected)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    const fd = new FormData(e.currentTarget)
     startTransition(async () => {
-      await modifierCollecte(entry.id, newCollected)
+      await modifierCashEntry(entry.id, fd)
       onClose()
     })
   }
 
   return (
-    <Modal titre="Modifier le collecté" onClose={onClose} maxWidth="max-w-sm">
+    <Modal titre="Modifier le deal" onClose={onClose} scrollable>
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-1">
-          <p className="text-sm font-medium text-gray-800">{entry.client_name ?? 'Client inconnu'}</p>
-          <p className="text-xs text-gray-500">
-            Deal total : <span className="font-semibold text-gray-700">{dollar(entry.montant_courant)}</span>
-          </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Date du deal</label>
+            <input name="entry_date" type="date" required defaultValue={entry.entry_date?.slice(0, 10)} className={INPUT_CLS} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Méthode de paiement</label>
+            <select name="methode" defaultValue={entry.methode ?? ''} className={INPUT_CLS}>
+              <option value="">— Aucune —</option>
+              {METHODES.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Montant collecté ($)</label>
-          <input
-            type="number" min="0" max={entry.montant_courant} step="0.01"
-            value={newCollected}
-            onChange={e => setNewCollected(Number(e.target.value))}
-            className={INPUT_CLS}
-          />
+          <label className="text-sm font-medium text-gray-700">Nom du client</label>
+          <input name="client_name" defaultValue={entry.client_name ?? ''} className={INPUT_CLS} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Montant du deal ($)</label>
+            <input name="montant_courant" type="number" min="0" step="0.01" required
+              value={montant} onChange={e => setMontant(Number(e.target.value))} className={INPUT_CLS} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Déjà collecté ($)</label>
+            <input name="collected" type="number" min="0" step="0.01"
+              value={collected} onChange={e => setCollected(Number(e.target.value))} className={INPUT_CLS} />
+          </div>
         </div>
 
         <div className={cn(
           'rounded-lg px-4 py-3 flex items-center justify-between',
-          newACollecter > 0 ? 'bg-red-50' : 'bg-green-50',
+          aCollecter > 0 ? 'bg-red-50' : 'bg-green-50',
         )}>
           <span className="text-xs font-medium text-gray-600">Reste à collecter</span>
-          <span className={cn('text-sm font-bold tabular-nums', newACollecter > 0 ? 'text-red-600' : 'text-green-600')}>
-            {dollar(newACollecter)}
+          <span className={cn('text-sm font-bold tabular-nums', aCollecter > 0 ? 'text-red-600' : 'text-green-600')}>
+            {dollar(aCollecter)}
           </span>
         </div>
 
-        <div className="flex justify-end gap-3 pt-1">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Closer</label>
+            <select name="closed_by" defaultValue={entry.closed_by ?? ''} className={INPUT_CLS}>
+              <option value="">— Aucun —</option>
+              {closers.map(c => <option key={c.id} value={c.id}>{c.full_name ?? c.id}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Setter</label>
+            <select name="set_by" defaultValue={entry.set_by ?? ''} className={INPUT_CLS}>
+              <option value="">— Aucun —</option>
+              {setters.map(s => <option key={s.id} value={s.id}>{s.full_name ?? s.id}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Notes (optionnel)</label>
+          <textarea name="notes" rows={2} defaultValue={entry.notes ?? ''} className={`${INPUT_CLS} resize-none`} />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">Annuler</button>
           <button type="submit" disabled={pending}
             className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
           >
-            {pending ? 'Mise à jour…' : 'Mettre à jour'}
+            {pending ? 'Enregistrement…' : 'Enregistrer'}
           </button>
         </div>
       </form>
@@ -251,7 +290,7 @@ function ModalModifierCollecte({ entry, onClose }: { entry: CashEntry; onClose: 
 
 // ── Composant principal ───────────────────────────────────────────────
 
-type ModalState = { type: 'add' } | { type: 'edit-collecte'; entry: CashEntry } | null
+type ModalState = { type: 'add' } | { type: 'edit'; entry: CashEntry } | null
 
 export default function CashCollectView({
   entrees, closers, setters, isAdmin,
@@ -405,13 +444,13 @@ export default function CashCollectView({
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => setModal({ type: 'edit-collecte', entry: e })}
+                          onClick={() => setModal({ type: 'edit', entry: e })}
                           disabled={pending}
-                          title="Modifier le collecté"
+                          title="Modifier"
                           className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 rounded transition-colors disabled:opacity-40"
                         >
                           <Pencil size={10} />
-                          Collecté
+                          Modifier
                         </button>
                         {isAdmin && (
                           <button
@@ -447,8 +486,8 @@ export default function CashCollectView({
       {modal?.type === 'add' && (
         <ModalAjout closers={closers} setters={setters} onClose={() => setModal(null)} />
       )}
-      {modal?.type === 'edit-collecte' && (
-        <ModalModifierCollecte entry={modal.entry} onClose={() => setModal(null)} />
+      {modal?.type === 'edit' && (
+        <ModalModifier entry={modal.entry} closers={closers} setters={setters} onClose={() => setModal(null)} />
       )}
     </div>
   )

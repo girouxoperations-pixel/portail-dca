@@ -58,6 +58,30 @@ export async function modifierCollecte(id: string, collected: number) {
   revalidatePath('/cashcollect')
 }
 
+export async function modifierCashEntry(id: string, formData: FormData) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const entryDate = formData.get('entry_date') as string
+  const [year, month] = entryDate.split('-').map(Number)
+
+  const { error } = await db.from('cash_entries').update({
+    entry_date:      entryDate,
+    client_name:     (formData.get('client_name') as string) || null,
+    montant_courant: Number(formData.get('montant_courant')),
+    collected:       Number(formData.get('collected')),
+    methode:         (formData.get('methode') as string) || null,
+    closed_by:       (formData.get('closed_by') as string) || null,
+    set_by:          (formData.get('set_by') as string) || null,
+    month,
+    year,
+    notes:           (formData.get('notes') as string) || null,
+  }).eq('id', id)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/cashcollect')
+}
+
 export async function supprimerCashCollect(id: string) {
   await requireRole(['admin'])
   const db = createAdminClient()
