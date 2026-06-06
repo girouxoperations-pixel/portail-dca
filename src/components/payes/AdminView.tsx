@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { CheckCircle2, Clock, Star, ChevronDown, ChevronUp, LayoutGrid, Table2 } from 'lucide-react'
+import { CheckCircle2, Clock, Star, ChevronDown, ChevronUp, LayoutGrid, Table2, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   basculerStatut, assignerMVP,
-  approuverPeriode, approuverPayesBatch,
+  approuverPeriode, approuverPayesBatch, modifierPaye,
 } from '@/app/(portal)/payes/actions'
 import { PALIERS, dollar, getPalier } from '@/lib/constants'
 import BonusCard  from '@/components/ui/BonusCard'
@@ -212,12 +212,13 @@ function ModalMVP({ teamMembers, periodes, onClose }: {
 
 // ── Carte employé ─────────────────────────────────────────────────────
 
-function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle }: {
+function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit }: {
   group:        EmployeeGroup
   isAdmin:      boolean
   pending:      boolean
   onApprouver:  (ids: string[]) => void
   onToggle:     (id: string, statut: string) => void
+  onEdit:       (id: string) => void
 }) {
   const [ouvert, setOuvert] = useState(false)
   const allPaid = group.pendingIds.length === 0
@@ -321,18 +322,27 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle }: {
                   </td>
                   {isAdmin && (
                     <td className="px-4 py-2.5 text-right">
-                      <button
-                        onClick={() => onToggle(d.id, d.statut)}
-                        disabled={pending}
-                        className={cn(
-                          'px-2 py-0.5 rounded text-[10px] font-medium transition-colors disabled:opacity-40',
-                          d.statut === 'Payé'
-                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                            : 'bg-green-50 text-green-600 hover:bg-green-100',
-                        )}
-                      >
-                        {d.statut === 'Payé' ? '↩ En attente' : '✓ Payé'}
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => onEdit(d.id)}
+                          className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
+                          title="Modifier"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                        <button
+                          onClick={() => onToggle(d.id, d.statut)}
+                          disabled={pending}
+                          className={cn(
+                            'px-2 py-0.5 rounded text-[10px] font-medium transition-colors disabled:opacity-40',
+                            d.statut === 'Payé'
+                              ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                              : 'bg-green-50 text-green-600 hover:bg-green-100',
+                          )}
+                        >
+                          {d.statut === 'Payé' ? '↩ En attente' : '✓ Payé'}
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -352,6 +362,125 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle }: {
   )
 }
 
+// ── Modale d'édition d'une paye ──────────────────────────────────────
+
+const INPUT_EDIT =
+  'w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500'
+
+function ModalEditionPaye({ entree, onClose }: {
+  entree:  PayeEntry
+  onClose: () => void
+}) {
+  const [pending, startTransition] = useTransition()
+  const [clientName, setClientName]     = useState(entree.client_name)
+  const [commission, setCommission]     = useState(String(entree.commission))
+  const [commSetter, setCommSetter]     = useState(String(entree.commission_setter))
+  const [montant,    setMontant]        = useState(String(entree.montant))
+  const [notes,      setNotes]          = useState(entree.notes ?? '')
+
+  function handleSave() {
+    startTransition(async () => {
+      await modifierPaye(entree.id, {
+        client_name:       clientName.trim() || entree.client_name,
+        commission:        Number(commission),
+        commission_setter: Number(commSetter),
+        montant:           Number(montant),
+        notes:             notes.trim() || null,
+      })
+      onClose()
+    })
+  }
+
+  return (
+    <Modal titre="Modifier l'entrée de paie" onClose={onClose} maxWidth="max-w-md">
+      <div className="p-6 space-y-4">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Nom du client</label>
+          <input
+            value={clientName}
+            onChange={e => setClientName(e.target.value)}
+            className={INPUT_EDIT}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">
+              Montant deal <span className="text-gray-400 font-normal">($)</span>
+            </label>
+            <input
+              type="number" min="0" step="0.01"
+              value={montant}
+              onChange={e => setMontant(e.target.value)}
+              className={INPUT_EDIT}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">
+              Cash reçu <span className="text-gray-400 font-normal text-xs">(via Cash Collect)</span>
+            </label>
+            <div className="px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-500 tabular-nums">
+              {dollar(entree.cash_entries?.collected ?? Math.round(entree.commission / 0.10))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-violet-700">
+              Commission closer <span className="text-gray-400 font-normal">($)</span>
+            </label>
+            <input
+              type="number" min="0" step="0.01"
+              value={commission}
+              onChange={e => setCommission(e.target.value)}
+              className={INPUT_EDIT}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-blue-700">
+              Commission setter <span className="text-gray-400 font-normal">($)</span>
+            </label>
+            <input
+              type="number" min="0" step="0.01"
+              value={commSetter}
+              onChange={e => setCommSetter(e.target.value)}
+              className={INPUT_EDIT}
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Notes</label>
+          <textarea
+            rows={2}
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Remarques, ajustements…"
+            className={`${INPUT_EDIT} resize-none`}
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={pending}
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+          >
+            {pending ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Vue client (tableau par deal) ────────────────────────────────────
 
 interface PersonCol {
@@ -360,12 +489,13 @@ interface PersonCol {
   role: 'closer' | 'setter'
 }
 
-function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle }: {
+function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }: {
   filtrees:   PayeEntry[]
   profileMap: Map<string, string>
   isAdmin:    boolean
   pending:    boolean
   onToggle:   (id: string, statut: string) => void
+  onEdit:     (id: string) => void
 }) {
   // Colonnes : closers puis setters, triés par nom, actifs sur la période
   const personCols = useMemo<PersonCol[]>(() => {
@@ -465,18 +595,27 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle }: {
                   </td>
                   {isAdmin && (
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => onToggle(e.id, e.statut)}
-                        disabled={pending}
-                        className={cn(
-                          'px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-40',
-                          e.statut === 'Payé'
-                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                            : 'bg-green-50 text-green-600 hover:bg-green-100',
-                        )}
-                      >
-                        {e.statut === 'Payé' ? '↩' : '✓ Payé'}
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => onEdit(e.id)}
+                          className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
+                          title="Modifier"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => onToggle(e.id, e.statut)}
+                          disabled={pending}
+                          className={cn(
+                            'px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-40',
+                            e.statut === 'Payé'
+                              ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                              : 'bg-green-50 text-green-600 hover:bg-green-100',
+                          )}
+                        >
+                          {e.statut === 'Payé' ? '↩' : '✓ Payé'}
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -518,9 +657,10 @@ export default function AdminView({
   bonusClosers, bonusSetters, teamMembers,
   isAdmin, periodesCourant, periodeDefaut,
 }: Props) {
-  const [periodeSelect, setPeriodeSelect] = useState<string>(periodeDefaut)
-  const [vue, setVue]                     = useState<'employe' | 'client'>('employe')
-  const [pending, startTransition]        = useTransition()
+  const [periodeSelect, setPeriodeSelect]       = useState<string>(periodeDefaut)
+  const [vue, setVue]                           = useState<'employe' | 'client'>('employe')
+  const [pending, startTransition]              = useTransition()
+  const [entreeEnEdition, setEntreeEnEdition]   = useState<PayeEntry | null>(null)
 
   const profileMap = useMemo(
     () => new Map(allProfiles.map(p => [p.id, p.full_name ?? 'Inconnu'])),
@@ -603,6 +743,11 @@ export default function AdminView({
 
   function handleToggle(id: string, statut: string) {
     startTransition(async () => { await basculerStatut(id, statut) })
+  }
+
+  function handleEdit(id: string) {
+    const e = filtrees.find(e => e.id === id)
+    if (e) setEntreeEnEdition(e)
   }
 
   return (
@@ -710,6 +855,7 @@ export default function AdminView({
                 pending={pending}
                 onApprouver={handleApprouverEmploye}
                 onToggle={handleToggle}
+                onEdit={handleEdit}
               />
             ))}
           </div>
@@ -721,6 +867,7 @@ export default function AdminView({
           isAdmin={isAdmin}
           pending={pending}
           onToggle={handleToggle}
+          onEdit={handleEdit}
         />
       )}
 
@@ -728,6 +875,13 @@ export default function AdminView({
         <p className="text-xs text-gray-400 text-center">
           Contacte un admin pour modifier le statut des paies.
         </p>
+      )}
+
+      {entreeEnEdition && (
+        <ModalEditionPaye
+          entree={entreeEnEdition}
+          onClose={() => setEntreeEnEdition(null)}
+        />
       )}
 
     </div>
