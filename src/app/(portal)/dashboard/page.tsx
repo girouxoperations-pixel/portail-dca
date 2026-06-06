@@ -1,366 +1,240 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import {
-  DollarSign, Wallet, Percent, TrendingDown, Trophy, Award,
+  Wallet, Phone, Target, Trophy, Award, TrendingDown, Users,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import KpiCard from '@/components/dashboard/KpiCard'
+import KpiCard  from '@/components/dashboard/KpiCard'
+import { MOIS_FR, PALIERS, dollar, getPalier } from '@/lib/constants'
+import { cn } from '@/lib/utils'
 
-// ── Constantes ──────────────────────────────────────────────────────
-
-const MOIS_FR = [
-  'Janvier','Février','Mars','Avril','Mai','Juin',
-  'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
-]
-
-const PALIERS = [
-  { seuil: 130_000, closer: 1_800, setter:   900 },
-  { seuil: 100_000, closer: 1_500, setter:   750 },
-  { seuil:  85_000, closer: 1_200, setter:   600 },
-  { seuil:  70_000, closer: 1_000, setter:   500 },
-  { seuil:  50_000, closer:   700, setter:   350 },
-]
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-function debutMois(now = new Date()) {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-}
+// ── Helpers ──────────────────────────────────────────────────────────
 
 function pct(a: number, b: number) {
   return b > 0 ? Math.round((a / b) * 100) : 0
 }
 
-function dollar(n: number) {
-  return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n)} $`
+function monthBounds(year: number, month: number) {
+  const pad  = (n: number) => String(n).padStart(2, '0')
+  const min  = `${year}-${pad(month)}-01`
+  const ny   = month === 12 ? year + 1 : year
+  const nm   = month === 12 ? 1 : month + 1
+  const max  = `${ny}-${pad(nm)}-01`
+  return { min, max }
 }
 
-function getPalier(collected: number) {
-  return PALIERS.find(p => collected >= p.seuil) ?? null
+function prevMonth(year: number, month: number) {
+  return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 }
+}
+
+function monthKey(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, '0')}`
 }
 
 // ── Types ────────────────────────────────────────────────────────────
 
-interface CloserStat {
-  nom: string
+interface MonthOption { key: string; label: string }
+
+interface CloserRow {
+  nom:       string
   scheduled: number
-  show: number
-  showPct: number
-  pitch: number
-  pitchPct: number
-  closes: number
-  closePct: number
-}
-
-interface SetterStat {
-  nom: string
-  attempts: number
-  contacts: number
-  rdv: number
-  showed: number
-  no_show: number
-  disqualified: number
-}
-
-interface FeedbackItem {
-  score: number | null
-  statut: string
-  closer: string
-  date: string
-}
-
-interface ClientBalance {
-  nom: string
-  montant: number
+  show:      number
+  pitch:     number
+  closes:    number
+  showPct:   number
+  pitchPct:  number
+  closePct:  number
+  cash:      number
+  revenue:   number
 }
 
 interface BonusItem {
-  nom: string
+  nom:       string
   collected: number
-  palier: typeof PALIERS[number] | null
+  palier:    typeof PALIERS[number] | null
 }
 
-// ── Sous-composants ──────────────────────────────────────────────────
+// ── Sub-components ───────────────────────────────────────────────────
 
-function PctBadge({ value, bold = false }: { value: number; bold?: boolean }) {
-  const color =
-    value >= 40 ? 'text-green-600' :
-    value >= 20 ? 'text-amber-600' : 'text-red-500'
+function MonthSelector({ options, selected }: { options: MonthOption[]; selected: string }) {
   return (
-    <span className={`${color} ${bold ? 'font-semibold' : ''}`}>{value} %</span>
+    <div className="flex items-center gap-2 flex-wrap">
+      {options.map(o => (
+        <Link
+          key={o.key}
+          href={`/dashboard?mois=${o.key}`}
+          className={cn(
+            'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
+            o.key === selected
+              ? 'bg-violet-600 text-white shadow-sm'
+              : 'bg-white border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700',
+          )}
+        >
+          {o.label}
+        </Link>
+      ))}
+    </div>
   )
 }
 
-function TableauClosers({ stats }: { stats: CloserStat[] }) {
-  if (stats.length === 0) {
+function PctBadge({ value }: { value: number }) {
+  const color = value >= 40 ? 'text-green-600' : value >= 20 ? 'text-amber-600' : 'text-red-500'
+  return <span className={`${color} font-medium`}>{value} %</span>
+}
+
+function TableauClosers({ rows }: { rows: CloserRow[] }) {
+  if (rows.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
-        <p className="text-sm text-gray-400">Aucune entrée closer ce mois</p>
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center">
+        <p className="text-sm text-gray-400">Aucune stat closer pour ce mois</p>
       </div>
     )
   }
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      scheduled: acc.scheduled + r.scheduled,
+      show:      acc.show      + r.show,
+      pitch:     acc.pitch     + r.pitch,
+      closes:    acc.closes    + r.closes,
+      cash:      acc.cash      + r.cash,
+      revenue:   acc.revenue   + r.revenue,
+    }),
+    { scheduled: 0, show: 0, pitch: 0, closes: 0, cash: 0, revenue: 0 },
+  )
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
-        <h3 className="text-sm font-semibold text-gray-900">Stats closers — ce mois</h3>
+      <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+        <Users size={15} className="text-violet-500" />
+        <h3 className="text-sm font-semibold text-gray-900">Performance closers</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-50 text-xs font-medium text-gray-400">
-              <th className="px-4 py-2.5 text-left">Closer</th>
-              <th className="px-4 py-2.5 text-right">Appels schedulés</th>
-              <th className="px-4 py-2.5 text-right">Show</th>
-              <th className="px-4 py-2.5 text-right">Show %</th>
-              <th className="px-4 py-2.5 text-right">Pitch</th>
-              <th className="px-4 py-2.5 text-right">Pitch %</th>
-              <th className="px-4 py-2.5 text-right">Closes</th>
-              <th className="px-4 py-2.5 text-right">Close %</th>
+            <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+              <th className="px-4 py-3 text-left">Closer</th>
+              <th className="px-4 py-3 text-right">Schedulés</th>
+              <th className="px-4 py-3 text-right">Shows</th>
+              <th className="px-4 py-3 text-right">Show %</th>
+              <th className="px-4 py-3 text-right">Pitch</th>
+              <th className="px-4 py-3 text-right">Pitch %</th>
+              <th className="px-4 py-3 text-right">Closes</th>
+              <th className="px-4 py-3 text-right">Close %</th>
+              <th className="px-4 py-3 text-right">Cash collecté</th>
+              <th className="px-4 py-3 text-right">Revenue</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {stats.map((s, i) => (
+            {rows.map((r, i) => (
               <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-800">{s.nom}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.scheduled}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.show}</td>
-                <td className="px-4 py-3 text-right tabular-nums"><PctBadge value={s.showPct} /></td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.pitch}</td>
-                <td className="px-4 py-3 text-right tabular-nums"><PctBadge value={s.pitchPct} /></td>
-                <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{s.closes}</td>
-                <td className="px-4 py-3 text-right tabular-nums"><PctBadge value={s.closePct} bold /></td>
+                <td className="px-4 py-3 font-semibold text-gray-800">{r.nom}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.scheduled}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.show}</td>
+                <td className="px-4 py-3 text-right tabular-nums"><PctBadge value={r.showPct} /></td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.pitch}</td>
+                <td className="px-4 py-3 text-right tabular-nums"><PctBadge value={r.pitchPct} /></td>
+                <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{r.closes}</td>
+                <td className="px-4 py-3 text-right tabular-nums"><PctBadge value={r.closePct} /></td>
+                <td className="px-4 py-3 text-right tabular-nums text-blue-700 font-medium">{dollar(r.cash)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{dollar(r.revenue)}</td>
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="border-t border-gray-100 bg-gray-50/60 font-semibold text-gray-700 text-xs">
+              <td className="px-4 py-3 text-gray-500 uppercase tracking-wide">Total équipe</td>
+              <td className="px-4 py-3 text-right tabular-nums">{totals.scheduled}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{totals.show}</td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                <PctBadge value={pct(totals.show, totals.scheduled)} />
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">{totals.pitch}</td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                <PctBadge value={pct(totals.pitch, totals.show)} />
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">{totals.closes}</td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                <PctBadge value={pct(totals.closes, totals.show)} />
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totals.cash)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{dollar(totals.revenue)}</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
   )
 }
 
-function TableauSetters({ stats }: { stats: SetterStat[] }) {
-  if (stats.length === 0) {
-    return (
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
-        <p className="text-sm text-gray-400">Aucune entrée setter ce mois</p>
-      </div>
-    )
-  }
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
-        <h3 className="text-sm font-semibold text-gray-900">Stats setters — ce mois</h3>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-50 text-xs font-medium text-gray-400">
-              <th className="px-4 py-2.5 text-left">Setter</th>
-              <th className="px-4 py-2.5 text-right">Tentatives</th>
-              <th className="px-4 py-2.5 text-right">Contacts</th>
-              <th className="px-4 py-2.5 text-right">RDV Bookés</th>
-              <th className="px-4 py-2.5 text-right">Présentés</th>
-              <th className="px-4 py-2.5 text-right">No Show</th>
-              <th className="px-4 py-2.5 text-right">Disqualifiés</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {stats.map((s, i) => (
-              <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-800">{s.nom}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.attempts}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.contacts}</td>
-                <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{s.rdv}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.showed}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-red-500">{s.no_show}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.disqualified}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-const STATUT_COLOR: Record<string, string> = {
-  'Closed':       'bg-green-50 text-green-600',
-  'Suivi requis': 'bg-blue-50 text-blue-600',
-  'No Show':      'bg-gray-100 text-gray-500',
-  'Refus':        'bg-red-50 text-red-600',
-}
-
-function CardFeedbacks({ feedbacks }: { feedbacks: FeedbackItem[] }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
-        <h3 className="text-sm font-semibold text-gray-900">4 derniers feedbacks IA</h3>
-      </div>
-      {feedbacks.length === 0 ? (
-        <p className="px-5 py-8 text-sm text-gray-400 text-center">Aucun feedback</p>
-      ) : (
-        <div className="divide-y divide-gray-50">
-          {feedbacks.map((f, i) => {
-            const score = f.score ?? 0
-            const scoreColor =
-              score >= 80 ? 'text-green-600' :
-              score >= 60 ? 'text-amber-600' : 'text-red-500'
-            const barColor =
-              score >= 80 ? 'bg-green-500' :
-              score >= 60 ? 'bg-amber-400' : 'bg-red-400'
-
-            return (
-              <div key={i} className="px-5 py-3 flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{f.closer}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span
-                      className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full
-                        ${STATUT_COLOR[f.statut] ?? 'bg-gray-100 text-gray-500'}`}
-                    >
-                      {f.statut}
-                    </span>
-                    <span className="text-[11px] text-gray-400">
-                      {new Date(f.date + 'T00:00:00').toLocaleDateString('fr-FR', {
-                        day: 'numeric', month: 'short',
-                      })}
-                    </span>
-                  </div>
-                </div>
-                {f.score !== null && (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="w-14 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${barColor}`}
-                        style={{ width: `${score}%` }}
-                      />
-                    </div>
-                    <span className={`text-sm font-bold tabular-nums ${scoreColor}`}>
-                      {score}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CardTopClients({ clients }: { clients: ClientBalance[] }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
-        <h3 className="text-sm font-semibold text-gray-900">Top 5 clients — solde à collecter</h3>
-      </div>
-      {clients.length === 0 ? (
-        <p className="px-5 py-8 text-sm text-gray-400 text-center">Aucun solde en attente</p>
-      ) : (
-        <div className="divide-y divide-gray-50">
-          {clients.map((c, i) => (
-            <div key={i} className="px-5 py-3 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span
-                  className="w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-[11px]
-                    font-semibold flex items-center justify-center shrink-0"
-                >
-                  {i + 1}
-                </span>
-                <p className="text-sm font-medium text-gray-800 truncate">{c.nom}</p>
-              </div>
-              <span className="text-sm font-semibold text-red-600 tabular-nums shrink-0">
-                {dollar(c.montant)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function BarreBonus({ collected }: { collected: number }) {
-  const idx = PALIERS.findIndex(p => collected >= p.seuil)
-  let progress: number
-
-  if (idx === -1) {
-    progress = Math.min(98, (collected / PALIERS[PALIERS.length - 1].seuil) * 100)
-  } else if (idx === 0) {
-    progress = 100
-  } else {
-    const cur  = PALIERS[idx]
-    const next = PALIERS[idx - 1]
-    progress = Math.min(98, ((collected - cur.seuil) / (next.seuil - cur.seuil)) * 100)
-  }
+function BarBonus({ collected }: { collected: number }) {
+  const seuils = PALIERS.map(p => p.seuil)
+  const next   = seuils.slice().reverse().find(s => collected < s) ?? seuils[0]
+  const prev   = seuils.slice().reverse().find(s => collected >= s) ?? 0
+  const progress = next === prev ? 100 : Math.min(98, ((collected - prev) / (next - prev)) * 100)
+  const reached  = PALIERS.some(p => collected >= p.seuil)
 
   return (
     <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden mt-1">
       <div
-        className={`h-full rounded-full transition-all ${idx !== -1 ? 'bg-violet-500' : 'bg-gray-300'}`}
+        className={`h-full rounded-full transition-all ${reached ? 'bg-violet-500' : 'bg-gray-300'}`}
         style={{ width: `${Math.max(2, progress)}%` }}
       />
     </div>
   )
 }
 
-function LigneBonus({ item, type }: { item: BonusItem; type: 'closer' | 'setter' }) {
-  const palier  = item.palier
-  const bonus   = palier ? (type === 'closer' ? palier.closer : palier.setter) : null
-
-  return (
-    <div className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
-      {bonus !== null
-        ? <Trophy size={14} className="text-amber-400 shrink-0" />
-        : <Award  size={14} className="text-gray-200 shrink-0" />
-      }
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-gray-800 truncate">{item.nom}</span>
-          {bonus !== null && (
-            <span className="text-xs font-semibold text-amber-600 shrink-0">
-              +{dollar(bonus)}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center justify-between gap-2 mt-0.5">
-          <span className="text-xs text-gray-400">{dollar(item.collected)} collecté</span>
-          {palier && (
-            <span className="text-[11px] text-violet-600">
-              Palier {dollar(palier.seuil)}
-            </span>
-          )}
-        </div>
-        <BarreBonus collected={item.collected} />
-      </div>
-    </div>
-  )
-}
-
 function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: BonusItem[] }) {
+  function LigneBonus({ item, type }: { item: BonusItem; type: 'closer' | 'setter' }) {
+    const palier = item.palier
+    const bonus  = palier ? (type === 'closer' ? palier.closer : palier.setter) : null
+    return (
+      <div className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
+        {bonus !== null
+          ? <Trophy size={14} className="text-amber-400 shrink-0" />
+          : <Award  size={14} className="text-gray-200 shrink-0" />
+        }
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-gray-800 truncate">{item.nom}</span>
+            {bonus !== null && (
+              <span className="text-xs font-semibold text-amber-600 shrink-0">+{dollar(bonus)}</span>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <span className="text-xs text-gray-400">{dollar(item.collected)} collecté</span>
+            {palier && (
+              <span className="text-[11px] text-violet-600">Palier {dollar(palier.seuil)}</span>
+            )}
+          </div>
+          <BarBonus collected={item.collected} />
+        </div>
+      </div>
+    )
+  }
+
+  if (closers.length === 0 && setters.length === 0) return null
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-50">
-        <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques — ce mois</h3>
+        <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques</h3>
         <p className="text-xs text-gray-400 mt-0.5">
-          Calculés sur le cash collecté associé à chaque membre
+          Paliers : 50 k$ → 700 $/350 $ · 70 k$ → 1 000 $/500 $ · 85 k$ → 1 200 $/600 $ ·
+          100 k$ → 1 500 $/750 $ · 130 k$ → 1 800 $/900 $
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-50">
         <div className="px-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">
-            Closers
-          </p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">Closers</p>
           {closers.length === 0
             ? <p className="text-sm text-gray-400 pb-4">Aucune donnée</p>
             : closers.map((c, i) => <LigneBonus key={i} item={c} type="closer" />)
           }
         </div>
         <div className="px-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">
-            Setters
-          </p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">Setters</p>
           {setters.length === 0
             ? <p className="text-sm text-gray-400 pb-4">Aucune donnée</p>
             : setters.map((s, i) => <LigneBonus key={i} item={s} type="setter" />)
@@ -371,209 +245,200 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
   )
 }
 
-// ── Page principale ──────────────────────────────────────────────────
 
-export default async function DashboardPage() {
+// ── Page ─────────────────────────────────────────────────────────────
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mois?: string }>
+}) {
   const supabase = await createClient()
-
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: profil } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .single()
+    .from('profiles').select('full_name, role').eq('id', user.id).single()
 
-  const now       = new Date()
-  const moisLabel = `${MOIS_FR[now.getMonth()]} ${now.getFullYear()}`
-  const ms        = debutMois(now)
-  const prenom    = profil?.full_name?.split(' ')[0] ?? 'vous'
+  const params = await searchParams
+  const now    = new Date()
+  const defaultKey = monthKey(now.getFullYear(), now.getMonth() + 1)
+  const selKey     = params.mois ?? defaultKey
+  const [selYear, selMonth] = selKey.split('-').map(Number)
+  const prev = prevMonth(selYear, selMonth)
+  const { min: dateMin, max: dateMax } = monthBounds(selYear, selMonth)
 
-  // admin client — contourne la RLS pour les stats globales (server-side uniquement)
   const db = createAdminClient()
 
   const [
+    { data: allMonthlyStats },
     { data: cashMois },
-    { data: closerEntries },
-    { data: setterEntries },
-    { data: feedbackRaw },
-    { data: allProfiles },
+    { data: cashPrevMois },
     { data: balanceRaw },
+    { data: allProfiles },
+    { data: cashMonthsList },
   ] = await Promise.all([
+    db.from('monthly_stats')
+      .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
     db.from('cash_entries')
       .select('montant_courant, collected, closed_by, set_by')
-      .gte('entry_date', ms),
-    db.from('closer_entries')
-      .select('user_id, scheduled_calls, show_calls, pitch_calls, closes')
-      .gte('entry_date', ms),
-    db.from('setter_entries')
-      .select('user_id, attempts, contacts, rdv_booked, showed, no_show, disqualified')
-      .gte('entry_date', ms),
-    db.from('feedback_entries')
-      .select('user_id, score, statut, call_date')
-      .order('call_date', { ascending: false })
-      .limit(4),
-    db.from('profiles')
-      .select('id, full_name'),
+      .gte('entry_date', dateMin)
+      .lt('entry_date', dateMax),
+    db.from('cash_entries')
+      .select('montant_courant, collected')
+      .gte('entry_date', monthBounds(prev.year, prev.month).min)
+      .lt('entry_date', monthBounds(prev.year, prev.month).max),
     db.from('cash_entries')
       .select('client_name, a_collecter')
       .gt('a_collecter', 0),
+    db.from('profiles')
+      .select('id, full_name, role'),
+    db.from('cash_entries')
+      .select('year, month')
+      .not('year', 'is', null)
+      .not('month', 'is', null),
   ])
 
-  // ── Profils ──────────────────────────────────────────────────────
-  const profileMap = new Map(
-    (allProfiles ?? []).map(p => [p.id, p.full_name as string | null])
-  )
+  // ── Profile maps ──────────────────────────────────────────────────
+  const profileMap = new Map((allProfiles ?? []).map(p => [p.id, p.full_name as string]))
+  const closerProfiles = (allProfiles ?? []).filter(p => p.role === 'closer')
+  const setterProfiles = (allProfiles ?? []).filter(p => p.role === 'setter')
 
-  // ── KPIs ─────────────────────────────────────────────────────────
-  const totalRevenu     = (cashMois ?? []).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
-  const totalCollected  = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
-  const totalACollecter = (balanceRaw ?? []).reduce((s, e) => s + (e.a_collecter ?? 0), 0)
-  const totalCloses     = (closerEntries ?? []).reduce((s, e) => s + (e.closes ?? 0), 0)
-  const totalShows      = (closerEntries ?? []).reduce((s, e) => s + (e.show_calls ?? 0), 0)
-  const tauxClosing     = pct(totalCloses, totalShows)
-
-  // ── Stats closers ─────────────────────────────────────────────────
-  const closerAgg = new Map<string, { scheduled: number; show: number; pitch: number; closes: number }>()
-  for (const e of closerEntries ?? []) {
-    const cur = closerAgg.get(e.user_id) ?? { scheduled: 0, show: 0, pitch: 0, closes: 0 }
-    closerAgg.set(e.user_id, {
-      scheduled: cur.scheduled + (e.scheduled_calls ?? 0),
-      show:      cur.show      + (e.show_calls      ?? 0),
-      pitch:     cur.pitch     + (e.pitch_calls      ?? 0),
-      closes:    cur.closes    + (e.closes           ?? 0),
-    })
+  // ── Available months (union of monthly_stats + cash_entries) ──────
+  const monthsSet = new Set<string>()
+  for (const r of allMonthlyStats ?? []) monthsSet.add(monthKey(r.year, r.month))
+  for (const r of cashMonthsList ?? []) {
+    if (r.year && r.month) monthsSet.add(monthKey(r.year as number, r.month as number))
   }
-  const statsClosers: CloserStat[] = Array.from(closerAgg.entries())
-    .map(([uid, s]) => ({
-      nom:      profileMap.get(uid) ?? 'Inconnu',
-      scheduled: s.scheduled,
-      show:      s.show,
-      showPct:   pct(s.show, s.scheduled),
-      pitch:     s.pitch,
-      pitchPct:  pct(s.pitch, s.show),
-      closes:    s.closes,
-      closePct:  pct(s.closes, s.show),
+  const monthOptions: MonthOption[] = Array.from(monthsSet)
+    .sort((a, b) => b.localeCompare(a))
+    .map(k => {
+      const [y, m] = k.split('-').map(Number)
+      return { key: k, label: `${MOIS_FR[m - 1]} ${y}` }
+    })
+
+  // ── Monthly stats for selected month ─────────────────────────────
+  const selStats = (allMonthlyStats ?? []).filter(r => r.year === selYear && r.month === selMonth)
+  const teamStat = selStats.find(r => r.source === 'team')
+  const closerStats = selStats.filter(r => r.source === 'closer')
+
+  // ── KPI cards ────────────────────────────────────────────────────
+  // Cash: from cash_entries (live)
+  const cashRevenu    = (cashMois ?? []).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
+  const cashCollected = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
+  const prevCollected = (cashPrevMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
+
+  const cashTrend = prevCollected > 0
+    ? Math.round(((cashCollected - prevCollected) / prevCollected) * 100)
+    : null
+
+  // Performance: from monthly_stats
+  const scheduled = teamStat?.scheduled_calls ?? closerStats.reduce((s, r) => s + r.scheduled_calls, 0)
+  const shows     = teamStat?.show_calls      ?? closerStats.reduce((s, r) => s + r.show_calls, 0)
+  const closes    = teamStat?.closes          ?? closerStats.reduce((s, r) => s + r.closes, 0)
+  const revenue   = teamStat?.revenue         ?? closerStats.reduce((s, r) => s + r.revenue, 0)
+  const showRate  = pct(shows, scheduled)
+  const closeRate = pct(closes, shows)
+
+  // ── Closer performance table ──────────────────────────────────────
+  const closerRows: CloserRow[] = closerStats
+    .map(r => ({
+      nom:      r.closer_name ?? 'Inconnu',
+      scheduled: r.scheduled_calls,
+      show:     r.show_calls,
+      pitch:    r.pitch_calls,
+      closes:   r.closes,
+      showPct:  pct(r.show_calls, r.scheduled_calls),
+      pitchPct: pct(r.pitch_calls, r.show_calls),
+      closePct: pct(r.closes, r.show_calls),
+      cash:     r.cash_collected,
+      revenue:  r.revenue,
     }))
     .sort((a, b) => b.closes - a.closes)
 
-  // ── Stats setters ─────────────────────────────────────────────────
-  const setterAgg = new Map<string, {
-    attempts: number; contacts: number; rdv: number;
-    showed: number; no_show: number; disqualified: number
-  }>()
-  for (const e of setterEntries ?? []) {
-    const cur = setterAgg.get(e.user_id) ?? {
-      attempts: 0, contacts: 0, rdv: 0, showed: 0, no_show: 0, disqualified: 0,
-    }
-    setterAgg.set(e.user_id, {
-      attempts:     cur.attempts     + (e.attempts     ?? 0),
-      contacts:     cur.contacts     + (e.contacts     ?? 0),
-      rdv:          cur.rdv          + (e.rdv_booked   ?? 0),
-      showed:       cur.showed       + (e.showed       ?? 0),
-      no_show:      cur.no_show      + (e.no_show      ?? 0),
-      disqualified: cur.disqualified + (e.disqualified ?? 0),
-    })
-  }
-  const statsSetters: SetterStat[] = Array.from(setterAgg.entries())
-    .map(([uid, s]) => ({
-      nom:          profileMap.get(uid) ?? 'Inconnu',
-      attempts:     s.attempts,
-      contacts:     s.contacts,
-      rdv:          s.rdv,
-      showed:       s.showed,
-      no_show:      s.no_show,
-      disqualified: s.disqualified,
-    }))
-    .sort((a, b) => b.rdv - a.rdv)
-
-  // ── Feedbacks ─────────────────────────────────────────────────────
-  const feedbacks: FeedbackItem[] = (feedbackRaw ?? []).map(f => ({
-    score:  f.score,
-    statut: f.statut as string,
-    closer: profileMap.get(f.user_id) ?? 'Inconnu',
-    date:   f.call_date as string,
-  }))
-
-  // ── Top 5 clients à collecter ─────────────────────────────────────
-  const clientAgg = new Map<string, number>()
-  for (const r of balanceRaw ?? []) {
-    const nom = (r.client_name as string | null) ?? 'Sans nom'
-    clientAgg.set(nom, (clientAgg.get(nom) ?? 0) + (r.a_collecter ?? 0))
-  }
-  const topClients: ClientBalance[] = Array.from(clientAgg.entries())
-    .map(([nom, montant]) => ({ nom, montant }))
-    .sort((a, b) => b.montant - a.montant)
-    .slice(0, 5)
-
-  // ── Bonus ─────────────────────────────────────────────────────────
+  // ── Bonus (from cash_entries linked to profiles) ──────────────────
   const closerCash = new Map<string, number>()
   const setterCash = new Map<string, number>()
   for (const e of cashMois ?? []) {
     if (e.closed_by) closerCash.set(e.closed_by, (closerCash.get(e.closed_by) ?? 0) + (e.collected ?? 0))
     if (e.set_by)    setterCash.set(e.set_by,    (setterCash.get(e.set_by)    ?? 0) + (e.collected ?? 0))
   }
+  const bonusClosers: BonusItem[] = closerProfiles
+    .map(p => {
+      const collected = closerCash.get(p.id) ?? 0
+      return { nom: p.full_name ?? 'Inconnu', collected, palier: getPalier(collected) }
+    })
+    .sort((a, b) => b.collected - a.collected)
 
-  const bonusClosers: BonusItem[] = Array.from(closerAgg.keys()).map(uid => {
-    const collected = closerCash.get(uid) ?? 0
-    return { nom: profileMap.get(uid) ?? 'Inconnu', collected, palier: getPalier(collected) }
-  }).sort((a, b) => b.collected - a.collected)
+  const bonusSetters: BonusItem[] = setterProfiles
+    .map(p => {
+      const collected = setterCash.get(p.id) ?? 0
+      return { nom: p.full_name ?? 'Inconnu', collected, palier: getPalier(collected) }
+    })
+    .sort((a, b) => b.collected - a.collected)
 
-  const bonusSetters: BonusItem[] = Array.from(setterAgg.keys()).map(uid => {
-    const collected = setterCash.get(uid) ?? 0
-    return { nom: profileMap.get(uid) ?? 'Inconnu', collected, palier: getPalier(collected) }
-  }).sort((a, b) => b.collected - a.collected)
+  const totalACollecter = (balanceRaw ?? []).reduce((s, e) => s + (e.a_collecter ?? 0), 0)
 
-  // ── Render ────────────────────────────────────────────────────────
+  const prenom    = profil?.full_name?.split(' ')[0] ?? 'vous'
+  const moisLabel = `${MOIS_FR[selMonth - 1]} ${selYear}`
+  const isCurrentMonth = selKey === defaultKey
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
 
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Bonjour, {prenom} 👋</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Tableau de bord · {moisLabel}</p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isCurrentMonth ? `Bonjour, ${prenom} 👋` : moisLabel}
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {isCurrentMonth ? `Tableau de bord · ${moisLabel}` : 'Tableau de bord — historique'}
+          </p>
+        </div>
+        <MonthSelector options={monthOptions} selected={selKey} />
       </div>
 
+      {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Revenu total du mois"
-          value={dollar(totalRevenu)}
-          icon={DollarSign}
-          color="green"
-          subtitle="Somme montant_courant — cash entries"
-        />
-        <KpiCard
           title="Cash collecté"
-          value={dollar(totalCollected)}
+          value={dollar(cashCollected)}
           icon={Wallet}
           color="blue"
-          subtitle="Paiements encaissés ce mois"
+          subtitle={`Revenus deals : ${dollar(cashRevenu)}`}
+          trend={cashTrend !== null ? {
+            label: `${cashTrend > 0 ? '+' : ''}${cashTrend} % vs mois préc.`,
+            direction: cashTrend > 0 ? 'up' : cashTrend < 0 ? 'down' : 'neutral',
+          } : undefined}
         />
         <KpiCard
-          title="Taux de closing global"
-          value={`${tauxClosing} %`}
-          icon={Percent}
+          title="Appels schedulés"
+          value={scheduled}
+          icon={Phone}
           color="violet"
-          subtitle={`${totalCloses} closes / ${totalShows} shows`}
+          subtitle={`${shows} shows · ${showRate} % show rate`}
+        />
+        <KpiCard
+          title="Closes"
+          value={closes}
+          icon={Target}
+          color="green"
+          subtitle={`Taux de closing : ${closeRate} %`}
         />
         <KpiCard
           title="Solde à collecter"
           value={dollar(totalACollecter)}
           icon={TrendingDown}
           color="red"
-          subtitle="Montants en attente (tous)"
+          subtitle="Tous mois confondus"
         />
       </div>
 
-      <TableauClosers stats={statsClosers} />
+      {/* Closer stats */}
+      <TableauClosers rows={closerRows} />
 
-      <TableauSetters stats={statsSetters} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CardFeedbacks feedbacks={feedbacks} />
-        <CardTopClients clients={topClients} />
-      </div>
-
+      {/* Bonus */}
       <SectionBonus closers={bonusClosers} setters={bonusSetters} />
 
     </div>
