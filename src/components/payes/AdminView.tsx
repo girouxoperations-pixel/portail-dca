@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, CheckCircle2, Clock, Trash2, Star } from 'lucide-react'
+import { CheckCircle2, Clock, Star, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  creerPaye, basculerStatut, supprimerPaye, assignerMVP,
+  basculerStatut, assignerMVP,
+  approuverPeriode, approuverPayesBatch,
 } from '@/app/(portal)/payes/actions'
 import { PALIERS, dollar, getPalier } from '@/lib/constants'
 import BonusCard  from '@/components/ui/BonusCard'
@@ -27,6 +28,7 @@ interface PayeEntry {
   commission_setter: number
   statut: string
   notes: string | null
+  cash_entries: { collected: number } | null
 }
 
 interface Profil {
@@ -61,6 +63,24 @@ interface Props {
 const INPUT_CLS =
   'w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
 
+interface EmployeeGroup {
+  uid: string
+  nom: string
+  role: 'closer' | 'setter'
+  deals: Array<{
+    id: string
+    client_name: string
+    montant: number
+    collected: number
+    maCommission: number
+    statut: string
+    notes: string | null
+  }>
+  totalCommission: number
+  pendingCommission: number
+  pendingIds: string[]
+}
+
 // ── Section bonus ─────────────────────────────────────────────────────
 
 function SectionBonus({ bonusClosers, bonusSetters, isAdmin, teamMembers, periodes }: {
@@ -77,8 +97,8 @@ function SectionBonus({ bonusClosers, bonusSetters, isAdmin, teamMembers, period
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques — ce mois</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Calculés sur le cash collecté via cash_entries</p>
+            <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques — période en cours</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Calculés sur le cash collecté cette période</p>
           </div>
           {isAdmin && (
             <button
@@ -157,7 +177,7 @@ function ModalMVP({ teamMembers, periodes, onClose }: {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Membre de l'équipe</label>
+          <label className="text-sm font-medium text-gray-700">Membre de l&apos;équipe</label>
           <select value={personId} onChange={e => setPersonId(e.target.value)} className={INPUT_CLS}>
             {teamMembers.map(m => (
               <option key={m.id} value={m.id}>{m.full_name ?? m.id} ({m.role})</option>
@@ -190,112 +210,156 @@ function ModalMVP({ teamMembers, periodes, onClose }: {
   )
 }
 
-// ── Modal ajout ───────────────────────────────────────────────────────
+// ── Carte employé ─────────────────────────────────────────────────────
 
-function ModalAjout({ closers, setters, periodes, onClose }: {
-  closers:  Profil[]
-  setters:  Profil[]
-  periodes: { label: string; month: number; year: number }[]
-  onClose:  () => void
+function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle }: {
+  group:        EmployeeGroup
+  isAdmin:      boolean
+  pending:      boolean
+  onApprouver:  (ids: string[]) => void
+  onToggle:     (id: string, statut: string) => void
 }) {
-  const [periodeIdx, setPeriodeIdx] = useState(0)
-  const [pending, startTransition]  = useTransition()
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    const p  = periodes[periodeIdx]
-    fd.set('period_label', p.label)
-    fd.set('month', String(p.month))
-    fd.set('year',  String(p.year))
-    startTransition(async () => {
-      await creerPaye(fd)
-      onClose()
-    })
-  }
+  const [ouvert, setOuvert] = useState(false)
+  const allPaid = group.pendingIds.length === 0
 
   return (
-    <Modal titre="Nouvelle entrée de paie" onClose={onClose} scrollable>
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Période</label>
-          <select value={periodeIdx} onChange={e => setPeriodeIdx(Number(e.target.value))} className={INPUT_CLS}>
-            {periodes.map((p, i) => (
-              <option key={p.label} value={i}>{p.label}</option>
-            ))}
-          </select>
+    <div className={cn(
+      'bg-white rounded-xl border shadow-sm overflow-hidden transition-all',
+      allPaid ? 'border-green-100' : 'border-gray-100',
+    )}>
+      {/* En-tête */}
+      <div className="px-5 py-4 flex items-center gap-4">
+        <div className={cn(
+          'w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
+          group.role === 'closer'
+            ? 'bg-violet-100 text-violet-700'
+            : 'bg-blue-100 text-blue-700',
+        )}>
+          {group.nom.charAt(0).toUpperCase()}
         </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Nom du client</label>
-          <input name="client_name" required placeholder="Entreprise Dupont" className={INPUT_CLS} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Closer</label>
-            <select name="closer_id" className={INPUT_CLS}>
-              <option value="">— Aucun —</option>
-              {closers.map(c => <option key={c.id} value={c.id}>{c.full_name ?? c.id}</option>)}
-            </select>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gray-900 truncate">{group.nom}</p>
+            <span className={cn(
+              'text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide',
+              group.role === 'closer'
+                ? 'bg-violet-100 text-violet-600'
+                : 'bg-blue-100 text-blue-600',
+            )}>
+              {group.role}
+            </span>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Setter</label>
-            <select name="setter_id" className={INPUT_CLS}>
-              <option value="">— Aucun —</option>
-              {setters.map(s => <option key={s.id} value={s.id}>{s.full_name ?? s.id}</option>)}
-            </select>
-          </div>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {group.deals.length} deal{group.deals.length !== 1 ? 's' : ''}
+            {' · '}
+            {allPaid
+              ? <span className="text-green-600 font-medium">Tout payé ✓</span>
+              : <span className="text-amber-600 font-medium">{dollar(group.pendingCommission)} en attente</span>
+            }
+          </p>
         </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { name: 'montant',          label: 'Montant vente ($)'     },
-            { name: 'commission',       label: 'Commission closer ($)' },
-            { name: 'commission_setter', label: 'Commission setter ($)' },
-          ].map(f => (
-            <div key={f.name} className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">{f.label}</label>
-              <input name={f.name} type="number" min="0" step="0.01" defaultValue="0" className={INPUT_CLS} />
-            </div>
-          ))}
+        <div className="shrink-0 text-right">
+          <p className="text-lg font-bold tabular-nums text-gray-900">{dollar(group.totalCommission)}</p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Commission totale</p>
         </div>
+      </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Statut</label>
-          <select name="statut" defaultValue="En attente" className={INPUT_CLS}>
-            <option>En attente</option>
-            <option>Payé</option>
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Notes (optionnel)</label>
-          <textarea name="notes" rows={2} placeholder="Remarques..." className={`${INPUT_CLS} resize-none`} />
-        </div>
-
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">Annuler</button>
-          <button type="submit" disabled={pending}
-            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+      {/* Actions */}
+      {(!allPaid || group.deals.length > 0) && (
+        <div className="px-5 pb-3 flex items-center justify-between gap-3">
+          <button
+            onClick={() => setOuvert(v => !v)}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
-            {pending ? 'Enregistrement…' : 'Enregistrer'}
+            {ouvert ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            {ouvert ? 'Masquer les deals' : 'Voir les deals'}
           </button>
+          {!allPaid && isAdmin && (
+            <button
+              onClick={() => onApprouver(group.pendingIds)}
+              disabled={pending}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              <CheckCircle2 size={12} />
+              Approuver la paie
+            </button>
+          )}
         </div>
-      </form>
-    </Modal>
+      )}
+
+      {/* Détail des deals */}
+      {ouvert && (
+        <div className="border-t border-gray-50">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-gray-50/80 text-gray-400 font-medium">
+                <th className="px-5 py-2 text-left">Client</th>
+                <th className="px-4 py-2 text-right">Cash reçu</th>
+                <th className="px-4 py-2 text-right">Commission</th>
+                <th className="px-4 py-2 text-left">Statut</th>
+                {isAdmin && <th className="px-4 py-2 text-right">Action</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {group.deals.map(d => (
+                <tr key={d.id} className="hover:bg-gray-50/50">
+                  <td className="px-5 py-2.5 font-medium text-gray-800 max-w-[140px] truncate">{d.client_name}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{dollar(d.collected)}</td>
+                  <td className={cn(
+                    'px-4 py-2.5 text-right tabular-nums font-semibold',
+                    group.role === 'closer' ? 'text-violet-700' : 'text-blue-700',
+                  )}>
+                    {dollar(d.maCommission)}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Badge
+                      variant={d.statut === 'Payé' ? 'green' : 'amber'}
+                      icon={d.statut === 'Payé' ? <CheckCircle2 size={9} /> : <Clock size={9} />}
+                    >
+                      {d.statut}
+                    </Badge>
+                  </td>
+                  {isAdmin && (
+                    <td className="px-4 py-2.5 text-right">
+                      <button
+                        onClick={() => onToggle(d.id, d.statut)}
+                        disabled={pending}
+                        className={cn(
+                          'px-2 py-0.5 rounded text-[10px] font-medium transition-colors disabled:opacity-40',
+                          d.statut === 'Payé'
+                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                            : 'bg-green-50 text-green-600 hover:bg-green-100',
+                        )}
+                      >
+                        {d.statut === 'Payé' ? '↩ En attente' : '✓ Payé'}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {group.deals.some(d => d.notes) && (
+            <div className="px-5 py-2 border-t border-gray-50">
+              {group.deals.filter(d => d.notes).map(d => (
+                <p key={d.id} className="text-[11px] text-gray-400 italic">{d.client_name} : {d.notes}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
 // ── Vue principale admin / CSM ────────────────────────────────────────
 
 export default function AdminView({
-  entrees, closers, setters, allProfiles,
+  entrees, allProfiles,
   bonusClosers, bonusSetters, teamMembers,
   isAdmin, periodesCourant, periodeDefaut,
 }: Props) {
-  const [periodeSelect, setPeriodeSelect] = useState<string>('tout')
-  const [modalOuverte,  setModalOuverte]  = useState(false)
+  const [periodeSelect, setPeriodeSelect] = useState<string>(periodeDefaut)
   const [pending, startTransition]        = useTransition()
 
   const profileMap = useMemo(
@@ -303,24 +367,79 @@ export default function AdminView({
     [allProfiles],
   )
 
+  // Périodes qui ont au moins une entrée
+  const periodesAvecEntrees = useMemo(() => {
+    const labels = new Set(entrees.map(e => e.period_label))
+    const found = periodesCourant.filter(p => labels.has(p.label))
+    if (!found.some(p => p.label === periodeDefaut)) {
+      found.unshift({ label: periodeDefaut, month: 0, year: 0 })
+    }
+    return found
+  }, [entrees, periodesCourant, periodeDefaut])
+
   const filtrees = useMemo(
-    () => periodeSelect === 'tout' ? entrees : entrees.filter(e => e.period_label === periodeSelect),
+    () => entrees.filter(e => e.period_label === periodeSelect),
     [entrees, periodeSelect],
   )
 
-  const totaux = useMemo(() => ({
-    montant:          filtrees.reduce((s, e) => s + (e.montant ?? 0), 0),
-    commission:       filtrees.reduce((s, e) => s + (e.commission ?? 0), 0),
-    commissionSetter: filtrees.reduce((s, e) => s + (e.commission_setter ?? 0), 0),
-  }), [filtrees])
+  // Grouper par employé
+  const grouped = useMemo(() => {
+    const map = new Map<string, EmployeeGroup>()
+
+    for (const e of filtrees) {
+      const collected = e.cash_entries?.collected ?? e.montant
+
+      const addToGroup = (uid: string, role: 'closer' | 'setter', maComm: number) => {
+        if (!map.has(uid)) {
+          map.set(uid, {
+            uid,
+            nom: profileMap.get(uid) ?? '—',
+            role,
+            deals: [],
+            totalCommission: 0,
+            pendingCommission: 0,
+            pendingIds: [],
+          })
+        }
+        const g = map.get(uid)!
+        g.deals.push({
+          id: e.id,
+          client_name: e.client_name,
+          montant: e.montant,
+          collected,
+          maCommission: maComm,
+          statut: e.statut,
+          notes: e.notes,
+        })
+        g.totalCommission  += maComm
+        if (e.statut !== 'Payé') {
+          g.pendingCommission += maComm
+          if (!g.pendingIds.includes(e.id)) g.pendingIds.push(e.id)
+        }
+      }
+
+      if (e.closer_id && e.commission > 0) addToGroup(e.closer_id, 'closer', e.commission)
+      if (e.setter_id && e.commission_setter > 0) addToGroup(e.setter_id, 'setter', e.commission_setter)
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.totalCommission - a.totalCommission)
+  }, [filtrees, profileMap])
+
+  const totalPeriode   = grouped.reduce((s, g) => s + g.totalCommission, 0)
+  const pendingPeriode = grouped.reduce((s, g) => s + g.pendingCommission, 0)
+  const allPendingIds  = grouped.flatMap(g => g.pendingIds)
+
+  function handleApprouverPeriode() {
+    if (!confirm(`Approuver toutes les paies de la période "${periodeSelect}" ?`)) return
+    startTransition(async () => { await approuverPeriode(periodeSelect) })
+  }
+
+  function handleApprouverEmploye(ids: string[]) {
+    startTransition(async () => { await approuverPayesBatch(ids) })
+  }
 
   function handleToggle(id: string, statut: string) {
     startTransition(async () => { await basculerStatut(id, statut) })
-  }
-
-  function handleDelete(id: string) {
-    if (!confirm('Supprimer cette entrée de paie ?')) return
-    startTransition(async () => { await supprimerPaye(id) })
   }
 
   return (
@@ -336,127 +455,83 @@ export default function AdminView({
         periodes={periodesCourant}
       />
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-semibold text-gray-900">Entrées de paie</h3>
-            <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-              {filtrees.length} entrée{filtrees.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
+      {/* Sélecteur de période + résumé */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Période</label>
             <select
               value={periodeSelect}
               onChange={e => setPeriodeSelect(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-violet-500"
             >
-              <option value="tout">Toutes les périodes</option>
-              {periodesCourant.map(p => (
+              {periodesAvecEntrees.map(p => (
                 <option key={p.label} value={p.label}>{p.label}</option>
               ))}
+              {/* fallback si aucune entrée pour les autres périodes */}
+              {periodesCourant
+                .filter(p => !periodesAvecEntrees.some(q => q.label === p.label))
+                .map(p => (
+                  <option key={p.label} value={p.label}>{p.label}</option>
+                ))
+              }
             </select>
-            {isAdmin && (
-              <button
-                onClick={() => setModalOuverte(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                <Plus size={15} />
-                Ajouter
-              </button>
+          </div>
+
+          <div className="flex items-center gap-6 pt-4">
+            <div>
+              <p className="text-xs text-gray-400">Total période</p>
+              <p className="text-lg font-bold tabular-nums text-gray-900">{dollar(totalPeriode)}</p>
+            </div>
+            {pendingPeriode > 0 && (
+              <div>
+                <p className="text-xs text-amber-500">En attente</p>
+                <p className="text-lg font-bold tabular-nums text-amber-600">{dollar(pendingPeriode)}</p>
+              </div>
             )}
           </div>
         </div>
 
-        {filtrees.length === 0 ? (
-          <div className="px-5 py-12 text-center">
-            <p className="text-sm text-gray-400">Aucune entrée pour cette période</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400">
-                  <th className="px-4 py-2.5 text-left">Client</th>
-                  <th className="px-4 py-2.5 text-left">Période</th>
-                  <th className="px-4 py-2.5 text-left">Closer</th>
-                  <th className="px-4 py-2.5 text-left">Setter</th>
-                  <th className="px-4 py-2.5 text-right">Montant vente</th>
-                  <th className="px-4 py-2.5 text-right">Comm. closer</th>
-                  <th className="px-4 py-2.5 text-right">Comm. setter</th>
-                  <th className="px-4 py-2.5 text-left">Statut</th>
-                  <th className="px-4 py-2.5 text-left">Notes</th>
-                  <th className="px-4 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtrees.map(e => (
-                  <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-800 max-w-[140px] truncate">{e.client_name}</td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{e.period_label}</td>
-                    <td className="px-4 py-3 text-gray-600">{e.closer_id ? profileMap.get(e.closer_id) ?? '—' : '—'}</td>
-                    <td className="px-4 py-3 text-gray-600">{e.setter_id ? profileMap.get(e.setter_id) ?? '—' : '—'}</td>
-                    <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">{dollar(e.montant)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-violet-700">{dollar(e.commission)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(e.commission_setter)}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={e.statut === 'Payé' ? 'green' : 'amber'} icon={e.statut === 'Payé' ? <CheckCircle2 size={10} /> : <Clock size={10} />}>
-                        {e.statut}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleToggle(e.id, e.statut)}
-                          disabled={pending}
-                          title={e.statut === 'Payé' ? 'Marquer En attente' : 'Marquer Payé'}
-                          className={cn(
-                            'flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-40',
-                            e.statut === 'Payé'
-                              ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                              : 'bg-green-50 text-green-600 hover:bg-green-100',
-                          )}
-                        >
-                          {e.statut === 'Payé' ? <Clock size={11} /> : <CheckCircle2 size={11} />}
-                          {e.statut === 'Payé' ? 'En attente' : 'Payé'}
-                        </button>
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDelete(e.id)}
-                            disabled={pending}
-                            title="Supprimer"
-                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700">
-                  <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide" colSpan={4}>Totaux</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{dollar(totaux.montant)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-violet-700">{dollar(totaux.commission)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totaux.commissionSetter)}</td>
-                  <td colSpan={3} />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+        {isAdmin && allPendingIds.length > 0 && (
+          <button
+            onClick={handleApprouverPeriode}
+            disabled={pending}
+            className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0"
+          >
+            <CheckCircle2 size={15} />
+            Approuver toute la période
+          </button>
         )}
       </div>
 
-      {modalOuverte && (
-        <ModalAjout
-          closers={closers}
-          setters={setters}
-          periodes={periodesCourant}
-          onClose={() => setModalOuverte(false)}
-        />
+      {/* Grille employés */}
+      {filtrees.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-16 text-center">
+          <p className="text-sm text-gray-400">Aucune entrée pour cette période</p>
+          <p className="text-xs text-gray-300 mt-1">Sélectionne une autre période ou ajoute des entrées via Cash Collect.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {grouped.map(g => (
+            <CarteEmploye
+              key={`${g.uid}-${g.role}`}
+              group={g}
+              isAdmin={isAdmin}
+              pending={pending}
+              onApprouver={handleApprouverEmploye}
+              onToggle={handleToggle}
+            />
+          ))}
+        </div>
       )}
+
+      {/* Résumé readonly pour non-admin */}
+      {!isAdmin && filtrees.length > 0 && (
+        <p className="text-xs text-gray-400 text-center">
+          Contacte un admin pour modifier le statut des paies.
+        </p>
+      )}
+
     </div>
   )
 }

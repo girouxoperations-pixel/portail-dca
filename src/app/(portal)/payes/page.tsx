@@ -8,27 +8,34 @@ import { MOIS_FR, getPalier } from '@/lib/constants'
 
 // ── Constantes ──────────────────────────────────────────────────────
 
-const MOIS_COURTS = [
-  'Jan','Fév','Mar','Avr','Mai','Juin',
-  'Juil','Aoû','Sep','Oct','Nov','Déc',
-]
-
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function debutMois(now = new Date()) {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+function debutPeriode(now = new Date()): string {
+  const year     = now.getFullYear()
+  const month    = now.getMonth() + 1
+  const startDay = now.getDate() <= 14 ? 1 : 15
+  return `${year}-${String(month).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`
 }
 
-function genPeriodes(year: number) {
-  return MOIS_COURTS.flatMap((m, idx) => [
-    { label: `1 ${m}`,  month: idx + 1, year },
-    { label: `16 ${m}`, month: idx + 1, year },
-  ])
+function genPeriodes(annee: number) {
+  return [...MOIS_FR].reverse().flatMap((m, revIdx) => {
+    const idx     = 11 - revIdx
+    const lastDay = new Date(annee, idx + 1, 0).getDate()
+    return [
+      { label: `15-${lastDay} ${m} ${annee}`, month: idx + 1, year: annee },
+      { label: `1-14 ${m} ${annee}`,          month: idx + 1, year: annee },
+    ]
+  })
 }
 
-function periodeDefaut(now: Date) {
-  const m = MOIS_COURTS[now.getMonth()]
-  return now.getDate() < 16 ? `1 ${m}` : `16 ${m}`
+function periodeDefaut(now: Date): string {
+  const year    = now.getFullYear()
+  const month   = now.getMonth() + 1
+  const lastDay = new Date(year, month, 0).getDate()
+  const m       = MOIS_FR[month - 1]
+  return now.getDate() <= 14
+    ? `1-14 ${m} ${year}`
+    : `15-${lastDay} ${m} ${year}`
 }
 
 // ── Page ─────────────────────────────────────────────────────────────
@@ -50,12 +57,12 @@ export default async function PayesPage() {
   const now   = new Date()
   const annee = now.getFullYear()
   const mois  = now.getMonth()
-  const ms    = debutMois(now)
 
   const periodes    = genPeriodes(annee)
   const defaut      = periodeDefaut(now)
   const moisLabel   = `${MOIS_FR[mois]} ${annee}`
   const role        = profil.role as string
+  const periodStart = debutPeriode(now)
 
   // ── Vue admin / CSM ───────────────────────────────────────────────
   if (role === 'admin' || role === 'csm') {
@@ -64,10 +71,10 @@ export default async function PayesPage() {
       { data: closers },
       { data: setters },
       { data: allProfiles },
-      { data: cashMois },
+      { data: cashPeriode },
     ] = await Promise.all([
       db.from('paye_entries')
-        .select('*')
+        .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
         .eq('year', annee)
         .order('created_at', { ascending: false }),
       db.from('profiles').select('id, full_name, role').eq('role', 'closer'),
@@ -75,13 +82,13 @@ export default async function PayesPage() {
       db.from('profiles').select('id, full_name, role').in('role', ['closer', 'setter']),
       db.from('cash_entries')
         .select('collected, closed_by, set_by')
-        .gte('entry_date', ms),
+        .gte('entry_date', periodStart),
     ])
 
-    // Cash collecté par closer et setter ce mois
+    // Cash collecté par closer et setter cette période (14 jours)
     const closerCash = new Map<string, number>()
     const setterCash = new Map<string, number>()
-    for (const e of cashMois ?? []) {
+    for (const e of cashPeriode ?? []) {
       if (e.closed_by) closerCash.set(e.closed_by, (closerCash.get(e.closed_by) ?? 0) + (e.collected ?? 0))
       if (e.set_by)    setterCash.set(e.set_by,    (setterCash.get(e.set_by)    ?? 0) + (e.collected ?? 0))
     }
@@ -98,9 +105,17 @@ export default async function PayesPage() {
       palier:    getPalier(setterCash.get(p.id) ?? 0),
     })).sort((a, b) => b.collected - a.collected)
 
+    // Normalise cash_entries (Supabase join returns array)
+    const entreesNorm = (entrees ?? []).map(e => ({
+      ...e,
+      cash_entries: Array.isArray(e.cash_entries)
+        ? (e.cash_entries[0] ?? null)
+        : (e.cash_entries ?? null),
+    }))
+
     return (
       <AdminView
-        entrees={entrees ?? []}
+        entrees={entreesNorm}
         closers={closers ?? []}
         setters={setters ?? []}
         allProfiles={allProfiles ?? []}
@@ -117,28 +132,38 @@ export default async function PayesPage() {
   // ── Vue closer / setter (lecture seule) ───────────────────────────
   const isCloser = role === 'closer'
 
-  const [{ data: entrees }, { data: cashMois }] = await Promise.all([
+  const [{ data: entrees }, { data: cashPeriode }] = await Promise.all([
     isCloser
-      ? db.from('paye_entries').select('*')
+      ? db.from('paye_entries')
+          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
           .eq('closer_id', user.id).eq('year', annee)
           .order('created_at', { ascending: false })
-      : db.from('paye_entries').select('*')
+      : db.from('paye_entries')
+          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
           .eq('setter_id', user.id).eq('year', annee)
           .order('created_at', { ascending: false }),
     db.from('cash_entries')
       .select('collected, closed_by, set_by')
-      .gte('entry_date', ms),
+      .gte('entry_date', periodStart),
   ])
 
-  const myCollected = (cashMois ?? []).reduce((s, e) => {
+  const myCollected = (cashPeriode ?? []).reduce((s, e) => {
     if (isCloser && e.closed_by === user.id) return s + (e.collected ?? 0)
     if (!isCloser && e.set_by === user.id)   return s + (e.collected ?? 0)
     return s
   }, 0)
 
+  // Normalise cash_entries (Supabase join returns array)
+  const entreesNorm = (entrees ?? []).map(e => ({
+    ...e,
+    cash_entries: Array.isArray(e.cash_entries)
+      ? (e.cash_entries[0] ?? null)
+      : (e.cash_entries ?? null),
+  }))
+
   return (
     <PersonnelView
-      entrees={entrees ?? []}
+      entrees={entreesNorm}
       role={role}
       userId={user.id}
       myCollected={myCollected}

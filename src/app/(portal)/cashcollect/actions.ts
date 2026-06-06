@@ -22,8 +22,16 @@ async function requireRole(roles: string[]) {
   return { userId: user.id }
 }
 
-function periodLabel(year: number, month: number) {
-  return `${MOIS_FR[month - 1]} ${year}`
+function periodLabel(entryDateStr: string): string {
+  const [yearStr, monthStr, dayStr] = entryDateStr.split('-')
+  const year    = Number(yearStr)
+  const month   = Number(monthStr)
+  const day     = Number(dayStr)
+  const lastDay = new Date(year, month, 0).getDate()
+  const mois    = MOIS_FR[month - 1]
+  return day <= 14
+    ? `1-14 ${mois} ${year}`
+    : `15-${lastDay} ${mois} ${year}`
 }
 
 // ── Actions ──────────────────────────────────────────────────────────
@@ -63,18 +71,18 @@ export async function creerCashCollect(formData: FormData) {
 
   if (cashErr) throw new Error(cashErr.message)
 
-  // 2. Auto-create paye entry (10% closer, 5% setter)
+  // 2. Auto-create paye entry — commission on cash received, not deal total
   const { error: payeErr } = await db.from('paye_entries').insert({
     cash_entry_id:     cashEntry.id,
-    period_label:      periodLabel(year, month),
+    period_label:      periodLabel(entryDate),
     month,
     year,
     client_name:       clientName ?? 'Client',
     closer_id:         closedBy,
     setter_id:         setBy,
     montant:           montantCourant,
-    commission:        Math.round(montantCourant * TAUX_CLOSER * 100) / 100,
-    commission_setter: Math.round(montantCourant * TAUX_SETTER * 100) / 100,
+    commission:        Math.round(collected * TAUX_CLOSER * 100) / 100,
+    commission_setter: Math.round(collected * TAUX_SETTER * 100) / 100,
     statut:            'En attente',
     created_by:        userId,
   })
@@ -117,15 +125,15 @@ export async function modifierCashEntry(id: string, formData: FormData) {
 
   if (paye) {
     await db.from('paye_entries').update({
-      period_label:      periodLabel(year, month),
+      period_label:      periodLabel(entryDate),
       month,
       year,
       client_name:       clientName ?? 'Client',
       closer_id:         closedBy,
       setter_id:         setBy,
       montant:           montantCourant,
-      commission:        Math.round(montantCourant * TAUX_CLOSER * 100) / 100,
-      commission_setter: Math.round(montantCourant * TAUX_SETTER * 100) / 100,
+      commission:        Math.round(collected * TAUX_CLOSER * 100) / 100,
+      commission_setter: Math.round(collected * TAUX_SETTER * 100) / 100,
     }).eq('id', paye.id)
   }
 
@@ -144,8 +152,16 @@ export async function modifierCollecte(id: string, collected: number) {
     .eq('id', id)
 
   if (error) throw new Error(error.message)
+
+  // Sync commission in linked paye_entry (commission is on cash received)
+  await db.from('paye_entries').update({
+    commission:        Math.round(collected * TAUX_CLOSER * 100) / 100,
+    commission_setter: Math.round(collected * TAUX_SETTER * 100) / 100,
+  }).eq('cash_entry_id', id)
+
   revalidatePath('/cashcollect')
   revalidatePath('/dashboard')
+  revalidatePath('/payes')
 }
 
 export async function supprimerCashCollect(id: string) {

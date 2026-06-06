@@ -65,6 +65,33 @@ export async function supprimerPaye(id: string) {
   revalidatePath('/payes')
 }
 
+export async function approuverPeriode(periodLabel: string) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { error } = await db
+    .from('paye_entries')
+    .update({ statut: 'Payé' })
+    .eq('period_label', periodLabel)
+    .eq('statut', 'En attente')
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/payes')
+}
+
+export async function approuverPayesBatch(ids: string[]) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { error } = await db
+    .from('paye_entries')
+    .update({ statut: 'Payé' })
+    .in('id', ids)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/payes')
+}
+
 export async function assignerMVP(
   personId: string,
   personRole: string,

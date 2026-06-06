@@ -21,6 +21,7 @@ interface PayeEntry {
   commission_setter: number
   statut: string
   notes: string | null
+  cash_entries: { collected: number } | null
 }
 
 interface BonusTier {
@@ -108,7 +109,7 @@ export default function PersonnelView({
                 <tr className="border-b border-gray-50 text-xs font-medium text-gray-400">
                   <th className="px-4 py-2.5 text-left">Client</th>
                   <th className="px-4 py-2.5 text-left">Période</th>
-                  <th className="px-4 py-2.5 text-right">Montant vente</th>
+                  <th className="px-4 py-2.5 text-right">Cash reçu</th>
                   <th className="px-4 py-2.5 text-right">Ma commission</th>
                   <th className="px-4 py-2.5 text-right">Mon bonus</th>
                   <th className="px-4 py-2.5 text-left">Statut</th>
@@ -116,12 +117,13 @@ export default function PersonnelView({
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {entrees.map(e => {
-                  const maComm = isCloser ? e.commission : e.commission_setter
+                  const maComm   = isCloser ? e.commission : e.commission_setter
+                  const collected = e.cash_entries?.collected ?? e.montant
                   return (
                     <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-800 max-w-[160px] truncate">{e.client_name}</td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{e.period_label}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(e.montant)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(collected)}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-semibold text-violet-700">{dollar(maComm)}</td>
                       <td className="px-4 py-3 text-right">
                         {bonusMois !== null
