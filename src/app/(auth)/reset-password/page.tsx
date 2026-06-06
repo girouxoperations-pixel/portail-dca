@@ -20,6 +20,20 @@ export default function ResetPasswordPage() {
 
   // Supabase envoie la session via le hash de l'URL — attendre qu'elle soit établie
   useEffect(() => {
+    // Extraire les tokens du hash URL (#access_token=...&type=recovery)
+    const hash = window.location.hash.slice(1)
+    const params = new URLSearchParams(hash)
+    if (params.get('type') === 'recovery') {
+      const accessToken  = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+      if (accessToken && refreshToken) {
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          .then(({ error }) => { if (!error) setReady(true) })
+        return
+      }
+    }
+
+    // Fallback : écouter l'événement PASSWORD_RECOVERY
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') setReady(true)
     })
