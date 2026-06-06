@@ -1,12 +1,15 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Wallet, Phone, Target, Trophy, Award, TrendingDown, Users,
+  Wallet, Phone, Target, Trophy, Award, Users,
 } from 'lucide-react'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import KpiCard  from '@/components/dashboard/KpiCard'
-import { MOIS_FR, PALIERS, dollar, getPalier } from '@/lib/constants'
+import KpiCard     from '@/components/dashboard/KpiCard'
+import TrendChart   from '@/components/dashboard/TrendChart'
+import GoalSection  from '@/components/dashboard/GoalSection'
+import type { TrendPoint } from '@/components/dashboard/TrendChart'
+import { MOIS_FR, MOIS_COURT, PALIERS, dollar, getPalier } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -274,9 +277,9 @@ export default async function DashboardPage({
     { data: allMonthlyStats },
     { data: cashMois },
     { data: cashPrevMois },
-    { data: balanceRaw },
     { data: allProfiles },
     { data: cashMonthsList },
+    { data: goalRaw },
   ] = await Promise.all([
     db.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
@@ -288,15 +291,17 @@ export default async function DashboardPage({
       .select('montant_courant, collected')
       .gte('entry_date', monthBounds(prev.year, prev.month).min)
       .lt('entry_date', monthBounds(prev.year, prev.month).max),
-    db.from('cash_entries')
-      .select('client_name, a_collecter')
-      .gt('a_collecter', 0),
     db.from('profiles')
       .select('id, full_name, role'),
     db.from('cash_entries')
       .select('year, month')
       .not('year', 'is', null)
       .not('month', 'is', null),
+    db.from('goals')
+      .select('target_cash, target_closes, target_revenue')
+      .eq('year', selYear)
+      .eq('month', selMonth)
+      .maybeSingle(),
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
@@ -377,7 +382,24 @@ export default async function DashboardPage({
     })
     .sort((a, b) => b.collected - a.collected)
 
-  const totalACollecter = (balanceRaw ?? []).reduce((s, e) => s + (e.a_collecter ?? 0), 0)
+  // ── Trend chart data (all months, team-level) ────────────────────
+  const allMonths = Array.from(
+    new Set((allMonthlyStats ?? []).map(r => monthKey(r.year, r.month)))
+  ).sort()
+
+  const chartData: TrendPoint[] = allMonths.map(mk => {
+    const [y, m] = mk.split('-').map(Number)
+    const team   = (allMonthlyStats ?? []).find(r => r.source === 'team' && r.year === y && r.month === m)
+    const closers = (allMonthlyStats ?? []).filter(r => r.source === 'closer' && r.year === y && r.month === m)
+    return {
+      mois:    MOIS_COURT[m - 1],
+      cash:    team?.cash_collected  ?? closers.reduce((s, r) => s + r.cash_collected, 0),
+      revenue: team?.revenue         ?? closers.reduce((s, r) => s + r.revenue, 0),
+      closes:  team?.closes          ?? closers.reduce((s, r) => s + r.closes, 0),
+    }
+  })
+
+  const isAdmin = profil?.role === 'admin' || profil?.role === 'csm'
 
   const prenom    = profil?.full_name?.split(' ')[0] ?? 'vous'
   const moisLabel = `${MOIS_FR[selMonth - 1]} ${selYear}`
@@ -426,14 +448,23 @@ export default async function DashboardPage({
           color="green"
           subtitle={`Taux de closing : ${closeRate} %`}
         />
-        <KpiCard
-          title="Solde à collecter"
-          value={dollar(totalACollecter)}
-          icon={TrendingDown}
-          color="red"
-          subtitle="Tous mois confondus"
-        />
       </div>
+
+      {/* Objectifs */}
+      <GoalSection
+        targetCash={goalRaw?.target_cash ?? 0}
+        targetCloses={goalRaw?.target_closes ?? 0}
+        targetRevenue={goalRaw?.target_revenue ?? 0}
+        actualCash={cashCollected}
+        actualCloses={closes}
+        actualRevenue={revenue}
+        year={selYear}
+        month={selMonth}
+        isAdmin={isAdmin}
+      />
+
+      {/* Trend chart */}
+      <TrendChart data={chartData} />
 
       {/* Closer stats */}
       <TableauClosers rows={closerRows} />

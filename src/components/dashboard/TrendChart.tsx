@@ -1,0 +1,108 @@
+'use client'
+
+import {
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Legend,
+} from 'recharts'
+
+export interface TrendPoint {
+  mois:    string
+  cash:    number
+  revenue: number
+  closes:  number
+}
+
+const fmt$ = (v: number) =>
+  v >= 1000 ? `${(v / 1000).toFixed(0)}k $` : `${v} $`
+
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-white border border-gray-100 shadow-lg rounded-xl px-4 py-3 text-sm">
+      <p className="font-semibold text-gray-800 mb-2">{label}</p>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="flex items-center justify-between gap-6">
+          <span className="flex items-center gap-1.5 text-gray-500">
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: p.color }} />
+            {p.name}
+          </span>
+          <span className="font-semibold tabular-nums" style={{ color: p.color }}>
+            {p.dataKey === 'closes' ? p.value : `${p.value.toLocaleString('fr-CA')} $`}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default function TrendChart({ data }: { data: TrendPoint[] }) {
+  if (data.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-50">
+        <h3 className="text-sm font-semibold text-gray-900">Tendance mensuelle</h3>
+        <p className="text-xs text-gray-400 mt-0.5">Cash collecté et closes par mois</p>
+      </div>
+      <div className="px-4 py-5">
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+            <XAxis
+              dataKey="mois"
+              tick={{ fontSize: 12, fill: '#9ca3af' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              yAxisId="cash"
+              tickFormatter={fmt$}
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              axisLine={false}
+              tickLine={false}
+              width={52}
+            />
+            <YAxis
+              yAxisId="closes"
+              orientation="right"
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              axisLine={false}
+              tickLine={false}
+              width={28}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend
+              wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+              formatter={(value) => <span className="text-gray-500">{value}</span>}
+            />
+            <Bar
+              yAxisId="cash"
+              dataKey="cash"
+              name="Cash collecté"
+              fill="#3b82f6"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={48}
+            />
+            <Bar
+              yAxisId="cash"
+              dataKey="revenue"
+              name="Revenue"
+              fill="#e0e7ff"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={48}
+            />
+            <Line
+              yAxisId="closes"
+              dataKey="closes"
+              name="Closes"
+              stroke="#7c3aed"
+              strokeWidth={2.5}
+              dot={{ fill: '#7c3aed', r: 4, strokeWidth: 0 }}
+              activeDot={{ r: 6, strokeWidth: 0 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
