@@ -114,9 +114,27 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
   const [pending, startTransition] = useTransition()
   const today = new Date().toISOString().slice(0, 10)
 
+  const [hasRecurring,   setHasRecurring]   = useState(false)
+  const [entryDate,      setEntryDate]      = useState(today)
+  const [montantDeal,    setMontantDeal]    = useState('0')
+  const [recurringMontant, setRecurringMontant] = useState('0')
+
+  // Premier paiement récurrent = mois suivant
+  const defaultRecurringDate = useMemo(() => {
+    const d = new Date(entryDate + 'T00:00:00')
+    d.setMonth(d.getMonth() + 1)
+    return d.toISOString().split('T')[0]
+  }, [entryDate])
+
+  function handleToggleRecurring() {
+    if (!hasRecurring) setRecurringMontant(montantDeal)
+    setHasRecurring(v => !v)
+  }
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
+    fd.set('has_recurring', hasRecurring ? 'true' : 'false')
     startTransition(async () => {
       await creerCashCollect(fd)
       onClose()
@@ -129,7 +147,11 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Date du deal</label>
-            <input name="entry_date" type="date" required defaultValue={today} className={INPUT_CLS} />
+            <input
+              name="entry_date" type="date" required
+              value={entryDate} onChange={e => setEntryDate(e.target.value)}
+              className={INPUT_CLS}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Méthode de paiement</label>
@@ -148,7 +170,11 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Montant du deal ($)</label>
-            <input name="montant_courant" type="number" min="0" step="0.01" required defaultValue="0" className={INPUT_CLS} />
+            <input
+              name="montant_courant" type="number" min="0" step="0.01" required
+              value={montantDeal} onChange={e => setMontantDeal(e.target.value)}
+              className={INPUT_CLS}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Déjà collecté ($)</label>
@@ -176,6 +202,56 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Notes (optionnel)</label>
           <textarea name="notes" rows={2} placeholder="Remarques..." className={`${INPUT_CLS} resize-none`} />
+        </div>
+
+        {/* ── Toggle récurrents ── */}
+        <div className="border-t border-gray-100 pt-4 space-y-4">
+          <button
+            type="button"
+            onClick={handleToggleRecurring}
+            className="flex items-center gap-3 w-full text-left"
+          >
+            <div className={cn(
+              'relative w-10 h-5 rounded-full transition-colors shrink-0',
+              hasRecurring ? 'bg-violet-600' : 'bg-gray-200',
+            )}>
+              <div className={cn(
+                'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
+                hasRecurring ? 'translate-x-5' : 'translate-x-0.5',
+              )} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-700">Deal avec paiements récurrents</p>
+              <p className="text-xs text-gray-400">Crée automatiquement le suivi dans l&apos;onglet Récurrents</p>
+            </div>
+          </button>
+
+          {hasRecurring && (
+            <div className="pl-4 border-l-2 border-violet-100 grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">
+                  Montant mensuel récurrent ($)
+                </label>
+                <input
+                  name="recurring_montant" type="number" min="0" step="0.01"
+                  value={recurringMontant}
+                  onChange={e => setRecurringMontant(e.target.value)}
+                  className={INPUT_CLS}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">
+                  Premier paiement récurrent
+                </label>
+                <input
+                  name="recurring_date_debut" type="date"
+                  defaultValue={defaultRecurringDate}
+                  key={defaultRecurringDate}
+                  className={INPUT_CLS}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 pt-2">

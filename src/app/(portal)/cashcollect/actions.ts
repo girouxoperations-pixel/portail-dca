@@ -78,9 +78,41 @@ export async function creerCashCollect(formData: FormData) {
 
   if (payeErr) throw new Error(payeErr.message)
 
+  // 3. Si le deal a des récurrents, créer le tracking automatiquement
+  if (formData.get('has_recurring') === 'true') {
+    const montantMensuel = Number(formData.get('recurring_montant')) || montantCourant
+    const dateDebut      = (formData.get('recurring_date_debut') as string) || entryDate
+
+    const { data: deal } = await db.from('recurring_deals').insert({
+      client_name:     clientName ?? 'Client',
+      closer_id:       closedBy,
+      setter_id:       setBy,
+      montant_mensuel: montantMensuel,
+      date_debut:      dateDebut,
+      created_by:      userId,
+    }).select('id').single()
+
+    if (deal) {
+      const start = new Date(dateDebut + 'T00:00:00')
+      const occs = Array.from({ length: 24 }, (_, i) => {
+        const d = new Date(start)
+        d.setMonth(d.getMonth() + i)
+        return {
+          recurring_deal_id: deal.id,
+          mois:              d.getMonth() + 1,
+          annee:             d.getFullYear(),
+          date_attendue:     d.toISOString().split('T')[0],
+          montant_attendu:   montantMensuel,
+        }
+      })
+      await db.from('recurring_occurrences').insert(occs)
+    }
+  }
+
   revalidatePath('/cashcollect')
   revalidatePath('/dashboard')
   revalidatePath('/payes')
+  revalidatePath('/recurrents')
 }
 
 export async function modifierCashEntry(id: string, formData: FormData) {
