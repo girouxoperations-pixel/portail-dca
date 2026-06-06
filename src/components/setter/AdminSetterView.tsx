@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Trash2, Phone, TrendingUp, Target, CalendarCheck } from 'lucide-react'
+import { Plus, Trash2, Phone, TrendingUp, CalendarCheck, XCircle, UserX, Ban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ajouterEntreeSetter, supprimerEntreeSetter } from '@/app/(portal)/setter/actions'
 import { MOIS_FR, MOIS_COURT, currentMonthKey, formatDate } from '@/lib/constants'
@@ -41,11 +41,12 @@ function pct(a: number, b: number) {
 }
 
 function PctBadge({ value, bold = false }: { value: number; bold?: boolean }) {
-  const color =
-    value >= 50 ? 'text-green-600' :
-    value >= 30 ? 'text-amber-500' : 'text-red-500'
+  const cls =
+    value >= 50 ? 'bg-green-50 text-green-700 ring-1 ring-green-200' :
+    value >= 30 ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' :
+                  'bg-red-50 text-red-600 ring-1 ring-red-200'
   return (
-    <span className={cn('tabular-nums', color, bold && 'font-semibold')}>
+    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums', cls, bold && 'font-bold')}>
       {value} %
     </span>
   )
@@ -67,8 +68,8 @@ function ModalAjout({ setters, onClose }: { setters: Profil[]; onClose: () => vo
   }
 
   return (
-    <Modal titre="Nouvelle entrée setter" onClose={onClose} maxWidth="max-w-md" scrollable>
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Modal titre="Nouvelle entrée setter" onClose={onClose} maxWidth="max-w-lg" scrollable>
+      <form onSubmit={handleSubmit} className="p-6 space-y-5">
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Setter</label>
           <select name="user_id" className={INPUT_CLS}>
@@ -83,21 +84,37 @@ function ModalAjout({ setters, onClose }: { setters: Profil[]; onClose: () => vo
           <input name="entry_date" type="date" required defaultValue={today} className={INPUT_CLS} />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {[
-            { name: 'attempts',     label: 'Tentatives'   },
-            { name: 'contacts',     label: 'Contacts'      },
-            { name: 'rdv_booked',   label: 'RDV Bookés'   },
-            { name: 'showed',       label: 'Présentés'     },
-            { name: 'no_show',      label: 'No Show'       },
-            { name: 'disqualified', label: 'Disqualifiés'  },
-            { name: 'cancelled',    label: 'Annulés'       },
-          ].map(f => (
-            <div key={f.name} className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">{f.label}</label>
-              <input name={f.name} type="number" min="0" defaultValue="0" className={INPUT_CLS} />
-            </div>
-          ))}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Activité</p>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { name: 'attempts',   label: 'Tentatives'  },
+              { name: 'contacts',   label: 'Contacts'     },
+              { name: 'rdv_booked', label: 'RDV Bookés'  },
+              { name: 'showed',     label: 'Présentés'    },
+            ].map(f => (
+              <div key={f.name} className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">{f.label}</label>
+                <input name={f.name} type="number" min="0" defaultValue="0" className={INPUT_CLS} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Pertes</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { name: 'no_show',      label: 'No Show'      },
+              { name: 'disqualified', label: 'Disqualifiés' },
+              { name: 'cancelled',    label: 'Annulés'      },
+            ].map(f => (
+              <div key={f.name} className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">{f.label}</label>
+                <input name={f.name} type="number" min="0" defaultValue="0" className={INPUT_CLS} />
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -166,12 +183,17 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
   }, [filtreesMois, setterFilter])
 
   const kpis = useMemo(() => {
-    const attempts = filtreesMois.reduce((s, e) => s + e.attempts,   0)
-    const contacts = filtreesMois.reduce((s, e) => s + e.contacts,   0)
-    const rdv      = filtreesMois.reduce((s, e) => s + e.rdv_booked, 0)
-    const showed   = filtreesMois.reduce((s, e) => s + e.showed,     0)
-    return { attempts, contacts, rdv, showed,
+    const attempts    = filtreesMois.reduce((s, e) => s + e.attempts,     0)
+    const contacts    = filtreesMois.reduce((s, e) => s + e.contacts,     0)
+    const rdv         = filtreesMois.reduce((s, e) => s + e.rdv_booked,   0)
+    const showed      = filtreesMois.reduce((s, e) => s + e.showed,       0)
+    const no_show     = filtreesMois.reduce((s, e) => s + e.no_show,      0)
+    const disqualified = filtreesMois.reduce((s, e) => s + e.disqualified, 0)
+    const cancelled   = filtreesMois.reduce((s, e) => s + e.cancelled,    0)
+    return {
+      attempts, contacts, rdv, showed, no_show, disqualified, cancelled,
       contactRate: pct(contacts, attempts),
+      bookRate:    pct(rdv, contacts),
       showRate:    pct(showed, rdv),
     }
   }, [filtreesMois])
@@ -179,11 +201,11 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
   const statsParSetter = useMemo(() => {
     const agg = new Map<string, {
       attempts: number; contacts: number; rdv: number;
-      showed: number; no_show: number; disqualified: number
+      showed: number; no_show: number; disqualified: number; cancelled: number
     }>()
     for (const e of filtreesMois) {
       const cur = agg.get(e.user_id) ?? {
-        attempts: 0, contacts: 0, rdv: 0, showed: 0, no_show: 0, disqualified: 0,
+        attempts: 0, contacts: 0, rdv: 0, showed: 0, no_show: 0, disqualified: 0, cancelled: 0,
       }
       agg.set(e.user_id, {
         attempts:     cur.attempts     + e.attempts,
@@ -192,6 +214,7 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
         showed:       cur.showed       + e.showed,
         no_show:      cur.no_show      + e.no_show,
         disqualified: cur.disqualified + e.disqualified,
+        cancelled:    cur.cancelled    + e.cancelled,
       })
     }
     return Array.from(agg.entries())
@@ -223,13 +246,28 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
 
       <MonthFilter selected={moisSelect} onChange={setMoisSelect} options={moisOptions} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="RDV Bookés"      value={kpis.rdv}                 icon={CalendarCheck} color="green"  sub={`${kpis.showed} présentés`} />
-        <MetricCard label="Taux de show"    value={`${kpis.showRate} %`}     icon={TrendingUp}    color="blue"   sub={`${kpis.showed} / ${kpis.rdv} RDV`} />
-        <MetricCard label="Tentatives"      value={kpis.attempts}            icon={Phone}         color="violet" sub={`${kpis.contacts} contacts`} />
-        <MetricCard label="Taux de contact" value={`${kpis.contactRate} %`}  icon={Target}        color="amber"  sub={`${kpis.contacts} / ${kpis.attempts}`} />
+      {/* KPIs activité */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Activité équipe</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard label="Tentatives"      value={kpis.attempts}          icon={Phone}        color="violet" sub={`${kpis.contacts} contacts effectués`} />
+          <MetricCard label="Taux de contact" value={`${kpis.contactRate} %`} icon={TrendingUp}  color="blue"   sub={`${kpis.contacts} / ${kpis.attempts}`} />
+          <MetricCard label="RDV Bookés"      value={kpis.rdv}               icon={CalendarCheck} color="green" sub={`Taux de book : ${kpis.bookRate} %`} />
+          <MetricCard label="Taux de show"    value={`${kpis.showRate} %`}   icon={TrendingUp}   color="amber"  sub={`${kpis.showed} / ${kpis.rdv} RDV`} />
+        </div>
       </div>
 
+      {/* KPIs pertes */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Pertes équipe</p>
+        <div className="grid grid-cols-3 gap-4">
+          <MetricCard label="No Show"      value={kpis.no_show}      icon={XCircle} color="violet" sub="RDV non honorés" />
+          <MetricCard label="Disqualifiés" value={kpis.disqualified} icon={UserX}   color="amber"  sub="Prospects écartés" />
+          <MetricCard label="Annulés"      value={kpis.cancelled}    icon={Ban}     color="violet" sub="RDV annulés" />
+        </div>
+      </div>
+
+      {/* Stats par setter */}
       {statsParSetter.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-50">
@@ -238,16 +276,18 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400">
+                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
                   <th className="px-4 py-2.5 text-left">Setter</th>
-                  <th className="px-4 py-2.5 text-right">Tentatives</th>
+                  <th className="px-4 py-2.5 text-right">Tent.</th>
                   <th className="px-4 py-2.5 text-right">Contacts</th>
                   <th className="px-4 py-2.5 text-right">Contact %</th>
-                  <th className="px-4 py-2.5 text-right">RDV Bookés</th>
+                  <th className="px-4 py-2.5 text-right">RDV</th>
+                  <th className="px-4 py-2.5 text-right">Book %</th>
                   <th className="px-4 py-2.5 text-right">Présentés</th>
                   <th className="px-4 py-2.5 text-right">Show %</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
                   <th className="px-4 py-2.5 text-right">Disq.</th>
+                  <th className="px-4 py-2.5 text-right">Annulés</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -258,23 +298,28 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.contacts}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(s.contacts, s.attempts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{s.rdv}</td>
+                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.rdv, s.contacts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.showed}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(s.showed, s.rdv)} bold /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-400">{s.no_show}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.disqualified}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.cancelled}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700">
-                  <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide">Totaux</td>
+                <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700 text-xs">
+                  <td className="px-4 py-3 text-gray-500 uppercase tracking-wide">Totaux</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.attempts}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.contacts}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.contactRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.rdv}</td>
+                  <td className="px-4 py-3 text-right"><PctBadge value={kpis.bookRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.showed}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.showRate} bold /></td>
-                  <td colSpan={2} />
+                  <td className="px-4 py-3 text-right tabular-nums text-red-400">{kpis.no_show}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{kpis.disqualified}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{kpis.cancelled}</td>
                 </tr>
               </tfoot>
             </table>
@@ -282,6 +327,7 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
         </div>
       )}
 
+      {/* Entrées détaillées */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -310,13 +356,14 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400">
+                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
                   <th className="px-4 py-2.5 text-left">Date</th>
                   <th className="px-4 py-2.5 text-left">Setter</th>
                   <th className="px-4 py-2.5 text-right">Tent.</th>
                   <th className="px-4 py-2.5 text-right">Contacts</th>
                   <th className="px-4 py-2.5 text-right">Contact %</th>
                   <th className="px-4 py-2.5 text-right">RDV</th>
+                  <th className="px-4 py-2.5 text-right">Book %</th>
                   <th className="px-4 py-2.5 text-right">Présentés</th>
                   <th className="px-4 py-2.5 text-right">Show %</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
@@ -335,10 +382,11 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{e.contacts}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(e.contacts, e.attempts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{e.rdv_booked}</td>
+                    <td className="px-4 py-3 text-right"><PctBadge value={pct(e.rdv_booked, e.contacts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{e.showed}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(e.showed, e.rdv_booked)} bold /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-400">{e.no_show}</td>
-                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[140px] truncate">{e.notes ?? '—'}</td>
+                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
                     {isAdmin && (
                       <td className="px-4 py-3 text-right">
                         <button

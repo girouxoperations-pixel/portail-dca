@@ -25,6 +25,8 @@ function parseFields(formData: FormData) {
     show_calls:      Number(formData.get('show_calls'))      || 0,
     pitch_calls:     Number(formData.get('pitch_calls'))     || 0,
     closes:          Number(formData.get('closes'))          || 0,
+    cash_collected:  Number(formData.get('cash_collected'))  || 0,
+    revenue:         Number(formData.get('revenue'))         || 0,
     notes:           (formData.get('notes') as string)       || null,
   }
 }

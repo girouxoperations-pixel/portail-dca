@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Phone, TrendingUp, Target, CheckCircle2 } from 'lucide-react'
+import { Plus, Pencil, Phone, TrendingUp, Target, CheckCircle2, Wallet, DollarSign } from 'lucide-react'
 import { ajouterEntree, modifierEntree } from '@/app/(portal)/closer/actions'
-import { MOIS_FR, MOIS_COURT, currentMonthKey, formatDate } from '@/lib/constants'
+import { MOIS_FR, MOIS_COURT, dollar, currentMonthKey, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
 import MonthFilter  from '@/components/ui/MonthFilter'
 import Modal        from '@/components/ui/Modal'
@@ -13,40 +13,41 @@ import { cn }      from '@/lib/utils'
 // ── Types ─────────────────────────────────────────────────────────────
 
 interface CloserEntry {
-  id: string
-  user_id: string
-  entry_date: string
+  id:              string
+  user_id:         string
+  entry_date:      string
   scheduled_calls: number
-  show_calls: number
-  pitch_calls: number
-  closes: number
-  notes: string | null
+  show_calls:      number
+  pitch_calls:     number
+  closes:          number
+  cash_collected:  number
+  revenue:         number
+  notes:           string | null
 }
 
-// ── Constants ─────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────
 
 const INPUT_CLS =
   'w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
 
-const CHAMPS_NUMEROS = [
+const CHAMPS_APPELS = [
   { name: 'scheduled_calls', label: 'Schedulés'  },
   { name: 'show_calls',      label: 'Shows'      },
   { name: 'pitch_calls',     label: 'Pitches'    },
   { name: 'closes',          label: 'Closes'     },
 ] as const
 
-// ── Helpers ───────────────────────────────────────────────────────────
-
 function pct(a: number, b: number) {
   return b > 0 ? Math.round((a / b) * 100) : 0
 }
 
 function PctBadge({ value, bold = false }: { value: number; bold?: boolean }) {
-  const color =
-    value >= 40 ? 'text-green-600' :
-    value >= 20 ? 'text-amber-500' : 'text-red-500'
+  const cls =
+    value >= 40 ? 'bg-green-50 text-green-700 ring-1 ring-green-200' :
+    value >= 20 ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' :
+                  'bg-red-50 text-red-600 ring-1 ring-red-200'
   return (
-    <span className={cn('tabular-nums', color, bold && 'font-semibold')}>
+    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums', cls, bold && 'font-bold')}>
       {value} %
     </span>
   )
@@ -81,11 +82,12 @@ function ModalEntree({
 
   return (
     <Modal
-      titre={isEdit ? "Modifier l'entrée" : 'Nouvelle entrée'}
+      titre={isEdit ? "Modifier l'entrée" : 'Saisie de fin de journée'}
       onClose={onClose}
-      maxWidth="max-w-md"
+      maxWidth="max-w-lg"
+      scrollable
     >
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="p-6 space-y-5">
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Date</label>
           <input
@@ -95,17 +97,42 @@ function ModalEntree({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {CHAMPS_NUMEROS.map(f => (
-            <div key={f.name} className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">{f.label}</label>
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Appels</p>
+          <div className="grid grid-cols-2 gap-3">
+            {CHAMPS_APPELS.map(f => (
+              <div key={f.name} className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">{f.label}</label>
+                <input
+                  name={f.name} type="number" min="0"
+                  defaultValue={entry ? entry[f.name] : 0}
+                  className={INPUT_CLS}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Financier</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Cash collecté ($)</label>
               <input
-                name={f.name} type="number" min="0"
-                defaultValue={entry ? entry[f.name] : 0}
+                name="cash_collected" type="number" min="0" step="0.01"
+                defaultValue={entry?.cash_collected ?? 0}
                 className={INPUT_CLS}
               />
             </div>
-          ))}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Revenue ($)</label>
+              <input
+                name="revenue" type="number" min="0" step="0.01"
+                defaultValue={entry?.revenue ?? 0}
+                className={INPUT_CLS}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -170,13 +197,16 @@ export default function CloserView({ entrees, userId, prenom }: {
   }, [entrees, moisSelect])
 
   const kpis = useMemo(() => {
-    const scheduled = filtrees.reduce((s, e) => s + e.scheduled_calls, 0)
-    const shows     = filtrees.reduce((s, e) => s + e.show_calls, 0)
-    const pitches   = filtrees.reduce((s, e) => s + e.pitch_calls, 0)
-    const closes    = filtrees.reduce((s, e) => s + e.closes, 0)
+    const scheduled     = filtrees.reduce((s, e) => s + e.scheduled_calls, 0)
+    const shows         = filtrees.reduce((s, e) => s + e.show_calls,      0)
+    const pitches       = filtrees.reduce((s, e) => s + e.pitch_calls,     0)
+    const closes        = filtrees.reduce((s, e) => s + e.closes,          0)
+    const cash_collected = filtrees.reduce((s, e) => s + e.cash_collected, 0)
+    const revenue       = filtrees.reduce((s, e) => s + e.revenue,         0)
     return {
-      scheduled, shows, pitches, closes,
+      scheduled, shows, pitches, closes, cash_collected, revenue,
       showRate:  pct(shows, scheduled),
+      pitchRate: pct(pitches, shows),
       closeRate: pct(closes, shows),
     }
   }, [filtrees])
@@ -185,15 +215,15 @@ export default function CloserView({ entrees, userId, prenom }: {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
 
       <PageHeader
-        titre="Mon Suivi"
-        subtitle={`Bienvenue, ${prenom} — votre activité de closing`}
+        titre="Mon Suivi Closing"
+        subtitle={`Bienvenue, ${prenom} — activité et performance`}
         action={
           <button
             onClick={() => setModalEntry('new')}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus size={15} />
-            Saisir
+            Saisir ma journée
           </button>
         }
       />
@@ -204,42 +234,68 @@ export default function CloserView({ entrees, userId, prenom }: {
         options={moisOptions}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          label="Schedulés"
-          value={kpis.scheduled}
-          icon={Phone}
-          color="violet"
-          sub={`${filtrees.length} jour${filtrees.length !== 1 ? 's' : ''} saisi${filtrees.length !== 1 ? 's' : ''}`}
-        />
-        <MetricCard
-          label="Taux de show"
-          value={`${kpis.showRate} %`}
-          icon={TrendingUp}
-          color="blue"
-          sub={`${kpis.shows} shows`}
-        />
-        <MetricCard
-          label="Pitches"
-          value={kpis.pitches}
-          icon={Target}
-          color="amber"
-          sub={`sur ${kpis.shows} shows`}
-        />
-        <MetricCard
-          label="Closes"
-          value={kpis.closes}
-          icon={CheckCircle2}
-          color="green"
-          sub={kpis.shows > 0 ? `Close rate : ${kpis.closeRate} %` : 'Ce mois'}
-        />
+      {/* Appels */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Activité</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            label="Schedulés"
+            value={kpis.scheduled}
+            icon={Phone}
+            color="violet"
+            sub={`${filtrees.length} jour${filtrees.length !== 1 ? 's' : ''} saisi${filtrees.length !== 1 ? 's' : ''}`}
+          />
+          <MetricCard
+            label="Show rate"
+            value={`${kpis.showRate} %`}
+            icon={TrendingUp}
+            color="blue"
+            sub={`${kpis.shows} shows / ${kpis.scheduled} schedulés`}
+          />
+          <MetricCard
+            label="Pitch rate"
+            value={`${kpis.pitchRate} %`}
+            icon={Target}
+            color="amber"
+            sub={`${kpis.pitches} pitches / ${kpis.shows} shows`}
+          />
+          <MetricCard
+            label="Close rate"
+            value={`${kpis.closeRate} %`}
+            icon={CheckCircle2}
+            color="green"
+            sub={`${kpis.closes} closes / ${kpis.shows} shows`}
+          />
+        </div>
       </div>
 
+      {/* Financier */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Financier</p>
+        <div className="grid grid-cols-2 gap-4">
+          <MetricCard
+            label="Cash collecté"
+            value={dollar(kpis.cash_collected)}
+            icon={Wallet}
+            color="blue"
+            sub={`${kpis.closes} close${kpis.closes !== 1 ? 's' : ''} ce mois`}
+          />
+          <MetricCard
+            label="Revenue"
+            value={dollar(kpis.revenue)}
+            icon={DollarSign}
+            color="green"
+            sub="Valeur des deals signés"
+          />
+        </div>
+      </div>
+
+      {/* Historique */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
           <h3 className="text-sm font-semibold text-gray-900">Mon historique</h3>
           <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-            {filtrees.length} entrée{filtrees.length !== 1 ? 's' : ''}
+            {filtrees.length} jour{filtrees.length !== 1 ? 's' : ''}
           </span>
         </div>
 
@@ -247,21 +303,24 @@ export default function CloserView({ entrees, userId, prenom }: {
           <div className="px-5 py-12 text-center">
             <p className="text-sm text-gray-400">Aucune entrée pour cette période</p>
             <p className="text-xs text-gray-300 mt-1">
-              Cliquez sur &ldquo;Saisir&rdquo; pour enregistrer votre activité du jour.
+              Clique sur &ldquo;Saisir ma journée&rdquo; pour enregistrer tes stats du jour.
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400">
+                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
                   <th className="px-4 py-2.5 text-left">Date</th>
-                  <th className="px-4 py-2.5 text-right">Schedulés</th>
+                  <th className="px-4 py-2.5 text-right">Sched.</th>
                   <th className="px-4 py-2.5 text-right">Shows</th>
                   <th className="px-4 py-2.5 text-right">Show %</th>
                   <th className="px-4 py-2.5 text-right">Pitches</th>
+                  <th className="px-4 py-2.5 text-right">Pitch %</th>
                   <th className="px-4 py-2.5 text-right">Closes</th>
                   <th className="px-4 py-2.5 text-right">Close %</th>
+                  <th className="px-4 py-2.5 text-right">Cash</th>
+                  <th className="px-4 py-2.5 text-right">Revenue</th>
                   <th className="px-4 py-2.5 text-left">Notes</th>
                   <th className="px-4 py-2.5" />
                 </tr>
@@ -278,11 +337,20 @@ export default function CloserView({ entrees, userId, prenom }: {
                       <PctBadge value={pct(e.show_calls, e.scheduled_calls)} />
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{e.pitch_calls}</td>
+                    <td className="px-4 py-3 text-right">
+                      <PctBadge value={pct(e.pitch_calls, e.show_calls)} />
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{e.closes}</td>
                     <td className="px-4 py-3 text-right">
                       <PctBadge value={pct(e.closes, e.show_calls)} bold />
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[140px] truncate">{e.notes ?? '—'}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-blue-700 font-medium">
+                      {e.cash_collected > 0 ? dollar(e.cash_collected) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">
+                      {e.revenue > 0 ? dollar(e.revenue) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => setModalEntry(e)}
@@ -296,14 +364,17 @@ export default function CloserView({ entrees, userId, prenom }: {
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700">
-                  <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide">Totaux</td>
+                <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700 text-xs">
+                  <td className="px-4 py-3 text-gray-500 uppercase tracking-wide">Totaux</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.scheduled}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.shows}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.showRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.pitches}</td>
+                  <td className="px-4 py-3 text-right"><PctBadge value={kpis.pitchRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.closes}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.closeRate} bold /></td>
+                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(kpis.cash_collected)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{dollar(kpis.revenue)}</td>
                   <td colSpan={2} />
                 </tr>
               </tfoot>
