@@ -65,6 +65,21 @@ export async function supprimerPaye(id: string) {
   revalidatePath('/payes')
 }
 
+export async function modifierPaye(id: string, data: {
+  client_name?:       string
+  commission?:        number
+  commission_setter?: number
+  montant?:           number
+  notes?:             string | null
+}) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { error } = await db.from('paye_entries').update(data).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/payes')
+}
+
 export async function approuverPeriode(periodLabel: string) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()
