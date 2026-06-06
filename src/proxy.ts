@@ -17,7 +17,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // ----------------------------------------------------------------
 // Routes publiques (pas d'authentification requise)
 // ----------------------------------------------------------------
-const PUBLIC_PATHS = ['/login', '/unauthorized']
+const PUBLIC_PATHS = ['/login', '/unauthorized', '/reset-password']
 
 // ----------------------------------------------------------------
 // Routes avec restriction de rôle.
@@ -40,8 +40,8 @@ export async function proxy(request: NextRequest) {
 
   // ── Créer le client Supabase (lecture + écriture cookies) ──────
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/\s+/g, ''),
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!.replace(/\s+/g, ''),
     {
       cookies: {
         getAll() {
