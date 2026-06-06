@@ -298,6 +298,7 @@ export default async function DashboardPage({
     { data: allProfiles },
     { data: cashMonthsList },
     { data: goalRaw },
+    { data: allCloserEntries },
   ] = await Promise.all([
     db.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
@@ -320,6 +321,8 @@ export default async function DashboardPage({
       .eq('year', selYear)
       .eq('month', selMonth)
       .maybeSingle(),
+    db.from('closer_entries')
+      .select('user_id, entry_date, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
@@ -327,12 +330,41 @@ export default async function DashboardPage({
   const closerProfiles = (allProfiles ?? []).filter(p => p.role === 'closer')
   const setterProfiles = (allProfiles ?? []).filter(p => p.role === 'setter')
 
-  // ── Available months (union of monthly_stats + cash_entries) ──────
+  // ── Aggregate closer_entries by month ────────────────────────────
+  type EntryAgg = { scheduled: number; shows: number; pitches: number; closes: number; cash: number; revenue: number }
+  const entriesByMonth = new Map<string, EntryAgg>()
+  const entriesByUserMonth = new Map<string, EntryAgg>() // key: `${uid}::${monthKey}`
+
+  for (const e of allCloserEntries ?? []) {
+    const [ey, em] = e.entry_date.split('-').map(Number)
+    const mk  = monthKey(ey, em)
+    const umk = `${e.user_id}::${mk}`
+    const add = (m: Map<string, EntryAgg>, k: string) => {
+      const cur = m.get(k) ?? { scheduled: 0, shows: 0, pitches: 0, closes: 0, cash: 0, revenue: 0 }
+      m.set(k, {
+        scheduled: cur.scheduled + e.scheduled_calls,
+        shows:     cur.shows     + e.show_calls,
+        pitches:   cur.pitches   + e.pitch_calls,
+        closes:    cur.closes    + e.closes,
+        cash:      cur.cash      + e.cash_collected,
+        revenue:   cur.revenue   + e.revenue,
+      })
+    }
+    add(entriesByMonth,     mk)
+    add(entriesByUserMonth, umk)
+  }
+
+  const selMonthKey      = monthKey(selYear, selMonth)
+  const entriesThisMonth = entriesByMonth.get(selMonthKey)
+
+  // ── Available months (union of all sources) ───────────────────────
   const monthsSet = new Set<string>()
   for (const r of allMonthlyStats ?? []) monthsSet.add(monthKey(r.year, r.month))
   for (const r of cashMonthsList ?? []) {
     if (r.year && r.month) monthsSet.add(monthKey(r.year as number, r.month as number))
   }
+  for (const mk of entriesByMonth.keys()) monthsSet.add(mk)
+
   const monthOptions: MonthOption[] = Array.from(monthsSet)
     .sort((a, b) => b.localeCompare(a))
     .map(k => {
@@ -340,13 +372,11 @@ export default async function DashboardPage({
       return { key: k, label: `${MOIS_FR[m - 1]} ${y}` }
     })
 
-  // ── Monthly stats for selected month ─────────────────────────────
-  const selStats = (allMonthlyStats ?? []).filter(r => r.year === selYear && r.month === selMonth)
-  const teamStat = selStats.find(r => r.source === 'team')
-  const closerStats = selStats.filter(r => r.source === 'closer')
+  // ── Monthly stats for selected month (team manual entry fallback) ──
+  const selStats   = (allMonthlyStats ?? []).filter(r => r.year === selYear && r.month === selMonth)
+  const teamStat   = selStats.find(r => r.source === 'team')
 
   // ── KPI cards ────────────────────────────────────────────────────
-  // Cash: from cash_entries (live)
   const cashRevenu    = (cashMois ?? []).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
   const cashCollected = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
   const prevCollected = (cashPrevMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
@@ -355,28 +385,32 @@ export default async function DashboardPage({
     ? Math.round(((cashCollected - prevCollected) / prevCollected) * 100)
     : null
 
-  // Performance: from monthly_stats
-  const scheduled = teamStat?.scheduled_calls ?? closerStats.reduce((s, r) => s + r.scheduled_calls, 0)
-  const shows     = teamStat?.show_calls      ?? closerStats.reduce((s, r) => s + r.show_calls, 0)
-  const closes    = teamStat?.closes          ?? closerStats.reduce((s, r) => s + r.closes, 0)
-  const revenue   = teamStat?.revenue         ?? closerStats.reduce((s, r) => s + r.revenue, 0)
+  // Performance KPIs: prefer closer_entries (live), fall back to team monthly_stat
+  const scheduled = entriesThisMonth?.scheduled ?? teamStat?.scheduled_calls ?? 0
+  const shows     = entriesThisMonth?.shows     ?? teamStat?.show_calls      ?? 0
+  const closes    = entriesThisMonth?.closes    ?? teamStat?.closes          ?? 0
+  const revenue   = entriesThisMonth?.revenue   ?? teamStat?.revenue        ?? 0
   const showRate  = pct(shows, scheduled)
   const closeRate = pct(closes, shows)
 
-  // ── Closer performance table ──────────────────────────────────────
-  const closerRows: CloserRow[] = closerStats
-    .map(r => ({
-      nom:      r.closer_name ?? 'Inconnu',
-      scheduled: r.scheduled_calls,
-      show:     r.show_calls,
-      pitch:    r.pitch_calls,
-      closes:   r.closes,
-      showPct:  pct(r.show_calls, r.scheduled_calls),
-      pitchPct: pct(r.pitch_calls, r.show_calls),
-      closePct: pct(r.closes, r.show_calls),
-      cash:     r.cash_collected,
-      revenue:  r.revenue,
-    }))
+  // ── Closer performance table (live from closer_entries) ───────────
+  const closerRows: CloserRow[] = Array.from(entriesByUserMonth.entries())
+    .filter(([key]) => key.endsWith(`::${selMonthKey}`))
+    .map(([key, s]) => {
+      const uid = key.split('::')[0]
+      return {
+        nom:      profileMap.get(uid) ?? 'Inconnu',
+        scheduled: s.scheduled,
+        show:     s.shows,
+        pitch:    s.pitches,
+        closes:   s.closes,
+        showPct:  pct(s.shows, s.scheduled),
+        pitchPct: pct(s.pitches, s.shows),
+        closePct: pct(s.closes, s.shows),
+        cash:     s.cash,
+        revenue:  s.revenue,
+      }
+    })
     .sort((a, b) => b.closes - a.closes)
 
   // ── Bonus (from cash_entries linked to profiles) ──────────────────
@@ -400,20 +434,24 @@ export default async function DashboardPage({
     })
     .sort((a, b) => b.collected - a.collected)
 
-  // ── Trend chart data (all months, team-level) ────────────────────
-  const allMonths = Array.from(
-    new Set((allMonthlyStats ?? []).map(r => monthKey(r.year, r.month)))
+  // ── Trend chart: closer_entries for months that have data, monthly_stats for history ──
+  const allChartMonths = Array.from(
+    new Set([
+      ...(allMonthlyStats ?? []).map(r => monthKey(r.year, r.month)),
+      ...entriesByMonth.keys(),
+    ])
   ).sort()
 
-  const chartData: TrendPoint[] = allMonths.map(mk => {
+  const chartData: TrendPoint[] = allChartMonths.map(mk => {
     const [y, m] = mk.split('-').map(Number)
-    const team   = (allMonthlyStats ?? []).find(r => r.source === 'team' && r.year === y && r.month === m)
+    const fromEntries = entriesByMonth.get(mk)
+    const team    = (allMonthlyStats ?? []).find(r => r.source === 'team'   && r.year === y && r.month === m)
     const closers = (allMonthlyStats ?? []).filter(r => r.source === 'closer' && r.year === y && r.month === m)
     return {
       mois:    MOIS_COURT[m - 1],
-      cash:    team?.cash_collected  ?? closers.reduce((s, r) => s + r.cash_collected, 0),
-      revenue: team?.revenue         ?? closers.reduce((s, r) => s + r.revenue, 0),
-      closes:  team?.closes          ?? closers.reduce((s, r) => s + r.closes, 0),
+      cash:    fromEntries?.cash    ?? team?.cash_collected ?? closers.reduce((s, r) => s + r.cash_collected, 0),
+      revenue: fromEntries?.revenue ?? team?.revenue        ?? closers.reduce((s, r) => s + r.revenue, 0),
+      closes:  fromEntries?.closes  ?? team?.closes         ?? closers.reduce((s, r) => s + r.closes, 0),
     }
   })
 
@@ -425,19 +463,33 @@ export default async function DashboardPage({
 
   // ── Closer view ───────────────────────────────────────────────────
   if (role === 'closer') {
-    const myStats = (allMonthlyStats ?? []).filter(r =>
-      r.source === 'closer' && (
-        r.user_id === user.id ||
-        r.closer_name?.toLowerCase() === prenom.toLowerCase()
-      )
-    )
-    const thisMonth = myStats.find(r => r.year === selYear && r.month === selMonth)
+    // Aggregate this closer's entries for selected month
+    const myThisMonth = entriesByUserMonth.get(`${user.id}::${selMonthKey}`)
 
-    const myMonths = Array.from(new Set(myStats.map(r => monthKey(r.year, r.month)))).sort()
-    const myChartData: TrendPoint[] = myMonths.map(mk => {
+    // Build personal trend chart from closer_entries (primary) + monthly_stats fallback
+    const myEntryMonths = Array.from(entriesByUserMonth.keys())
+      .filter(k => k.startsWith(`${user.id}::`))
+      .map(k => k.split('::')[1])
+
+    const myStatMonths = (allMonthlyStats ?? [])
+      .filter(r => r.source === 'closer' && (r.user_id === user.id || r.closer_name?.toLowerCase() === prenom.toLowerCase()))
+      .map(r => monthKey(r.year, r.month))
+
+    const myAllMonths = Array.from(new Set([...myEntryMonths, ...myStatMonths])).sort()
+
+    const myChartData: TrendPoint[] = myAllMonths.map(mk => {
       const [y, m] = mk.split('-').map(Number)
-      const s = myStats.find(r => r.year === y && r.month === m)!
-      return { mois: MOIS_COURT[m - 1], cash: s.cash_collected, revenue: s.revenue, closes: s.closes }
+      const fromEntry = entriesByUserMonth.get(`${user.id}::${mk}`)
+      const fromStat  = (allMonthlyStats ?? []).find(r =>
+        r.source === 'closer' && r.year === y && r.month === m &&
+        (r.user_id === user.id || r.closer_name?.toLowerCase() === prenom.toLowerCase())
+      )
+      return {
+        mois:    MOIS_COURT[m - 1],
+        cash:    fromEntry?.cash    ?? fromStat?.cash_collected ?? 0,
+        revenue: fromEntry?.revenue ?? fromStat?.revenue        ?? 0,
+        closes:  fromEntry?.closes  ?? fromStat?.closes         ?? 0,
+      }
     })
 
     const { data: recentDeals } = await db
@@ -454,11 +506,11 @@ export default async function DashboardPage({
         selKey={selKey}
         isCurrentMonth={isCurrentMonth}
         monthOptions={monthOptions}
-        closes={thisMonth?.closes ?? 0}
-        cashCollected={thisMonth?.cash_collected ?? 0}
-        revenue={thisMonth?.revenue ?? 0}
-        scheduled={thisMonth?.scheduled_calls ?? 0}
-        shows={thisMonth?.show_calls ?? 0}
+        closes={myThisMonth?.closes ?? 0}
+        cashCollected={myThisMonth?.cash ?? 0}
+        revenue={myThisMonth?.revenue ?? 0}
+        scheduled={myThisMonth?.scheduled ?? 0}
+        shows={myThisMonth?.shows ?? 0}
         chartData={myChartData}
         recentDeals={recentDeals ?? []}
       />

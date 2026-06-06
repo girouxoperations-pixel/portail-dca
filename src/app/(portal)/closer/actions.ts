@@ -49,6 +49,7 @@ export async function ajouterEntree(formData: FormData) {
 
   if (error) throw new Error(error.message)
   revalidatePath('/closer')
+  revalidatePath('/dashboard')
 }
 
 export async function modifierEntree(id: string, formData: FormData) {
@@ -68,6 +69,7 @@ export async function modifierEntree(id: string, formData: FormData) {
 
   if (error) throw new Error(error.message)
   revalidatePath('/closer')
+  revalidatePath('/dashboard')
 }
 
 export async function supprimerEntree(id: string) {
@@ -77,4 +79,5 @@ export async function supprimerEntree(id: string) {
   const { error } = await db.from('closer_entries').delete().eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath('/closer')
+  revalidatePath('/dashboard')
 }
