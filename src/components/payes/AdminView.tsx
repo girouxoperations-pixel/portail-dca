@@ -28,7 +28,6 @@ interface PayeEntry {
   commission_setter: number
   statut: string
   notes: string | null
-  cash_entries: { collected: number } | null
 }
 
 interface Profil {
@@ -387,9 +386,11 @@ export default function AdminView({
     const map = new Map<string, EmployeeGroup>()
 
     for (const e of filtrees) {
-      const collected = e.cash_entries?.collected ?? e.montant
+      // Commission = collected * taux → collected = commission / taux
+      const collectedFromCloser = e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant
+      const collectedFromSetter = e.commission_setter > 0 ? Math.round(e.commission_setter / 0.05) : e.montant
 
-      const addToGroup = (uid: string, role: 'closer' | 'setter', maComm: number) => {
+      const addToGroup = (uid: string, role: 'closer' | 'setter', maComm: number, entryCollected: number) => {
         if (!map.has(uid)) {
           map.set(uid, {
             uid,
@@ -406,7 +407,7 @@ export default function AdminView({
           id: e.id,
           client_name: e.client_name,
           montant: e.montant,
-          collected,
+          collected: entryCollected,
           maCommission: maComm,
           statut: e.statut,
           notes: e.notes,
@@ -418,8 +419,8 @@ export default function AdminView({
         }
       }
 
-      if (e.closer_id && e.commission > 0) addToGroup(e.closer_id, 'closer', e.commission)
-      if (e.setter_id && e.commission_setter > 0) addToGroup(e.setter_id, 'setter', e.commission_setter)
+      if (e.closer_id && e.commission > 0) addToGroup(e.closer_id, 'closer', e.commission, collectedFromCloser)
+      if (e.setter_id && e.commission_setter > 0) addToGroup(e.setter_id, 'setter', e.commission_setter, collectedFromSetter)
     }
 
     return Array.from(map.values()).sort((a, b) => b.totalCommission - a.totalCommission)

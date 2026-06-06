@@ -21,7 +21,6 @@ interface PayeEntry {
   commission_setter: number
   statut: string
   notes: string | null
-  cash_entries: { collected: number } | null
 }
 
 interface BonusTier {
@@ -117,8 +116,10 @@ export default function PersonnelView({
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {entrees.map(e => {
-                  const maComm   = isCloser ? e.commission : e.commission_setter
-                  const collected = e.cash_entries?.collected ?? e.montant
+                  const maComm    = isCloser ? e.commission : e.commission_setter
+                  const collected = isCloser
+                    ? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
+                    : (e.commission_setter > 0 ? Math.round(e.commission_setter / 0.05) : e.montant)
                   return (
                     <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-800 max-w-[160px] truncate">{e.client_name}</td>

@@ -4,39 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import AdminView      from '@/components/payes/AdminView'
 import PersonnelView  from '@/components/payes/PersonnelView'
 
-import { MOIS_FR, getPalier } from '@/lib/constants'
-
-// ── Constantes ──────────────────────────────────────────────────────
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-function debutPeriode(now = new Date()): string {
-  const year     = now.getFullYear()
-  const month    = now.getMonth() + 1
-  const startDay = now.getDate() <= 14 ? 1 : 15
-  return `${year}-${String(month).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`
-}
-
-function genPeriodes(annee: number) {
-  return [...MOIS_FR].reverse().flatMap((m, revIdx) => {
-    const idx     = 11 - revIdx
-    const lastDay = new Date(annee, idx + 1, 0).getDate()
-    return [
-      { label: `15-${lastDay} ${m} ${annee}`, month: idx + 1, year: annee },
-      { label: `1-14 ${m} ${annee}`,          month: idx + 1, year: annee },
-    ]
-  })
-}
-
-function periodeDefaut(now: Date): string {
-  const year    = now.getFullYear()
-  const month   = now.getMonth() + 1
-  const lastDay = new Date(year, month, 0).getDate()
-  const m       = MOIS_FR[month - 1]
-  return now.getDate() <= 14
-    ? `1-14 ${m} ${year}`
-    : `15-${lastDay} ${m} ${year}`
-}
+import { getPalier } from '@/lib/constants'
+import { currentPeriode, genPeriodes } from '@/lib/payroll'
 
 // ── Page ─────────────────────────────────────────────────────────────
 
@@ -53,16 +22,15 @@ export default async function PayesPage() {
     .single()
   if (!profil) redirect('/login')
 
-  const db    = createAdminClient()
-  const now   = new Date()
-  const annee = now.getFullYear()
-  const mois  = now.getMonth()
+  const db      = createAdminClient()
+  const now     = new Date()
+  const annee   = now.getFullYear()
 
-  const periodes    = genPeriodes(annee)
-  const defaut      = periodeDefaut(now)
-  const moisLabel   = `${MOIS_FR[mois]} ${annee}`
+  const periode     = currentPeriode(now)
+  const periodes    = genPeriodes(now)
+  const moisLabel   = periode.label
   const role        = profil.role as string
-  const periodStart = debutPeriode(now)
+  const periodStart = periode.start
 
   // ── Vue admin / CSM ───────────────────────────────────────────────
   if (role === 'admin' || role === 'csm') {
@@ -74,8 +42,8 @@ export default async function PayesPage() {
       { data: cashPeriode },
     ] = await Promise.all([
       db.from('paye_entries')
-        .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
-        .eq('year', annee)
+        .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes')
+        .gte('year', annee - 1)
         .order('created_at', { ascending: false }),
       db.from('profiles').select('id, full_name, role').eq('role', 'closer'),
       db.from('profiles').select('id, full_name, role').eq('role', 'setter'),
@@ -105,17 +73,9 @@ export default async function PayesPage() {
       palier:    getPalier(setterCash.get(p.id) ?? 0),
     })).sort((a, b) => b.collected - a.collected)
 
-    // Normalise cash_entries (Supabase join returns array)
-    const entreesNorm = (entrees ?? []).map(e => ({
-      ...e,
-      cash_entries: Array.isArray(e.cash_entries)
-        ? (e.cash_entries[0] ?? null)
-        : (e.cash_entries ?? null),
-    }))
-
     return (
       <AdminView
-        entrees={entreesNorm}
+        entrees={entrees ?? []}
         closers={closers ?? []}
         setters={setters ?? []}
         allProfiles={allProfiles ?? []}
@@ -124,7 +84,7 @@ export default async function PayesPage() {
         teamMembers={allProfiles ?? []}
         isAdmin={role === 'admin'}
         periodesCourant={periodes}
-        periodeDefaut={defaut}
+        periodeDefaut={periode.label}
       />
     )
   }
@@ -135,12 +95,12 @@ export default async function PayesPage() {
   const [{ data: entrees }, { data: cashPeriode }] = await Promise.all([
     isCloser
       ? db.from('paye_entries')
-          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
-          .eq('closer_id', user.id).eq('year', annee)
+          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes')
+          .eq('closer_id', user.id).gte('year', annee - 1)
           .order('created_at', { ascending: false })
       : db.from('paye_entries')
-          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
-          .eq('setter_id', user.id).eq('year', annee)
+          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes')
+          .eq('setter_id', user.id).gte('year', annee - 1)
           .order('created_at', { ascending: false }),
     db.from('cash_entries')
       .select('collected, closed_by, set_by')
@@ -153,17 +113,9 @@ export default async function PayesPage() {
     return s
   }, 0)
 
-  // Normalise cash_entries (Supabase join returns array)
-  const entreesNorm = (entrees ?? []).map(e => ({
-    ...e,
-    cash_entries: Array.isArray(e.cash_entries)
-      ? (e.cash_entries[0] ?? null)
-      : (e.cash_entries ?? null),
-  }))
-
   return (
     <PersonnelView
-      entrees={entreesNorm}
+      entrees={entrees ?? []}
       role={role}
       userId={user.id}
       myCollected={myCollected}
