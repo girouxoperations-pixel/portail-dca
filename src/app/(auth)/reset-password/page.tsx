@@ -19,23 +19,36 @@ export default function ResetPasswordPage() {
   const [ready,    setReady]      = useState(false)
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
+    const hashParams   = new URLSearchParams(window.location.hash.slice(1))
+
+    // Lien expiré ou invalide — Supabase renvoie ?error= dans l'URL
+    if (searchParams.get('error') || hashParams.get('error')) {
+      setError('Ce lien a expiré ou a déjà été utilisé. Demande un nouveau lien depuis la page de connexion.')
+      return
+    }
+
     // Cas 1 : PKCE — lien email avec ?code=xxx dans la query string
-    const code = new URLSearchParams(window.location.search).get('code')
+    const code = searchParams.get('code')
     if (code) {
       supabase.auth.exchangeCodeForSession(code)
-        .then(({ error }) => { if (!error) setReady(true) })
+        .then(({ error }) => {
+          if (error) setError('Lien invalide. Demande un nouveau lien depuis la page de connexion.')
+          else setReady(true)
+        })
       return
     }
 
     // Cas 2 : Implicit — hash URL (#access_token=...&type=recovery)
-    const hash = window.location.hash.slice(1)
-    const hashParams = new URLSearchParams(hash)
     if (hashParams.get('type') === 'recovery') {
       const accessToken  = hashParams.get('access_token')
       const refreshToken = hashParams.get('refresh_token')
       if (accessToken && refreshToken) {
         supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-          .then(({ error }) => { if (!error) setReady(true) })
+          .then(({ error }) => {
+            if (error) setError('Lien invalide. Demande un nouveau lien depuis la page de connexion.')
+            else setReady(true)
+          })
         return
       }
     }
@@ -111,11 +124,26 @@ export default function ResetPasswordPage() {
             </div>
           ) : !ready ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <svg className="animate-spin h-6 w-6 text-violet-500" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-              </svg>
-              <p className="text-sm text-gray-400">Vérification du lien…</p>
+              {error ? (
+                <>
+                  <AlertCircle size={40} className="text-red-400" />
+                  <p className="text-sm text-gray-600">{error}</p>
+                  <button
+                    onClick={() => router.push('/login')}
+                    className="mt-2 text-sm text-violet-600 hover:underline"
+                  >
+                    Retour à la connexion
+                  </button>
+                </>
+              ) : (
+                <>
+                  <svg className="animate-spin h-6 w-6 text-violet-500" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  <p className="text-sm text-gray-400">Vérification du lien…</p>
+                </>
+              )}
             </div>
           ) : (
             <>
