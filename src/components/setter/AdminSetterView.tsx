@@ -34,7 +34,7 @@ interface Profil {
 // ── Helpers ───────────────────────────────────────────────────────────
 
 const INPUT_CLS =
-  'w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
+  'w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500'
 
 function pct(a: number, b: number) {
   return b > 0 ? Math.round((a / b) * 100) : 0
