@@ -78,31 +78,38 @@ export async function creerCashCollect(formData: FormData) {
 
   if (payeErr) throw new Error(payeErr.message)
 
-  // 3. Si le deal a des récurrents, créer le tracking automatiquement
-  if (formData.get('has_recurring') === 'true') {
-    const montantMensuel = Number(formData.get('recurring_montant')) || montantCourant
-    const dateDebut      = (formData.get('recurring_date_debut') as string) || entryDate
+  // 3. Si versements > 1, créer les prochains versements dans Récurrents
+  const versements = Number(formData.get('versements')) || 1
+  if (versements > 1) {
+    // collected = premier versement (déjà enregistré ci-dessus)
+    const versementMontant = collected
+
+    // Le deal récurrent démarre le mois suivant
+    const nextMonth = new Date(entryDate + 'T00:00:00')
+    nextMonth.setMonth(nextMonth.getMonth() + 1)
+    const dateDebut = nextMonth.toISOString().split('T')[0]
 
     const { data: deal } = await db.from('recurring_deals').insert({
       client_name:     clientName ?? 'Client',
       closer_id:       closedBy,
       setter_id:       setBy,
-      montant_mensuel: montantMensuel,
+      montant_mensuel: versementMontant,
       date_debut:      dateDebut,
+      notes:           `Plan ${versements} versements — deal du ${entryDate}`,
       created_by:      userId,
     }).select('id').single()
 
     if (deal) {
-      const start = new Date(dateDebut + 'T00:00:00')
-      const occs = Array.from({ length: 24 }, (_, i) => {
-        const d = new Date(start)
+      // Créer versements-1 occurrences (les suivantes, pas la première déjà encaissée)
+      const occs = Array.from({ length: versements - 1 }, (_, i) => {
+        const d = new Date(nextMonth)
         d.setMonth(d.getMonth() + i)
         return {
           recurring_deal_id: deal.id,
           mois:              d.getMonth() + 1,
           annee:             d.getFullYear(),
           date_attendue:     d.toISOString().split('T')[0],
-          montant_attendu:   montantMensuel,
+          montant_attendu:   versementMontant,
         }
       })
       await db.from('recurring_occurrences').insert(occs)

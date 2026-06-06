@@ -114,27 +114,33 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
   const [pending, startTransition] = useTransition()
   const today = new Date().toISOString().slice(0, 10)
 
-  const [hasRecurring,   setHasRecurring]   = useState(false)
-  const [entryDate,      setEntryDate]      = useState(today)
-  const [montantDeal,    setMontantDeal]    = useState('0')
-  const [recurringMontant, setRecurringMontant] = useState('0')
+  const [versements, setVersements] = useState<1 | 2 | 3>(1)
+  const [entryDate,  setEntryDate]  = useState(today)
+  const [montant,    setMontant]    = useState(0)
 
-  // Premier paiement récurrent = mois suivant
-  const defaultRecurringDate = useMemo(() => {
-    const d = new Date(entryDate + 'T00:00:00')
-    d.setMonth(d.getMonth() + 1)
-    return d.toISOString().split('T')[0]
-  }, [entryDate])
+  const versementAmount = versements > 1 && montant > 0
+    ? Math.round((montant / versements) * 100) / 100
+    : 0
 
-  function handleToggleRecurring() {
-    if (!hasRecurring) setRecurringMontant(montantDeal)
-    setHasRecurring(v => !v)
-  }
+  const versementDates = useMemo(() => {
+    const base = new Date(entryDate + 'T00:00:00')
+    return Array.from({ length: versements }, (_, i) => {
+      const d = new Date(base)
+      d.setMonth(d.getMonth() + i)
+      return {
+        label: i === 0 ? "Aujourd'hui" : `${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`,
+        date:  d.toISOString().split('T')[0],
+      }
+    })
+  }, [entryDate, versements])
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    fd.set('has_recurring', hasRecurring ? 'true' : 'false')
+    if (versements > 1) {
+      fd.set('collected',     String(versementAmount))
+      fd.set('versements',    String(versements))
+    }
     startTransition(async () => {
       await creerCashCollect(fd)
       onClose()
@@ -164,7 +170,7 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
 
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Nom du client</label>
-          <input name="client_name" placeholder="Entreprise Dupont" className={INPUT_CLS} />
+          <input name="client_name" placeholder="Marie Tremblay" className={INPUT_CLS} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -172,15 +178,62 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
             <label className="text-sm font-medium text-gray-700">Montant du deal ($)</label>
             <input
               name="montant_courant" type="number" min="0" step="0.01" required
-              value={montantDeal} onChange={e => setMontantDeal(e.target.value)}
+              value={montant || ''}
+              onChange={e => setMontant(Number(e.target.value))}
+              placeholder="4000"
               className={INPUT_CLS}
             />
           </div>
           <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Versements</label>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+              {([1, 2, 3] as const).map((n, i) => (
+                <button
+                  key={n} type="button"
+                  onClick={() => setVersements(n)}
+                  className={cn(
+                    'flex-1 py-2.5 font-medium transition-colors',
+                    i > 0 && 'border-l border-gray-200',
+                    versements === n
+                      ? 'bg-violet-600 text-white'
+                      : 'text-gray-500 hover:bg-gray-50',
+                  )}
+                >
+                  {n === 1 ? 'Unique' : `${n}×`}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Plan de versements */}
+        {versements > 1 && (
+          <div className="rounded-lg bg-violet-50 border border-violet-100 p-4 space-y-2">
+            <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
+              Plan de paiement — {dollar(versementAmount)} × {versements}
+            </p>
+            {versementDates.map((v, i) => (
+              <div key={i} className="flex items-center justify-between text-sm">
+                <span className={i === 0 ? 'font-medium text-violet-800' : 'text-violet-600'}>
+                  {i === 0 ? '✓ ' : '◷ '}{v.label}
+                </span>
+                <span className="font-semibold tabular-nums text-violet-900">
+                  {dollar(versementAmount)}
+                </span>
+              </div>
+            ))}
+            <p className="text-[11px] text-violet-500 pt-1 border-t border-violet-100">
+              Les versements suivants seront ajoutés dans l&apos;onglet Récurrents.
+            </p>
+          </div>
+        )}
+
+        {versements === 1 && (
+          <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Déjà collecté ($)</label>
             <input name="collected" type="number" min="0" step="0.01" defaultValue="0" className={INPUT_CLS} />
           </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
@@ -204,61 +257,13 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
           <textarea name="notes" rows={2} placeholder="Remarques..." className={`${INPUT_CLS} resize-none`} />
         </div>
 
-        {/* ── Toggle récurrents ── */}
-        <div className="border-t border-gray-100 pt-4 space-y-4">
-          <button
-            type="button"
-            onClick={handleToggleRecurring}
-            className="flex items-center gap-3 w-full text-left"
-          >
-            <div className={cn(
-              'relative w-10 h-5 rounded-full transition-colors shrink-0',
-              hasRecurring ? 'bg-violet-600' : 'bg-gray-200',
-            )}>
-              <div className={cn(
-                'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
-                hasRecurring ? 'translate-x-5' : 'translate-x-0.5',
-              )} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-700">Deal avec paiements récurrents</p>
-              <p className="text-xs text-gray-400">Crée automatiquement le suivi dans l&apos;onglet Récurrents</p>
-            </div>
-          </button>
-
-          {hasRecurring && (
-            <div className="pl-4 border-l-2 border-violet-100 grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
-                  Montant mensuel récurrent ($)
-                </label>
-                <input
-                  name="recurring_montant" type="number" min="0" step="0.01"
-                  value={recurringMontant}
-                  onChange={e => setRecurringMontant(e.target.value)}
-                  className={INPUT_CLS}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">
-                  Premier paiement récurrent
-                </label>
-                <input
-                  name="recurring_date_debut" type="date"
-                  defaultValue={defaultRecurringDate}
-                  key={defaultRecurringDate}
-                  className={INPUT_CLS}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">Annuler</button>
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
+            Annuler
+          </button>
           <button type="submit" disabled={pending}
-            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
-          >
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
             {pending ? 'Enregistrement…' : 'Enregistrer'}
           </button>
         </div>
