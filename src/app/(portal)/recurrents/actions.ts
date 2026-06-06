@@ -133,6 +133,16 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
     paye_entry_id: payeEntry.id,
   }).eq('id', occurrenceId)
 
+  // Auto-désactiver le deal si toutes les occurrences sont maintenant reçues
+  const { data: toutes } = await db
+    .from('recurring_occurrences')
+    .select('recu')
+    .eq('recurring_deal_id', occ.recurring_deal_id)
+
+  if (toutes && toutes.every(o => o.recu)) {
+    await db.from('recurring_deals').update({ actif: false }).eq('id', occ.recurring_deal_id)
+  }
+
   revalidatePath('/recurrents')
   revalidatePath('/cashcollect')
   revalidatePath('/payes')
