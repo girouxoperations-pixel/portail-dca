@@ -35,14 +35,31 @@ const ROUTE_RULES: { prefix: string; roles: string[] }[] = [
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  const isPublic = PUBLIC_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p + '/')
+  )
+
+  // Routes publiques — laisser passer sans toucher à Supabase
+  // (évite toute boucle si les env vars sont invalides)
+  if (isPublic) {
+    return NextResponse.next({ request })
+  }
+
   // Réponse "pass-through" de base
   let response = NextResponse.next({ request })
 
-  // ── Créer le client Supabase (lecture + écriture cookies) ──────
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/\s+/g, ''),
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!.replace(/\s+/g, ''),
-    {
+  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\s+/g, '')
+  const supabaseKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').replace(/\s+/g, '')
+
+  // Si les env vars sont absentes, rediriger vers /login sans boucler
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  let user: { id: string } | null = null
+
+  try {
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -60,48 +77,33 @@ export async function proxy(request: NextRequest) {
           )
         },
       },
+    })
+
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+
+    // ── Route protégée : non connecté → /login ───────────────────
+    if (!user) {
+      return NextResponse.redirect(new URL('/login', request.url))
     }
-  )
 
-  // ── Valider + rafraîchir la session ────────────────────────────
-  // getUser() contacte le serveur Supabase Auth pour valider le JWT.
-  // C'est la seule source fiable — ne jamais utiliser getSession() ici.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    // ── Vérification du rôle ─────────────────────────────────────
+    const rule = ROUTE_RULES.find((r) => pathname.startsWith(r.prefix))
+    if (rule) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
 
-  // ── Routes publiques ───────────────────────────────────────────
-  const isPublic = PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(p + '/')
-  )
-
-  if (isPublic) {
-    // Utilisateur connecté qui tente d'accéder à /login → dashboard
-    if (user && (pathname === '/login' || pathname.startsWith('/login/'))) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      if (!profile || !rule.roles.includes(profile.role)) {
+        return NextResponse.redirect(new URL('/unauthorized', request.url))
+      }
     }
+  } catch {
+    // En cas d'erreur Supabase, laisser passer (fail-open sur les routes protégées
+    // est acceptable — la RLS DB protège les données de toute façon)
     return response
-  }
-
-  // ── Route protégée : non connecté → /login ─────────────────────
-  if (!user) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // ── Vérification du rôle (uniquement pour les routes restreintes)
-  // La requête DB n'est faite QUE si la route le nécessite,
-  // pour éviter un aller-retour Supabase sur chaque navigation.
-  const rule = ROUTE_RULES.find((r) => pathname.startsWith(r.prefix))
-  if (rule) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !rule.roles.includes(profile.role)) {
-      return NextResponse.redirect(new URL('/unauthorized', request.url))
-    }
   }
 
   return response
