@@ -63,8 +63,22 @@ interface BonusItem {
 // ── Sub-components ───────────────────────────────────────────────────
 
 function PctBadge({ value }: { value: number }) {
-  const color = value >= 40 ? 'text-green-600' : value >= 20 ? 'text-amber-600' : 'text-red-500'
-  return <span className={`${color} font-medium`}>{value} %</span>
+  const cls = value >= 40
+    ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
+    : value >= 20
+    ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+    : 'bg-red-50 text-red-600 ring-1 ring-red-200'
+  return (
+    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums', cls)}>
+      {value} %
+    </span>
+  )
+}
+
+function PerfIndicator({ closePct }: { closePct: number }) {
+  if (closePct >= 40) return <span title="Haute performance" className="inline-block w-1.5 h-5 rounded-full bg-green-400" />
+  if (closePct >= 20) return <span title="Performance moyenne" className="inline-block w-1.5 h-5 rounded-full bg-amber-400" />
+  return <span title="À améliorer" className="inline-block w-1.5 h-5 rounded-full bg-red-400" />
 }
 
 function TableauClosers({ rows }: { rows: CloserRow[] }) {
@@ -98,6 +112,7 @@ function TableauClosers({ rows }: { rows: CloserRow[] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+              <th className="px-3 py-3 w-4" />
               <th className="px-4 py-3 text-left">Closer</th>
               <th className="px-4 py-3 text-right">Schedulés</th>
               <th className="px-4 py-3 text-right">Shows</th>
@@ -112,7 +127,13 @@ function TableauClosers({ rows }: { rows: CloserRow[] }) {
           </thead>
           <tbody className="divide-y divide-gray-50">
             {rows.map((r, i) => (
-              <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+              <tr key={i} className={cn(
+                'hover:bg-gray-50/60 transition-colors',
+                r.closePct >= 40 ? 'bg-green-50/30' : r.closePct >= 20 ? '' : r.closes > 0 ? 'bg-red-50/20' : '',
+              )}>
+                <td className="px-3 py-3 text-center">
+                  <PerfIndicator closePct={r.closePct} />
+                </td>
                 <td className="px-4 py-3 font-semibold text-gray-800">{r.nom}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.scheduled}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.show}</td>
@@ -128,6 +149,7 @@ function TableauClosers({ rows }: { rows: CloserRow[] }) {
           </tbody>
           <tfoot>
             <tr className="border-t border-gray-100 bg-gray-50/60 font-semibold text-gray-700 text-xs">
+              <td className="px-3 py-3" />
               <td className="px-4 py-3 text-gray-500 uppercase tracking-wide">Total équipe</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.scheduled}</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.show}</td>
