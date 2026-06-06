@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { CheckCircle2, Clock, Star, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle2, Clock, Star, ChevronDown, ChevronUp, LayoutGrid, Table2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   basculerStatut, assignerMVP,
@@ -352,6 +352,165 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle }: {
   )
 }
 
+// ── Vue client (tableau par deal) ────────────────────────────────────
+
+interface PersonCol {
+  id:   string
+  nom:  string
+  role: 'closer' | 'setter'
+}
+
+function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle }: {
+  filtrees:   PayeEntry[]
+  profileMap: Map<string, string>
+  isAdmin:    boolean
+  pending:    boolean
+  onToggle:   (id: string, statut: string) => void
+}) {
+  // Colonnes : closers puis setters, triés par nom, actifs sur la période
+  const personCols = useMemo<PersonCol[]>(() => {
+    const closers = new Map<string, string>()
+    const setters = new Map<string, string>()
+    for (const e of filtrees) {
+      if (e.closer_id && e.commission > 0)        closers.set(e.closer_id, profileMap.get(e.closer_id) ?? e.closer_id)
+      if (e.setter_id && e.commission_setter > 0)  setters.set(e.setter_id, profileMap.get(e.setter_id) ?? e.setter_id)
+    }
+    const sortByNom = (a: PersonCol, b: PersonCol) => a.nom.localeCompare(b.nom, 'fr')
+    return [
+      ...[...closers.entries()].map(([id, nom]) => ({ id, nom, role: 'closer' as const })).sort(sortByNom),
+      ...[...setters.entries()].map(([id, nom]) => ({ id, nom, role: 'setter' as const })).sort(sortByNom),
+    ]
+  }, [filtrees, profileMap])
+
+  const totaux = useMemo(() => {
+    const map = new Map<string, number>()
+    let totalCollected = 0, totalNet = 0
+    for (const e of filtrees) {
+      const collected = e.cash_entries?.collected
+        ?? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
+      totalCollected += collected
+      totalNet += collected - e.commission - e.commission_setter
+      if (e.closer_id && e.commission > 0)
+        map.set(e.closer_id, (map.get(e.closer_id) ?? 0) + e.commission)
+      if (e.setter_id && e.commission_setter > 0)
+        map.set(e.setter_id, (map.get(e.setter_id) ?? 0) + e.commission_setter)
+    }
+    return { perPerson: map, totalCollected, totalNet }
+  }, [filtrees])
+
+  if (filtrees.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-16 text-center">
+        <p className="text-sm text-gray-400">Aucune entrée pour cette période</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide">
+              <th className="px-4 py-3 text-left min-w-[160px]">Client</th>
+              <th className="px-4 py-3 text-right min-w-[100px]">Cash reçu</th>
+              {personCols.map(p => (
+                <th key={p.id} className="px-4 py-3 text-right min-w-[100px]">
+                  <span>{p.nom.split(' ')[0]}</span>
+                  <span className={cn(
+                    'ml-1 text-[9px] font-bold px-1 py-px rounded uppercase',
+                    p.role === 'closer' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600',
+                  )}>
+                    {p.role === 'closer' ? 'C' : 'S'}
+                  </span>
+                </th>
+              ))}
+              <th className="px-4 py-3 text-right min-w-[100px] text-gray-700">NET</th>
+              <th className="px-4 py-3 text-left min-w-[100px]">Statut</th>
+              {isAdmin && <th className="px-4 py-3 text-right min-w-[80px]" />}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {filtrees.map(e => {
+              const collected = e.cash_entries?.collected
+                ?? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
+              const net = collected - e.commission - e.commission_setter
+              return (
+                <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-4 py-3 font-medium text-gray-800 max-w-[180px] truncate">{e.client_name}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(collected)}</td>
+                  {personCols.map(p => {
+                    const comm = e.closer_id === p.id ? e.commission
+                               : e.setter_id === p.id ? e.commission_setter
+                               : null
+                    return (
+                      <td key={p.id} className={cn(
+                        'px-4 py-3 text-right tabular-nums',
+                        comm && comm > 0
+                          ? p.role === 'closer' ? 'font-medium text-violet-700' : 'font-medium text-blue-700'
+                          : 'text-gray-200',
+                      )}>
+                        {comm && comm > 0 ? dollar(comm) : '—'}
+                      </td>
+                    )
+                  })}
+                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{dollar(net)}</td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      variant={e.statut === 'Payé' ? 'green' : 'amber'}
+                      icon={e.statut === 'Payé' ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                    >
+                      {e.statut}
+                    </Badge>
+                  </td>
+                  {isAdmin && (
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => onToggle(e.id, e.statut)}
+                        disabled={pending}
+                        className={cn(
+                          'px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-40',
+                          e.statut === 'Payé'
+                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                            : 'bg-green-50 text-green-600 hover:bg-green-100',
+                        )}
+                      >
+                        {e.statut === 'Payé' ? '↩' : '✓ Payé'}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+              <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide">
+                Total · {filtrees.length} deal{filtrees.length !== 1 ? 's' : ''}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-gray-900">
+                {dollar(totaux.totalCollected)}
+              </td>
+              {personCols.map(p => (
+                <td key={p.id} className={cn(
+                  'px-4 py-3 text-right tabular-nums',
+                  p.role === 'closer' ? 'text-violet-700' : 'text-blue-700',
+                )}>
+                  {dollar(totaux.perPerson.get(p.id) ?? 0)}
+                </td>
+              ))}
+              <td className="px-4 py-3 text-right tabular-nums text-gray-900">
+                {dollar(totaux.totalNet)}
+              </td>
+              <td colSpan={isAdmin ? 2 : 1} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ── Vue principale admin / CSM ────────────────────────────────────────
 
 export default function AdminView({
@@ -360,6 +519,7 @@ export default function AdminView({
   isAdmin, periodesCourant, periodeDefaut,
 }: Props) {
   const [periodeSelect, setPeriodeSelect] = useState<string>(periodeDefaut)
+  const [vue, setVue]                     = useState<'employe' | 'client'>('employe')
   const [pending, startTransition]        = useTransition()
 
   const profileMap = useMemo(
@@ -495,40 +655,75 @@ export default function AdminView({
           </div>
         </div>
 
-        {isAdmin && allPendingIds.length > 0 && (
-          <button
-            onClick={handleApprouverPeriode}
-            disabled={pending}
-            className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0"
-          >
-            <CheckCircle2 size={15} />
-            Approuver toute la période
-          </button>
-        )}
+        <div className="flex items-center gap-3 shrink-0 flex-wrap">
+          {/* Toggle de vue */}
+          <div className="flex items-center gap-0.5 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setVue('employe')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                vue === 'employe' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+              )}
+            >
+              <LayoutGrid size={12} />
+              Par employé
+            </button>
+            <button
+              onClick={() => setVue('client')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                vue === 'client' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+              )}
+            >
+              <Table2 size={12} />
+              Vue client
+            </button>
+          </div>
+
+          {isAdmin && allPendingIds.length > 0 && (
+            <button
+              onClick={handleApprouverPeriode}
+              disabled={pending}
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              <CheckCircle2 size={15} />
+              Approuver toute la période
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Grille employés */}
-      {filtrees.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-16 text-center">
-          <p className="text-sm text-gray-400">Aucune entrée pour cette période</p>
-          <p className="text-xs text-gray-300 mt-1">Sélectionne une autre période ou ajoute des entrées via Cash Collect.</p>
-        </div>
+      {/* Contenu selon la vue */}
+      {vue === 'employe' ? (
+        filtrees.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-16 text-center">
+            <p className="text-sm text-gray-400">Aucune entrée pour cette période</p>
+            <p className="text-xs text-gray-300 mt-1">Sélectionne une autre période ou ajoute des entrées via Cash Collect.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {grouped.map(g => (
+              <CarteEmploye
+                key={`${g.uid}-${g.role}`}
+                group={g}
+                isAdmin={isAdmin}
+                pending={pending}
+                onApprouver={handleApprouverEmploye}
+                onToggle={handleToggle}
+              />
+            ))}
+          </div>
+        )
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {grouped.map(g => (
-            <CarteEmploye
-              key={`${g.uid}-${g.role}`}
-              group={g}
-              isAdmin={isAdmin}
-              pending={pending}
-              onApprouver={handleApprouverEmploye}
-              onToggle={handleToggle}
-            />
-          ))}
-        </div>
+        <VueClient
+          filtrees={filtrees}
+          profileMap={profileMap}
+          isAdmin={isAdmin}
+          pending={pending}
+          onToggle={handleToggle}
+        />
       )}
 
-      {/* Résumé readonly pour non-admin */}
       {!isAdmin && filtrees.length > 0 && (
         <p className="text-xs text-gray-400 text-center">
           Contacte un admin pour modifier le statut des paies.
