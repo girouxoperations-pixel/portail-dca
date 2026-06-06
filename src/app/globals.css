@@ -10,6 +10,22 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Brand palette — DCA #831E3E (mapped to violet-600) */
+  --color-violet-50:  #fcf3f6;
+  --color-violet-100: #f8e2e9;
+  --color-violet-200: #efbece;
+  --color-violet-300: #e28da8;
+  --color-violet-400: #d4547c;
+  --color-violet-500: #b82e59;
+  --color-violet-600: #831e3e;
+  --color-violet-700: #6c1933;
+  --color-violet-800: #4c1023;
+  --color-violet-900: #2e0a15;
+  --color-violet-950: #1d060f;
+
+  /* Alias purple to the same brand palette */
+  --color-purple-400: #d4547c;
 }
 
 @media (prefers-color-scheme: dark) {
