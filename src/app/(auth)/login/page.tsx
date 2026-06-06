@@ -62,7 +62,11 @@ export default function LoginPage() {
         { redirectTo: `${window.location.origin}/reset-password` },
       )
       if (authError) {
-        setError('Une erreur est survenue. Vérifie l\'adresse e-mail.')
+        if (authError.status === 429 || authError.message?.includes('rate limit')) {
+          setError('Trop de demandes envoyées. Attends quelques minutes avant de réessayer.')
+        } else {
+          setError('Une erreur est survenue. Vérifie l\'adresse e-mail.')
+        }
         return
       }
       setMode('sent')
