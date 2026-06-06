@@ -208,22 +208,49 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
 
         {/* Plan de versements */}
         {versements > 1 && (
-          <div className="rounded-lg bg-violet-50 border border-violet-100 p-4 space-y-2">
+          <div className="rounded-lg bg-violet-50 border border-violet-100 p-4 space-y-3">
             <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
               Plan de paiement — {dollar(versementAmount)} × {versements}
             </p>
-            {versementDates.map((v, i) => (
-              <div key={i} className="flex items-center justify-between text-sm">
-                <span className={i === 0 ? 'font-medium text-violet-800' : 'text-violet-600'}>
-                  {i === 0 ? '✓ ' : '◷ '}{v.label}
-                </span>
-                <span className="font-semibold tabular-nums text-violet-900">
-                  {dollar(versementAmount)}
+
+            {/* Versement 1 : aujourd'hui */}
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-green-500 font-bold">✓</span>
+                <span className="font-medium text-violet-800">
+                  Aujourd&apos;hui ({versementDates[0]?.label ?? entryDate})
                 </span>
               </div>
-            ))}
+              <span className="font-semibold tabular-nums text-violet-900">{dollar(versementAmount)}</span>
+            </div>
+
+            {/* Versements suivants — date à choisir */}
+            {Array.from({ length: versements - 1 }, (_, i) => {
+              const n = i + 2
+              return (
+                <div key={n} className="flex items-center gap-3">
+                  <span className="text-violet-400 text-base shrink-0">◷</span>
+                  <div className="flex-1 flex flex-col gap-0.5">
+                    <label className="text-[11px] text-violet-600 font-medium">
+                      Versement {n} — date de contact client
+                    </label>
+                    <input
+                      name={`versement_date_${n}`}
+                      type="date"
+                      defaultValue={versementDates[i + 1]?.date ?? ''}
+                      required
+                      className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
+                  </div>
+                  <span className="font-semibold tabular-nums text-violet-900 shrink-0 pt-4">
+                    {dollar(versementAmount)}
+                  </span>
+                </div>
+              )
+            })}
+
             <p className="text-[11px] text-violet-500 pt-1 border-t border-violet-100">
-              Les versements suivants seront ajoutés dans l&apos;onglet Récurrents.
+              Ces dates apparaîtront dans l&apos;onglet Récurrents comme rappel de contact.
             </p>
           </div>
         )}

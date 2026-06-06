@@ -167,6 +167,25 @@ function OccurrenceRow({ occ, deal, profileMap, isAdmin }: {
   const closerNom = deal.closer_id ? (profileMap.get(deal.closer_id) ?? '—') : null
   const setterNom = deal.setter_id ? (profileMap.get(deal.setter_id) ?? '—') : null
 
+  // Calcul du délai en jours
+  const today    = new Date(); today.setHours(0,0,0,0)
+  const dueDate  = new Date(occ.date_attendue + 'T00:00:00')
+  const diffDays = Math.round((dueDate.getTime() - today.getTime()) / 86400000)
+
+  const urgency = occ.recu      ? 'done'
+    : diffDays < 0              ? 'overdue'
+    : diffDays === 0            ? 'today'
+    : diffDays <= 7             ? 'soon'
+    : 'normal'
+
+  const urgencyBadge = {
+    done:    null,
+    overdue: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600">En retard</span>,
+    today:   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Aujourd&apos;hui</span>,
+    soon:    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">Dans {diffDays}j</span>,
+    normal:  <span className="text-[10px] text-gray-400">Dans {diffDays}j</span>,
+  }[urgency]
+
   function handleMarquer() {
     const val = Number(amount)
     if (isNaN(val) || val <= 0) return
@@ -181,14 +200,30 @@ function OccurrenceRow({ occ, deal, profileMap, isAdmin }: {
   return (
     <tr className={cn(
       'border-b border-gray-50 transition-colors',
-      occ.recu ? 'bg-green-50/40' : 'hover:bg-gray-50/50',
+      urgency === 'overdue' ? 'bg-red-50/30'
+      : urgency === 'today'   ? 'bg-amber-50/30'
+      : occ.recu              ? 'bg-green-50/40'
+      : 'hover:bg-gray-50/50',
     )}>
-      <td className="px-4 py-3 font-medium text-gray-800">{deal.client_name}</td>
       <td className="px-4 py-3">
-        <div className="flex flex-col gap-0.5 text-xs">
-          {closerNom && <span className="text-violet-700 font-medium">{closerNom}</span>}
-          {setterNom && <span className="text-blue-600">{setterNom}</span>}
+        <p className="font-medium text-gray-800 text-sm">{deal.client_name}</p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {closerNom && <span className="text-[11px] text-violet-700 font-medium">{closerNom}</span>}
+          {closerNom && setterNom && <span className="text-gray-300 text-[10px]">·</span>}
+          {setterNom && <span className="text-[11px] text-blue-600">{setterNom}</span>}
         </div>
+      </td>
+
+      {/* Date de contact */}
+      <td className="px-4 py-3">
+        {!occ.recu ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-semibold text-gray-800">{formatDate(occ.date_attendue)}</span>
+            {urgencyBadge}
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400">{formatDate(occ.date_attendue)}</span>
+        )}
       </td>
 
       {!occ.recu ? (
@@ -474,8 +509,8 @@ export default function RecurrentsView({ deals, profiles, isAdmin }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/80 text-xs font-medium text-gray-400 uppercase tracking-wide">
-                  <th className="px-4 py-2.5 text-left">Client</th>
-                  <th className="px-4 py-2.5 text-left">Équipe</th>
+                  <th className="px-4 py-2.5 text-left">Client · Équipe</th>
+                  <th className="px-4 py-2.5 text-left">Date de contact</th>
                   <th className="px-4 py-2.5 text-right">Montant ($)</th>
                   <th className="px-4 py-2.5 text-right">Action</th>
                 </tr>

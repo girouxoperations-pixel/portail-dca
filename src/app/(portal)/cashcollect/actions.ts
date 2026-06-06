@@ -81,13 +81,21 @@ export async function creerCashCollect(formData: FormData) {
   // 3. Si versements > 1, créer les prochains versements dans Récurrents
   const versements = Number(formData.get('versements')) || 1
   if (versements > 1) {
-    // collected = premier versement (déjà enregistré ci-dessus)
     const versementMontant = collected
 
-    // Le deal récurrent démarre le mois suivant
-    const nextMonth = new Date(entryDate + 'T00:00:00')
-    nextMonth.setMonth(nextMonth.getMonth() + 1)
-    const dateDebut = nextMonth.toISOString().split('T')[0]
+    // Récupérer les dates spécifiques choisies par l'admin
+    const futureDates: string[] = []
+    for (let n = 2; n <= versements; n++) {
+      const d = formData.get(`versement_date_${n}`) as string
+      if (d) futureDates.push(d)
+    }
+
+    // Date de début = premier versement futur
+    const dateDebut = futureDates[0] ?? (() => {
+      const d = new Date(entryDate + 'T00:00:00')
+      d.setMonth(d.getMonth() + 1)
+      return d.toISOString().split('T')[0]
+    })()
 
     const { data: deal } = await db.from('recurring_deals').insert({
       client_name:     clientName ?? 'Client',
@@ -100,15 +108,13 @@ export async function creerCashCollect(formData: FormData) {
     }).select('id').single()
 
     if (deal) {
-      // Créer versements-1 occurrences (les suivantes, pas la première déjà encaissée)
-      const occs = Array.from({ length: versements - 1 }, (_, i) => {
-        const d = new Date(nextMonth)
-        d.setMonth(d.getMonth() + i)
+      const occs = futureDates.map(dateStr => {
+        const d = new Date(dateStr + 'T00:00:00')
         return {
           recurring_deal_id: deal.id,
           mois:              d.getMonth() + 1,
           annee:             d.getFullYear(),
-          date_attendue:     d.toISOString().split('T')[0],
+          date_attendue:     dateStr,
           montant_attendu:   versementMontant,
         }
       })
