@@ -8,6 +8,7 @@ import {
   MessageSquare,
   FolderOpen,
   ShieldCheck,
+  RefreshCw,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -24,25 +25,27 @@ export interface NavItem {
  */
 export const NAV_ITEMS: Record<string, NavItem[]> = {
   admin: [
-    { label: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard },
-    { label: 'Closers',    href: '/closer',      icon: Phone           },
-    { label: 'Setters',    href: '/setter',      icon: Users           },
-    { label: 'Paie',       href: '/payes',        icon: Banknote        },
-    { label: 'Cash',         href: '/cash',         icon: Wallet          },
-    { label: 'Cash Collect', href: '/cashcollect',  icon: Receipt         },
-    { label: 'Feedback',     href: '/feedback',     icon: MessageSquare   },
-    { label: 'Documents',    href: '/documents',    icon: FolderOpen      },
-    { label: 'Admin',        href: '/admin',        icon: ShieldCheck     },
+    { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard },
+    { label: 'Closers',     href: '/closer',       icon: Phone           },
+    { label: 'Setters',     href: '/setter',       icon: Users           },
+    { label: 'Paie',        href: '/payes',        icon: Banknote        },
+    { label: 'Récurrents',  href: '/recurrents',   icon: RefreshCw       },
+    { label: 'Cash',        href: '/cash',         icon: Wallet          },
+    { label: 'Cash Collect',href: '/cashcollect',  icon: Receipt         },
+    { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
+    { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
+    { label: 'Admin',       href: '/admin',        icon: ShieldCheck     },
   ],
   csm: [
-    { label: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard },
-    { label: 'Closers',    href: '/closer',      icon: Phone           },
-    { label: 'Setters',    href: '/setter',      icon: Users           },
-    { label: 'Paie',       href: '/payes',        icon: Banknote        },
-    { label: 'Cash',         href: '/cash',         icon: Wallet          },
-    { label: 'Cash Collect', href: '/cashcollect',  icon: Receipt         },
-    { label: 'Feedback',     href: '/feedback',     icon: MessageSquare   },
-    { label: 'Documents',    href: '/documents',    icon: FolderOpen      },
+    { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard },
+    { label: 'Closers',     href: '/closer',       icon: Phone           },
+    { label: 'Setters',     href: '/setter',       icon: Users           },
+    { label: 'Paie',        href: '/payes',        icon: Banknote        },
+    { label: 'Récurrents',  href: '/recurrents',   icon: RefreshCw       },
+    { label: 'Cash',        href: '/cash',         icon: Wallet          },
+    { label: 'Cash Collect',href: '/cashcollect',  icon: Receipt         },
+    { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
+    { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
   ],
   closer: [
     { label: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard },
