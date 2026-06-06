@@ -423,6 +423,20 @@ export default function RecurrentsView({ deals, profiles, isAdmin }: Props) {
     setAnnee(a)
   }
 
+  // Occurrences en retard (date passée + non reçues, tous deals actifs)
+  const enRetard = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0]
+    const rows: { occ: Occurrence; deal: Deal }[] = []
+    for (const d of deals) {
+      if (!d.actif) continue
+      for (const occ of d.recurring_occurrences) {
+        if (!occ.recu && occ.date_attendue < todayStr)
+          rows.push({ occ, deal: d })
+      }
+    }
+    return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
+  }, [deals])
+
   // Occurrences pour le mois sélectionné (tous deals actifs)
   const occsMois = useMemo(() => {
     const rows: { occ: Occurrence; deal: Deal }[] = []
@@ -457,6 +471,51 @@ export default function RecurrentsView({ deals, profiles, isAdmin }: Props) {
           </button>
         }
       />
+
+      {/* ── Non reçus / En retard ── */}
+      {enRetard.length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-violet-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-violet-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-violet-600 animate-pulse" />
+              <div>
+                <h3 className="text-sm font-bold text-violet-800">
+                  Versements non reçus — {enRetard.length} en retard
+                </h3>
+                <p className="text-xs text-violet-500 mt-0.5">
+                  Ces clients n&apos;ont pas encore payé leur versement dû
+                </p>
+              </div>
+            </div>
+            <span className="text-sm font-bold tabular-nums text-violet-700">
+              {dollar(enRetard.reduce((s, r) => s + r.occ.montant_attendu, 0))}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-violet-50/50 text-xs font-medium text-violet-400 uppercase tracking-wide">
+                  <th className="px-4 py-2.5 text-left">Client · Équipe</th>
+                  <th className="px-4 py-2.5 text-left">Devait être reçu</th>
+                  <th className="px-4 py-2.5 text-right">Montant ($)</th>
+                  <th className="px-4 py-2.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enRetard.map(({ occ, deal }) => (
+                  <OccurrenceRow
+                    key={occ.id}
+                    occ={occ}
+                    deal={deal}
+                    profileMap={profileMap}
+                    isAdmin={isAdmin}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Navigation mois ── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center justify-between gap-4 flex-wrap">
