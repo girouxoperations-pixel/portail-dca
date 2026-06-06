@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import {
-  Wallet, Phone, Target, Trophy, Award, Users,
+  Wallet, Phone, Target, Users,
 } from 'lucide-react'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -174,78 +174,93 @@ function TableauClosers({ rows }: { rows: CloserRow[] }) {
   )
 }
 
-function BarBonus({ collected }: { collected: number }) {
-  const seuils = PALIERS.map(p => p.seuil)
-  const next   = seuils.slice().reverse().find(s => collected < s) ?? seuils[0]
-  const prev   = seuils.slice().reverse().find(s => collected >= s) ?? 0
-  const progress = next === prev ? 100 : Math.min(98, ((collected - prev) / (next - prev)) * 100)
-  const reached  = PALIERS.some(p => collected >= p.seuil)
-
-  return (
-    <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden mt-1">
-      <div
-        className={`h-full rounded-full transition-all ${reached ? 'bg-violet-500' : 'bg-gray-300'}`}
-        style={{ width: `${Math.max(2, progress)}%` }}
-      />
-    </div>
-  )
-}
-
 function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: BonusItem[] }) {
-  function LigneBonus({ item, type }: { item: BonusItem; type: 'closer' | 'setter' }) {
-    const palier = item.palier
-    const bonus  = palier ? (type === 'closer' ? palier.closer : palier.setter) : null
-    return (
-      <div className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
-        {bonus !== null
-          ? <Trophy size={14} className="text-amber-400 shrink-0" />
-          : <Award  size={14} className="text-gray-200 shrink-0" />
-        }
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-gray-800 truncate">{item.nom}</span>
-            {bonus !== null && (
-              <span className="text-xs font-semibold text-amber-600 shrink-0">+{dollar(bonus)}</span>
-            )}
-          </div>
-          <div className="flex items-center justify-between gap-2 mt-0.5">
-            <span className="text-xs text-gray-400">{dollar(item.collected)} collecté</span>
-            {palier && (
-              <span className="text-[11px] text-violet-600">Palier {dollar(palier.seuil)}</span>
-            )}
-          </div>
-          <BarBonus collected={item.collected} />
-        </div>
-      </div>
-    )
-  }
+  const all = [
+    ...closers.map(c => ({ ...c, role: 'closer' as const })),
+    ...setters.map(s => ({ ...s, role: 'setter' as const })),
+  ].sort((a, b) => b.collected - a.collected)
 
-  if (closers.length === 0 && setters.length === 0) return null
+  if (all.length === 0) return null
+
+  const totalBonus = all.reduce((sum, item) => {
+    if (!item.palier) return sum
+    return sum + (item.role === 'closer' ? item.palier.closer : item.palier.setter)
+  }, 0)
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
-        <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques</h3>
-        <p className="text-xs text-gray-400 mt-0.5">
-          Paliers : 50 k$ → 700 $/350 $ · 70 k$ → 1 000 $/500 $ · 85 k$ → 1 200 $/600 $ ·
-          100 k$ → 1 500 $/750 $ · 130 k$ → 1 800 $/900 $
-        </p>
+      <div className="px-5 py-4 border-b border-gray-50 flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            5 paliers · 50k → 70k → 85k → 100k → 130k de cash collecté
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-xs text-gray-400">Total à verser</p>
+          <p className={cn('text-base font-bold', totalBonus > 0 ? 'text-green-600' : 'text-gray-300')}>
+            {totalBonus > 0 ? `+${dollar(totalBonus)}` : '—'}
+          </p>
+        </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-50">
-        <div className="px-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">Closers</p>
-          {closers.length === 0
-            ? <p className="text-sm text-gray-400 pb-4">Aucune donnée</p>
-            : closers.map((c, i) => <LigneBonus key={i} item={c} type="closer" />)
-          }
-        </div>
-        <div className="px-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">Setters</p>
-          {setters.length === 0
-            ? <p className="text-sm text-gray-400 pb-4">Aucune donnée</p>
-            : setters.map((s, i) => <LigneBonus key={i} item={s} type="setter" />)
-          }
-        </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+              <th className="px-4 py-3 text-left">Nom</th>
+              <th className="px-4 py-3 text-left">Rôle</th>
+              <th className="px-4 py-3 text-right">Cash collecté</th>
+              <th className="px-4 py-3 text-right">Palier atteint</th>
+              <th className="px-4 py-3 text-right">Bonus</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {all.map((item, i) => {
+              const bonus = item.palier
+                ? (item.role === 'closer' ? item.palier.closer : item.palier.setter)
+                : null
+              return (
+                <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-4 py-3 font-medium text-gray-800">{item.nom}</td>
+                  <td className="px-4 py-3">
+                    <span className={cn(
+                      'text-xs px-2 py-0.5 rounded-full font-medium',
+                      item.role === 'closer' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700',
+                    )}>
+                      {item.role}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-600">{dollar(item.collected)}</td>
+                  <td className="px-4 py-3 text-right">
+                    {item.palier
+                      ? <span className="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 font-medium">{dollar(item.palier.seuil)}</span>
+                      : <span className="text-gray-300 text-xs">—</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {bonus !== null
+                      ? <span className="font-semibold text-green-600 tabular-nums">+{dollar(bonus)}</span>
+                      : <span className="text-gray-300 text-xs">—</span>
+                    }
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          {totalBonus > 0 && (
+            <tfoot>
+              <tr className="border-t border-gray-100 bg-gray-50/60">
+                <td colSpan={4} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Total à verser
+                </td>
+                <td className="px-4 py-3 text-right font-bold text-green-600 tabular-nums">
+                  +{dollar(totalBonus)}
+                </td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
       </div>
     </div>
   )

@@ -1,9 +1,11 @@
-import { Trophy, Handshake, Wallet, DollarSign } from 'lucide-react'
+import { Handshake, Wallet, DollarSign } from 'lucide-react'
 import KpiCard       from './KpiCard'
 import MonthSelector from './MonthSelector'
 import type { MonthOption } from './MonthSelector'
 import { PALIERS, dollar, getPalier } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+
+const PALIERS_ASC = [...PALIERS].reverse()
 
 interface Deal {
   id:              string
@@ -28,53 +30,66 @@ interface Props {
 
 function BonusPersonnelSetter({ cashGeneré }: { cashGeneré: number }) {
   const palier     = getPalier(cashGeneré)
-  const nextPalier = PALIERS.slice().reverse().find(p => cashGeneré < p.seuil)
-  const prevSeuil  = palier ? palier.seuil : 0
-  const nextSeuil  = nextPalier ? nextPalier.seuil : PALIERS[PALIERS.length - 1].seuil
-  const progress   = nextPalier
-    ? Math.min(98, ((cashGeneré - prevSeuil) / (nextSeuil - prevSeuil)) * 100)
-    : palier ? 100 : Math.min(98, (cashGeneré / nextSeuil) * 100)
+  const nextPalier = PALIERS_ASC.find(p => cashGeneré < p.seuil)
+  const maxReached = palier && !nextPalier
 
   return (
-    <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl p-6 text-white">
-      <div className="flex items-start justify-between gap-4">
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Trophy size={16} className="text-amber-300" />
-            <p className="text-sm font-semibold text-blue-100">Ton bonus ce mois</p>
-          </div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Bonus ce mois</p>
           {palier ? (
             <>
-              <p className="text-4xl font-bold tabular-nums">+{dollar(palier.setter)}</p>
-              <p className="text-blue-200 text-sm mt-1">Palier {dollar(palier.seuil)} atteint 🎉</p>
+              <p className="text-3xl font-bold text-green-600 tabular-nums">+{dollar(palier.setter)}</p>
+              <p className="text-sm text-gray-500 mt-1">Palier {dollar(palier.seuil)} atteint</p>
             </>
           ) : (
             <>
-              <p className="text-2xl font-bold tabular-nums text-blue-200">{dollar(cashGeneré)}</p>
-              <p className="text-blue-300 text-sm mt-1">
-                {dollar(nextSeuil - cashGeneré)} de plus pour atteindre le 1er palier
-              </p>
+              <p className="text-3xl font-bold text-gray-200 tabular-nums">—</p>
+              <p className="text-sm text-gray-400 mt-1">Aucun palier atteint</p>
             </>
           )}
         </div>
         <div className="text-right shrink-0">
-          <p className="text-xs text-blue-300 mb-1">Cash généré</p>
-          <p className="text-xl font-bold tabular-nums">{dollar(cashGeneré)}</p>
+          <p className="text-xs text-gray-400 mb-1">Cash généré</p>
+          <p className="text-lg font-bold text-gray-800 tabular-nums">{dollar(cashGeneré)}</p>
+          {palier && (
+            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+              Palier {dollar(palier.seuil)}
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="mt-5">
-        <div className="flex justify-between text-xs text-blue-300 mb-1.5">
-          <span>{dollar(prevSeuil)}</span>
-          {nextPalier && <span>{dollar(nextSeuil)} → +{dollar(nextPalier.setter)}</span>}
-        </div>
-        <div className="w-full h-2.5 rounded-full bg-blue-500/40 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-amber-300 transition-all duration-700"
-            style={{ width: `${Math.max(progress > 0 ? 2 : 0, progress)}%` }}
-          />
-        </div>
+      {/* Tier steps */}
+      <div className="flex gap-1.5 mb-3">
+        {PALIERS_ASC.map(p => {
+          const reached = cashGeneré >= p.seuil
+          const isNext  = !reached && p.seuil === nextPalier?.seuil
+          return (
+            <div key={p.seuil} className={cn(
+              'flex-1 rounded-lg p-2 text-center border transition-colors',
+              reached  ? 'bg-blue-600 border-blue-600 text-white'
+              : isNext ? 'bg-blue-50 border-blue-300 text-blue-700'
+              :          'bg-gray-50 border-gray-100 text-gray-400',
+            )}>
+              <p className="text-[10px] font-medium leading-tight">{dollar(p.seuil)}</p>
+              <p className="text-[11px] font-bold mt-0.5">+{dollar(p.setter)}</p>
+            </div>
+          )
+        })}
       </div>
+
+      {maxReached && (
+        <p className="text-xs text-blue-600 font-medium text-center">Palier maximum atteint — félicitations !</p>
+      )}
+      {nextPalier && (
+        <p className="text-xs text-gray-400 text-center">
+          {dollar(nextPalier.seuil - cashGeneré)} de plus pour atteindre{' '}
+          <span className="text-blue-600 font-medium">{dollar(nextPalier.seuil)}</span>
+          {' '}→ <span className="text-green-600 font-semibold">+{dollar(nextPalier.setter)}</span>
+        </p>
+      )}
     </div>
   )
 }
