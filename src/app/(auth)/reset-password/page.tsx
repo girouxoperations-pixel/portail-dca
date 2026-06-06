@@ -18,14 +18,21 @@ export default function ResetPasswordPage() {
   const [done,     setDone]       = useState(false)
   const [ready,    setReady]      = useState(false)
 
-  // Supabase envoie la session via le hash de l'URL — attendre qu'elle soit établie
   useEffect(() => {
-    // Extraire les tokens du hash URL (#access_token=...&type=recovery)
+    // Cas 1 : PKCE — lien email avec ?code=xxx dans la query string
+    const code = new URLSearchParams(window.location.search).get('code')
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code)
+        .then(({ error }) => { if (!error) setReady(true) })
+      return
+    }
+
+    // Cas 2 : Implicit — hash URL (#access_token=...&type=recovery)
     const hash = window.location.hash.slice(1)
-    const params = new URLSearchParams(hash)
-    if (params.get('type') === 'recovery') {
-      const accessToken  = params.get('access_token')
-      const refreshToken = params.get('refresh_token')
+    const hashParams = new URLSearchParams(hash)
+    if (hashParams.get('type') === 'recovery') {
+      const accessToken  = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
       if (accessToken && refreshToken) {
         supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
           .then(({ error }) => { if (!error) setReady(true) })
