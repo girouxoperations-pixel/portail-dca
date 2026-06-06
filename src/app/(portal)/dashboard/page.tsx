@@ -1,14 +1,16 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import {
   Wallet, Phone, Target, Trophy, Award, Users,
 } from 'lucide-react'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import KpiCard     from '@/components/dashboard/KpiCard'
-import TrendChart   from '@/components/dashboard/TrendChart'
-import GoalSection  from '@/components/dashboard/GoalSection'
-import type { TrendPoint } from '@/components/dashboard/TrendChart'
+import KpiCard       from '@/components/dashboard/KpiCard'
+import TrendChart    from '@/components/dashboard/TrendChart'
+import GoalSection   from '@/components/dashboard/GoalSection'
+import CloserView    from '@/components/dashboard/CloserView'
+import SetterView    from '@/components/dashboard/SetterView'
+import MonthSelectorComp from '@/components/dashboard/MonthSelector'
+import type { TrendPoint }  from '@/components/dashboard/TrendChart'
 import { MOIS_FR, MOIS_COURT, PALIERS, dollar, getPalier } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
@@ -59,27 +61,6 @@ interface BonusItem {
 }
 
 // ── Sub-components ───────────────────────────────────────────────────
-
-function MonthSelector({ options, selected }: { options: MonthOption[]; selected: string }) {
-  return (
-    <div className="flex items-center gap-2 flex-wrap">
-      {options.map(o => (
-        <Link
-          key={o.key}
-          href={`/dashboard?mois=${o.key}`}
-          className={cn(
-            'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
-            o.key === selected
-              ? 'bg-violet-600 text-white shadow-sm'
-              : 'bg-white border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-700',
-          )}
-        >
-          {o.label}
-        </Link>
-      ))}
-    </div>
-  )
-}
 
 function PctBadge({ value }: { value: number }) {
   const color = value >= 40 ? 'text-green-600' : value >= 20 ? 'text-amber-600' : 'text-red-500'
@@ -399,12 +380,96 @@ export default async function DashboardPage({
     }
   })
 
-  const isAdmin = profil?.role === 'admin' || profil?.role === 'csm'
-
-  const prenom    = profil?.full_name?.split(' ')[0] ?? 'vous'
-  const moisLabel = `${MOIS_FR[selMonth - 1]} ${selYear}`
+  const isAdmin    = profil?.role === 'admin' || profil?.role === 'csm'
+  const role       = profil?.role ?? ''
+  const prenom     = profil?.full_name?.split(' ')[0] ?? 'vous'
+  const moisLabel  = `${MOIS_FR[selMonth - 1]} ${selYear}`
   const isCurrentMonth = selKey === defaultKey
 
+  // ── Closer view ───────────────────────────────────────────────────
+  if (role === 'closer') {
+    const myStats = (allMonthlyStats ?? []).filter(r =>
+      r.source === 'closer' && (
+        r.user_id === user.id ||
+        r.closer_name?.toLowerCase() === prenom.toLowerCase()
+      )
+    )
+    const thisMonth = myStats.find(r => r.year === selYear && r.month === selMonth)
+
+    const myMonths = Array.from(new Set(myStats.map(r => monthKey(r.year, r.month)))).sort()
+    const myChartData: TrendPoint[] = myMonths.map(mk => {
+      const [y, m] = mk.split('-').map(Number)
+      const s = myStats.find(r => r.year === y && r.month === m)!
+      return { mois: MOIS_COURT[m - 1], cash: s.cash_collected, revenue: s.revenue, closes: s.closes }
+    })
+
+    const { data: recentDeals } = await db
+      .from('cash_entries')
+      .select('id, entry_date, client_name, montant_courant, collected')
+      .eq('closed_by', user.id)
+      .order('entry_date', { ascending: false })
+      .limit(10)
+
+    return (
+      <CloserView
+        prenom={prenom}
+        moisLabel={moisLabel}
+        selKey={selKey}
+        isCurrentMonth={isCurrentMonth}
+        monthOptions={monthOptions}
+        closes={thisMonth?.closes ?? 0}
+        cashCollected={thisMonth?.cash_collected ?? 0}
+        revenue={thisMonth?.revenue ?? 0}
+        scheduled={thisMonth?.scheduled_calls ?? 0}
+        shows={thisMonth?.show_calls ?? 0}
+        chartData={myChartData}
+        recentDeals={recentDeals ?? []}
+      />
+    )
+  }
+
+  // ── Setter view ───────────────────────────────────────────────────
+  if (role === 'setter') {
+    const { data: myDeals } = await db
+      .from('cash_entries')
+      .select('id, entry_date, client_name, montant_courant, collected, closed_by')
+      .eq('set_by', user.id)
+      .order('entry_date', { ascending: false })
+      .limit(10)
+
+    const { min: dMin, max: dMax } = monthBounds(selYear, selMonth)
+    const { data: myMonthDeals } = await db
+      .from('cash_entries')
+      .select('collected')
+      .eq('set_by', user.id)
+      .gte('entry_date', dMin)
+      .lt('entry_date', dMax)
+
+    const cashGeneré = (myMonthDeals ?? []).reduce((s, d) => s + (d.collected ?? 0), 0)
+    const dealsSettés = myMonthDeals?.length ?? 0
+    const commission  = Math.round(cashGeneré * 0.05)
+
+    const dealsWithCloser = (myDeals ?? []).map(d => ({
+      ...d,
+      closer_name: d.closed_by ? (profileMap.get(d.closed_by) ?? null) : null,
+    }))
+
+    return (
+      <SetterView
+        prenom={prenom}
+        moisLabel={moisLabel}
+        selKey={selKey}
+        isCurrentMonth={isCurrentMonth}
+        monthOptions={monthOptions}
+        dealsSettés={dealsSettés}
+        cashGeneré={cashGeneré}
+        commission={commission}
+        recentDeals={dealsWithCloser}
+      />
+    )
+  }
+
+  // ── Admin / CSM view ──────────────────────────────────────────────
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
 
@@ -418,7 +483,7 @@ export default async function DashboardPage({
             {isCurrentMonth ? `Tableau de bord · ${moisLabel}` : 'Tableau de bord — historique'}
           </p>
         </div>
-        <MonthSelector options={monthOptions} selected={selKey} />
+        <MonthSelectorComp options={monthOptions} selected={selKey} />
       </div>
 
       {/* KPI cards */}
