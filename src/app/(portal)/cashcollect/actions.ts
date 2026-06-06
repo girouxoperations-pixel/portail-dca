@@ -108,7 +108,23 @@ export async function creerCashCollect(formData: FormData) {
     }).select('id').single()
 
     if (deal) {
-      const occs = futureDates.map(dateStr => {
+      // Si aucune date spécifique fournie, calculer au même jour du mois que le deal
+      const base = new Date(entryDate + 'T00:00:00')
+      const baseDay = base.getDate()
+
+      const effectiveDates = futureDates.length > 0
+        ? futureDates
+        : Array.from({ length: versements - 1 }, (_, i) => {
+            const d = new Date(base)
+            d.setDate(1) // aller au 1er pour éviter les dépassements de fin de mois
+            d.setMonth(d.getMonth() + i + 1)
+            // Revenir au bon jour (ou dernier jour du mois si trop court)
+            const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+            d.setDate(Math.min(baseDay, lastDay))
+            return d.toISOString().split('T')[0]
+          })
+
+      const occs = effectiveDates.map(dateStr => {
         const d = new Date(dateStr + 'T00:00:00')
         return {
           recurring_deal_id: deal.id,

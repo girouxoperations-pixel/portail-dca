@@ -37,11 +37,15 @@ export async function creerRecurringDeal(data: {
 
   if (error) throw new Error(error.message)
 
-  // Generate 24 monthly occurrences from date_debut
-  const start = new Date(data.date_debut + 'T00:00:00')
+  // Generate 24 monthly occurrences — même jour du mois que date_debut
+  const start   = new Date(data.date_debut + 'T00:00:00')
+  const baseDay = start.getDate()
   const occs = Array.from({ length: 24 }, (_, i) => {
     const d = new Date(start)
+    d.setDate(1)
     d.setMonth(d.getMonth() + i)
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+    d.setDate(Math.min(baseDay, lastDay))
     return {
       recurring_deal_id: deal.id,
       mois:              d.getMonth() + 1,

@@ -180,9 +180,9 @@ function OccurrenceRow({ occ, deal, profileMap, isAdmin }: {
 
   const urgencyBadge = {
     done:    null,
-    overdue: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600">En retard</span>,
-    today:   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Aujourd&apos;hui</span>,
-    soon:    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">Dans {diffDays}j</span>,
+    overdue: <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-700 text-white">En retard</span>,
+    today:   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-600 text-white">Aujourd&apos;hui</span>,
+    soon:    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">Dans {diffDays}j</span>,
     normal:  <span className="text-[10px] text-gray-400">Dans {diffDays}j</span>,
   }[urgency]
 
@@ -200,8 +200,8 @@ function OccurrenceRow({ occ, deal, profileMap, isAdmin }: {
   return (
     <tr className={cn(
       'border-b border-gray-50 transition-colors',
-      urgency === 'overdue' ? 'bg-red-50/30'
-      : urgency === 'today'   ? 'bg-amber-50/30'
+      urgency === 'overdue' ? 'bg-violet-50/40'
+      : urgency === 'today'   ? 'bg-violet-50/20'
       : occ.recu              ? 'bg-green-50/40'
       : 'hover:bg-gray-50/50',
     )}>
