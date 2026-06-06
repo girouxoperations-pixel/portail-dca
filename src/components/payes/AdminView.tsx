@@ -28,6 +28,7 @@ interface PayeEntry {
   commission_setter: number
   statut: string
   notes: string | null
+  cash_entries: { collected: number } | null
 }
 
 interface Profil {
@@ -386,9 +387,10 @@ export default function AdminView({
     const map = new Map<string, EmployeeGroup>()
 
     for (const e of filtrees) {
-      // Commission = collected * taux → collected = commission / taux
-      const collectedFromCloser = e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant
-      const collectedFromSetter = e.commission_setter > 0 ? Math.round(e.commission_setter / 0.05) : e.montant
+      // Prefer actual collected from cash_entries join, fallback to derivation
+      const actualCollected     = e.cash_entries?.collected ?? null
+      const collectedFromCloser = actualCollected ?? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
+      const collectedFromSetter = actualCollected ?? (e.commission_setter > 0 ? Math.round(e.commission_setter / 0.05) : e.montant)
 
       const addToGroup = (uid: string, role: 'closer' | 'setter', maComm: number, entryCollected: number) => {
         if (!map.has(uid)) {

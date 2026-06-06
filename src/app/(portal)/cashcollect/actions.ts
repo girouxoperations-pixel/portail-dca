@@ -62,6 +62,7 @@ export async function creerCashCollect(formData: FormData) {
 
   // 2. Auto-create paye entry — commission on cash received, not deal total
   const { error: payeErr } = await db.from('paye_entries').insert({
+    cash_entry_id:     cashEntry.id,
     period_label:      periodLabel(entryDate),
     month,
     year,

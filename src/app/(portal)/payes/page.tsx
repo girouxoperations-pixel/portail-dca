@@ -42,7 +42,7 @@ export default async function PayesPage() {
       { data: cashPeriode },
     ] = await Promise.all([
       db.from('paye_entries')
-        .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes')
+        .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
         .gte('year', annee - 1)
         .order('created_at', { ascending: false }),
       db.from('profiles').select('id, full_name, role').eq('role', 'closer'),
@@ -73,9 +73,14 @@ export default async function PayesPage() {
       palier:    getPalier(setterCash.get(p.id) ?? 0),
     })).sort((a, b) => b.collected - a.collected)
 
+    const entreesNorm = (entrees ?? []).map(e => ({
+      ...e,
+      cash_entries: Array.isArray(e.cash_entries) ? (e.cash_entries[0] ?? null) : (e.cash_entries ?? null),
+    }))
+
     return (
       <AdminView
-        entrees={entrees ?? []}
+        entrees={entreesNorm}
         closers={closers ?? []}
         setters={setters ?? []}
         allProfiles={allProfiles ?? []}
@@ -95,11 +100,11 @@ export default async function PayesPage() {
   const [{ data: entrees }, { data: cashPeriode }] = await Promise.all([
     isCloser
       ? db.from('paye_entries')
-          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes')
+          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
           .eq('closer_id', user.id).gte('year', annee - 1)
           .order('created_at', { ascending: false })
       : db.from('paye_entries')
-          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes')
+          .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
           .eq('setter_id', user.id).gte('year', annee - 1)
           .order('created_at', { ascending: false }),
     db.from('cash_entries')
@@ -113,9 +118,14 @@ export default async function PayesPage() {
     return s
   }, 0)
 
+  const entreesNorm = (entrees ?? []).map(e => ({
+    ...e,
+    cash_entries: Array.isArray(e.cash_entries) ? (e.cash_entries[0] ?? null) : (e.cash_entries ?? null),
+  }))
+
   return (
     <PersonnelView
-      entrees={entrees ?? []}
+      entrees={entreesNorm}
       role={role}
       userId={user.id}
       myCollected={myCollected}
