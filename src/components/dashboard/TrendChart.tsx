@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
@@ -12,15 +13,20 @@ export interface TrendPoint {
   closes:  number
 }
 
+interface Props {
+  data:        TrendPoint[]
+  weeklyData?: TrendPoint[]
+}
+
 const fmt$ = (v: number) =>
   v >= 1000 ? `${(v / 1000).toFixed(0)}k $` : `${v} $`
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { dataKey: string; name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-white border border-gray-100 shadow-lg rounded-xl px-4 py-3 text-sm">
       <p className="font-semibold text-gray-800 mb-2">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map(p => (
         <div key={p.dataKey} className="flex items-center justify-between gap-6">
           <span className="flex items-center gap-1.5 text-gray-500">
             <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: p.color }} />
@@ -35,24 +41,59 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-export default function TrendChart({ data }: { data: TrendPoint[] }) {
-  if (data.length === 0) return null
+export default function TrendChart({ data, weeklyData }: Props) {
+  const [mode, setMode] = useState<'mois' | 'semaine'>('mois')
+
+  const active = mode === 'semaine' && weeklyData && weeklyData.length > 0 ? weeklyData : data
+  if (active.length === 0) return null
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
-        <h3 className="text-sm font-semibold text-gray-900">Tendance mensuelle</h3>
-        <p className="text-xs text-gray-400 mt-0.5">Cash collecté et closes par mois</p>
+      <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Tendance</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {mode === 'mois' ? 'Cash collecté et closes par mois' : 'Cash collecté et closes par semaine'}
+          </p>
+        </div>
+
+        {/* Toggle mensuel / hebdomadaire */}
+        {weeklyData && weeklyData.length > 0 && (
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5 shrink-0">
+            <button
+              onClick={() => setMode('mois')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'mois'
+                  ? 'bg-white text-violet-700 shadow-sm font-semibold'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Mensuel
+            </button>
+            <button
+              onClick={() => setMode('semaine')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'semaine'
+                  ? 'bg-white text-violet-700 shadow-sm font-semibold'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Hebdo
+            </button>
+          </div>
+        )}
       </div>
+
       <div className="px-4 py-5">
         <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+          <ComposedChart data={active} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
             <XAxis
               dataKey="mois"
-              tick={{ fontSize: 12, fill: '#9ca3af' }}
+              tick={{ fontSize: mode === 'semaine' ? 10 : 12, fill: '#9ca3af' }}
               axisLine={false}
               tickLine={false}
+              interval={mode === 'semaine' ? 'preserveStartEnd' : 0}
             />
             <YAxis
               yAxisId="cash"

@@ -1,14 +1,21 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Trash2, Phone, TrendingUp, Target, CheckCircle2, Wallet, DollarSign } from 'lucide-react'
+import {
+  Plus, Trash2, Phone, TrendingUp, Target, CheckCircle2,
+  Wallet, DollarSign, ArrowUp, ArrowDown, Minus,
+} from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  Legend, ResponsiveContainer,
+} from 'recharts'
 import { cn } from '@/lib/utils'
 import { ajouterEntree, supprimerEntree } from '@/app/(portal)/closer/actions'
-import { MOIS_FR, MOIS_COURT, dollar, currentMonthKey, formatDate } from '@/lib/constants'
-import MetricCard  from '@/components/ui/MetricCard'
-import MonthFilter from '@/components/ui/MonthFilter'
-import Modal       from '@/components/ui/Modal'
-import PageHeader  from '@/components/layout/PageHeader'
+import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
+import MetricCard   from '@/components/ui/MetricCard'
+import PeriodFilter, { usePeriodFilter, computePrevRange } from '@/components/ui/PeriodFilter'
+import Modal        from '@/components/ui/Modal'
+import PageHeader   from '@/components/layout/PageHeader'
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -51,6 +58,37 @@ function PctBadge({ value, bold = false }: { value: number; bold?: boolean }) {
   )
 }
 
+function DeltaBadge({ current, prev }: { current: number; prev: number }) {
+  if (prev === 0 && current === 0) return <span className="text-xs text-gray-300">—</span>
+  if (prev === 0) return <span className="text-xs text-green-600 font-medium flex items-center gap-0.5"><ArrowUp size={10} />Nouveau</span>
+  const delta = Math.round(((current - prev) / prev) * 100)
+  if (Math.abs(delta) < 1) return (
+    <span className="text-xs text-gray-400 flex items-center gap-0.5"><Minus size={10} />Stable</span>
+  )
+  const up = delta > 0
+  return (
+    <span className={cn('text-xs font-medium flex items-center gap-0.5', up ? 'text-green-600' : 'text-red-500')}>
+      {up ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
+      {Math.abs(delta)} %
+    </span>
+  )
+}
+
+function computeKpis(rows: CloserEntry[]) {
+  const scheduled      = rows.reduce((s, e) => s + e.scheduled_calls, 0)
+  const shows          = rows.reduce((s, e) => s + e.show_calls,      0)
+  const pitches        = rows.reduce((s, e) => s + e.pitch_calls,     0)
+  const closes         = rows.reduce((s, e) => s + e.closes,          0)
+  const cash_collected = rows.reduce((s, e) => s + e.cash_collected,  0)
+  const revenue        = rows.reduce((s, e) => s + e.revenue,         0)
+  return {
+    scheduled, shows, pitches, closes, cash_collected, revenue,
+    showRate:  pct(shows, scheduled),
+    pitchRate: pct(pitches, shows),
+    closeRate: pct(closes, shows),
+  }
+}
+
 // ── Modal ajout ───────────────────────────────────────────────────────
 
 function ModalAjout({ closers, onClose }: { closers: Profil[]; onClose: () => void }) {
@@ -77,12 +115,10 @@ function ModalAjout({ closers, onClose }: { closers: Profil[]; onClose: () => vo
             ))}
           </select>
         </div>
-
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Date</label>
           <input name="entry_date" type="date" required defaultValue={today} className={INPUT_CLS} />
         </div>
-
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Appels</p>
           <div className="grid grid-cols-2 gap-3">
@@ -99,7 +135,6 @@ function ModalAjout({ closers, onClose }: { closers: Profil[]; onClose: () => vo
             ))}
           </div>
         </div>
-
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Financier</p>
           <div className="grid grid-cols-2 gap-3">
@@ -113,12 +148,10 @@ function ModalAjout({ closers, onClose }: { closers: Profil[]; onClose: () => vo
             </div>
           </div>
         </div>
-
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Notes (optionnel)</label>
           <textarea name="notes" rows={2} placeholder="Remarques..." className={`${INPUT_CLS} resize-none`} />
         </div>
-
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
             Annuler
@@ -141,7 +174,7 @@ export default function AdminView({ entrees, closers, isAdmin }: {
   closers:  Profil[]
   isAdmin:  boolean
 }) {
-  const [moisSelect,   setMoisSelect]   = useState(currentMonthKey)
+  const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [closerFilter, setCloserFilter] = useState<string>('tout')
   const [modalOuverte, setModalOuverte] = useState(false)
   const [pending, startTransition]      = useTransition()
@@ -151,55 +184,36 @@ export default function AdminView({ entrees, closers, isAdmin }: {
     [closers],
   )
 
-  const moisOptions = useMemo(() => {
-    const seen = new Set<string>()
-    const opts: { value: string; label: string }[] = []
-    for (const e of entrees) {
-      const [y, m] = e.entry_date.split('-').map(Number)
-      const key = `${y}-${String(m).padStart(2, '0')}`
-      if (!seen.has(key)) {
-        seen.add(key)
-        opts.push({ value: key, label: `${MOIS_FR[m - 1]} ${y}` })
-      }
-    }
-    return opts.sort((a, b) => b.value.localeCompare(a.value))
-  }, [entrees])
+  const prevRange = useMemo(() => computePrevRange(periode, offset, range), [periode, offset, range])
 
-  const filtreesMois = useMemo(() => {
-    if (moisSelect === 'tout') return entrees
-    const [y, m] = moisSelect.split('-').map(Number)
-    return entrees.filter(e => {
-      const [ey, em] = e.entry_date.split('-').map(Number)
-      return ey === y && em === m
-    })
-  }, [entrees, moisSelect])
+  // Period filter only (for per-closer breakdown table)
+  const filtreePeriode = useMemo(
+    () => !range.start ? [] : entrees.filter(e => e.entry_date >= range.start && e.entry_date <= range.end),
+    [entrees, range],
+  )
 
+  // Period + closer (for KPIs + detail table)
   const filtrees = useMemo(() => {
-    if (closerFilter === 'tout') return filtreesMois
-    return filtreesMois.filter(e => e.user_id === closerFilter)
-  }, [filtreesMois, closerFilter])
+    if (closerFilter === 'tout') return filtreePeriode
+    return filtreePeriode.filter(e => e.user_id === closerFilter)
+  }, [filtreePeriode, closerFilter])
 
-  const kpis = useMemo(() => {
-    const scheduled      = filtreesMois.reduce((s, e) => s + e.scheduled_calls, 0)
-    const shows          = filtreesMois.reduce((s, e) => s + e.show_calls,      0)
-    const pitches        = filtreesMois.reduce((s, e) => s + e.pitch_calls,     0)
-    const closes         = filtreesMois.reduce((s, e) => s + e.closes,          0)
-    const cash_collected = filtreesMois.reduce((s, e) => s + e.cash_collected,  0)
-    const revenue        = filtreesMois.reduce((s, e) => s + e.revenue,         0)
-    return {
-      scheduled, shows, pitches, closes, cash_collected, revenue,
-      showRate:  pct(shows, scheduled),
-      pitchRate: pct(pitches, shows),
-      closeRate: pct(closes, shows),
-    }
-  }, [filtreesMois])
+  // Previous period (same closer filter)
+  const filtreesPrev = useMemo(() => {
+    const base = entrees.filter(e => e.entry_date >= prevRange.start && e.entry_date <= prevRange.end)
+    if (closerFilter === 'tout') return base
+    return base.filter(e => e.user_id === closerFilter)
+  }, [entrees, prevRange, closerFilter])
+
+  const kpis     = useMemo(() => computeKpis(filtrees),     [filtrees])
+  const kpisPrev = useMemo(() => computeKpis(filtreesPrev), [filtreesPrev])
 
   const statsParCloser = useMemo(() => {
     const agg = new Map<string, {
       scheduled: number; shows: number; pitches: number; closes: number;
       cash_collected: number; revenue: number
     }>()
-    for (const e of filtreesMois) {
+    for (const e of filtreePeriode) {
       const cur = agg.get(e.user_id) ?? { scheduled: 0, shows: 0, pitches: 0, closes: 0, cash_collected: 0, revenue: 0 }
       agg.set(e.user_id, {
         scheduled:      cur.scheduled      + e.scheduled_calls,
@@ -213,12 +227,21 @@ export default function AdminView({ entrees, closers, isAdmin }: {
     return Array.from(agg.entries())
       .map(([uid, s]) => ({ uid, nom: profileMap.get(uid) ?? 'Inconnu', ...s }))
       .sort((a, b) => b.closes - a.closes)
-  }, [filtreesMois, profileMap])
+  }, [filtreePeriode, profileMap])
+
+  const chartData = useMemo(() => [
+    { name: 'Schedulés', current: kpis.scheduled,    prev: kpisPrev.scheduled    },
+    { name: 'Shows',     current: kpis.shows,         prev: kpisPrev.shows         },
+    { name: 'Pitches',   current: kpis.pitches,       prev: kpisPrev.pitches       },
+    { name: 'Closes',    current: kpis.closes,        prev: kpisPrev.closes        },
+  ], [kpis, kpisPrev])
 
   function handleDelete(id: string) {
     if (!confirm('Supprimer cette entrée ?')) return
     startTransition(async () => { await supprimerEntree(id) })
   }
+
+  const nomCloser = closerFilter === 'tout' ? null : (profileMap.get(closerFilter) ?? null)
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -237,34 +260,103 @@ export default function AdminView({ entrees, closers, isAdmin }: {
         }
       />
 
-      <MonthFilter
-        selected={moisSelect}
-        onChange={setMoisSelect}
-        options={moisOptions}
-      />
+      {/* Filters row */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <PeriodFilter
+          periode={periode} offset={offset} onChange={onPeriodChange}
+          customStart={customStart} customEnd={customEnd} onCustomRange={onCustomRange}
+        />
+        <select
+          value={closerFilter}
+          onChange={e => setCloserFilter(e.target.value)}
+          className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+        >
+          <option value="tout">Tous les closers</option>
+          {closers.map(c => (
+            <option key={c.id} value={c.id}>{c.full_name ?? c.id}</option>
+          ))}
+        </select>
+      </div>
+
+      {nomCloser && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg border border-violet-100 w-fit">
+          <span className="w-2 h-2 rounded-full bg-violet-500" />
+          <span className="text-sm font-medium text-violet-800">{nomCloser}</span>
+          <button onClick={() => setCloserFilter('tout')} className="text-violet-400 hover:text-violet-700 ml-1 text-xs">✕</button>
+        </div>
+      )}
 
       {/* KPIs activité */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Activité équipe</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          Activité{nomCloser ? ` — ${nomCloser}` : ' équipe'}
+        </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard label="Schedulés"    value={kpis.scheduled}          icon={Phone}        color="violet" sub={`${kpis.shows} shows réalisés`} />
-          <MetricCard label="Show rate"    value={`${kpis.showRate} %`}    icon={TrendingUp}   color="blue"   sub={`${kpis.shows} / ${kpis.scheduled} appels`} />
-          <MetricCard label="Pitch rate"   value={`${kpis.pitchRate} %`}   icon={Target}       color="amber"  sub={`${kpis.pitches} / ${kpis.shows} shows`} />
-          <MetricCard label="Close rate"   value={`${kpis.closeRate} %`}   icon={CheckCircle2} color="green"  sub={`${kpis.closes} closes`} />
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Schedulés"  value={kpis.scheduled}          icon={Phone}        color="violet" sub={`${kpis.shows} shows réalisés`} />
+            <DeltaBadge current={kpis.scheduled} prev={kpisPrev.scheduled} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Show rate"  value={`${kpis.showRate} %`}    icon={TrendingUp}   color="blue"   sub={`${kpis.shows} / ${kpis.scheduled}`} />
+            <DeltaBadge current={kpis.showRate} prev={kpisPrev.showRate} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Pitch rate" value={`${kpis.pitchRate} %`}   icon={Target}       color="amber"  sub={`${kpis.pitches} / ${kpis.shows}`} />
+            <DeltaBadge current={kpis.pitchRate} prev={kpisPrev.pitchRate} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Close rate" value={`${kpis.closeRate} %`}   icon={CheckCircle2} color="green"  sub={`${kpis.closes} closes`} />
+            <DeltaBadge current={kpis.closeRate} prev={kpisPrev.closeRate} />
+          </div>
         </div>
       </div>
 
       {/* KPIs financier */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Financier équipe</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Financier</p>
         <div className="grid grid-cols-2 gap-4">
-          <MetricCard label="Cash collecté" value={dollar(kpis.cash_collected)} icon={Wallet}     color="blue"  sub="Total saisi dans les EOD" />
-          <MetricCard label="Revenue"       value={dollar(kpis.revenue)}        icon={DollarSign} color="green" sub="Valeur des deals signés" />
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Cash collecté" value={dollar(kpis.cash_collected)} icon={Wallet}     color="blue"  sub="Total EOD" />
+            <DeltaBadge current={kpis.cash_collected} prev={kpisPrev.cash_collected} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Revenue" value={dollar(kpis.revenue)} icon={DollarSign} color="green" sub="Valeur deals signés" />
+            <DeltaBadge current={kpis.revenue} prev={kpisPrev.revenue} />
+          </div>
         </div>
       </div>
 
-      {/* Stats par closer */}
-      {statsParCloser.length > 0 && (
+      {/* Graphique comparatif */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Comparatif période précédente</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{range.label} vs {prevRange.label}</p>
+          </div>
+          <div className="flex items-center gap-4 text-xs">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm inline-block bg-violet-600" />{range.label}</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm inline-block bg-gray-200" />{prevRange.label}</span>
+          </div>
+        </div>
+        <div className="p-5">
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} barGap={4} barCategoryGap="30%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', fontSize: 12 }}
+                cursor={{ fill: '#f9fafb' }}
+              />
+              <Bar dataKey="current" name={range.label}    fill="#831e3e" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="prev"    name={prevRange.label} fill="#e5e7eb" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Stats par closer — toujours toute l'équipe pour la période */}
+      {closerFilter === 'tout' && statsParCloser.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-50">
             <h3 className="text-sm font-semibold text-gray-900">Performance par closer</h3>
@@ -287,7 +379,11 @@ export default function AdminView({ entrees, closers, isAdmin }: {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {statsParCloser.map(s => (
-                  <tr key={s.uid} className="hover:bg-gray-50/50 transition-colors">
+                  <tr
+                    key={s.uid}
+                    className="hover:bg-violet-50/30 transition-colors cursor-pointer"
+                    onClick={() => setCloserFilter(s.uid)}
+                  >
                     <td className="px-4 py-3 font-medium text-gray-800">{s.nom}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.scheduled}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.shows}</td>
@@ -322,23 +418,11 @@ export default function AdminView({ entrees, closers, isAdmin }: {
 
       {/* Entrées détaillées */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-semibold text-gray-900">Entrées détaillées</h3>
-            <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-              {filtrees.length} entrée{filtrees.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <select
-            value={closerFilter}
-            onChange={e => setCloserFilter(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500"
-          >
-            <option value="tout">Tous les closers</option>
-            {closers.map(c => (
-              <option key={c.id} value={c.id}>{c.full_name ?? c.id}</option>
-            ))}
-          </select>
+        <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+          <h3 className="text-sm font-semibold text-gray-900">Entrées détaillées</h3>
+          <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+            {filtrees.length} entrée{filtrees.length !== 1 ? 's' : ''}
+          </span>
         </div>
 
         {filtrees.length === 0 ? (

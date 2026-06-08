@@ -1,7 +1,7 @@
 import { Handshake, Wallet, DollarSign } from 'lucide-react'
-import KpiCard       from './KpiCard'
-import MonthSelector from './MonthSelector'
-import type { MonthOption } from './MonthSelector'
+import KpiCard               from './KpiCard'
+import DashboardPeriodFilter from './DashboardPeriodFilter'
+import type { Periode }      from '@/components/ui/PeriodFilter'
 import { PALIERS, dollar, getPalier } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
@@ -17,18 +17,21 @@ interface Deal {
 }
 
 interface Props {
-  prenom:        string
-  moisLabel:     string
-  selKey:        string
-  isCurrentMonth: boolean
-  monthOptions:  MonthOption[]
-  dealsSettés:   number
-  cashGeneré:    number
-  commission:    number
-  recentDeals:   Deal[]
+  prenom:          string
+  periodLabel:     string
+  isCurrentPeriod: boolean
+  isMoisMode:      boolean
+  periode:         Periode
+  offset:          number
+  customStart?:    string
+  customEnd?:      string
+  dealsSettés:     number
+  cashGeneré:      number
+  commission:      number
+  recentDeals:     Deal[]
 }
 
-function BonusPersonnelSetter({ cashGeneré }: { cashGeneré: number }) {
+function BonusPersonnelSetter({ cashGeneré, isMoisMode }: { cashGeneré: number; isMoisMode: boolean }) {
   const palier     = getPalier(cashGeneré)
   const nextPalier = PALIERS_ASC.find(p => cashGeneré < p.seuil)
   const maxReached = palier && !nextPalier
@@ -37,7 +40,9 @@ function BonusPersonnelSetter({ cashGeneré }: { cashGeneré: number }) {
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Bonus ce mois</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+            Bonus {isMoisMode ? 'ce mois' : 'cette période'}
+          </p>
           {palier ? (
             <>
               <p className="text-3xl font-bold text-green-600 tabular-nums">+{dollar(palier.setter)}</p>
@@ -61,7 +66,6 @@ function BonusPersonnelSetter({ cashGeneré }: { cashGeneré: number }) {
         </div>
       </div>
 
-      {/* Tier steps */}
       <div className="flex gap-1.5 mb-3">
         {PALIERS_ASC.map(p => {
           const reached = cashGeneré >= p.seuil
@@ -95,34 +99,39 @@ function BonusPersonnelSetter({ cashGeneré }: { cashGeneré: number }) {
 }
 
 export default function SetterView({
-  prenom, moisLabel, selKey, isCurrentMonth, monthOptions,
+  prenom, periodLabel, isCurrentPeriod, isMoisMode, periode, offset, customStart, customEnd,
   dealsSettés, cashGeneré, commission, recentDeals,
 }: Props) {
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className="flex flex-col gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isCurrentMonth ? `Bonjour, ${prenom} 👋` : moisLabel}
+            {isCurrentPeriod && isMoisMode ? `Bonjour, ${prenom} 👋` : periodLabel}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {isCurrentMonth ? `Mes stats · ${moisLabel}` : 'Mes stats — historique'}
+            {isCurrentPeriod && isMoisMode ? `Mes stats · ${periodLabel}` : 'Mes stats — historique'}
           </p>
         </div>
-        <MonthSelector options={monthOptions} selected={selKey} />
+        <DashboardPeriodFilter
+          periode={periode}
+          offset={offset}
+          customStart={customStart}
+          customEnd={customEnd}
+        />
       </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <KpiCard title="Deals settés"      value={dealsSettés}        icon={Handshake}   color="violet" subtitle="Ce mois" />
-        <KpiCard title="Cash généré"       value={dollar(cashGeneré)} icon={Wallet}      color="blue"   subtitle="Via tes deals" />
-        <KpiCard title="Commission setter" value={dollar(commission)}  icon={DollarSign}  color="green"  subtitle="5 % du cash collecté" />
+        <KpiCard title="Deals settés"      value={dealsSettés}        icon={Handshake}  color="violet" subtitle="Cette période" />
+        <KpiCard title="Cash généré"       value={dollar(cashGeneré)} icon={Wallet}     color="blue"   subtitle="Via tes deals" />
+        <KpiCard title="Commission setter" value={dollar(commission)}  icon={DollarSign} color="green"  subtitle="5 % du cash collecté" />
       </div>
 
       {/* Bonus */}
-      <BonusPersonnelSetter cashGeneré={cashGeneré} />
+      <BonusPersonnelSetter cashGeneré={cashGeneré} isMoisMode={isMoisMode} />
 
       {/* Deals récents */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

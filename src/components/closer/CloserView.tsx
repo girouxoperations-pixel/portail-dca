@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Phone, TrendingUp, Target, CheckCircle2, Wallet, DollarSign } from 'lucide-react'
+import { Plus, Pencil, Phone, TrendingUp, Target, CheckCircle2, Wallet, DollarSign, ArrowUp, ArrowDown, Minus } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { ajouterEntree, modifierEntree } from '@/app/(portal)/closer/actions'
-import { MOIS_FR, MOIS_COURT, dollar, currentMonthKey, formatDate } from '@/lib/constants'
+import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
-import MonthFilter  from '@/components/ui/MonthFilter'
+import PeriodFilter, { usePeriodFilter, computePrevRange } from '@/components/ui/PeriodFilter'
 import Modal        from '@/components/ui/Modal'
 import PageHeader   from '@/components/layout/PageHeader'
 import { cn }      from '@/lib/utils'
@@ -39,6 +40,19 @@ const CHAMPS_APPELS = [
 
 function pct(a: number, b: number) {
   return b > 0 ? Math.round((a / b) * 100) : 0
+}
+
+function DeltaBadge({ current, prev }: { current: number; prev: number }) {
+  if (prev === 0 && current === 0) return <span className="text-xs text-gray-300">—</span>
+  if (prev === 0) return <span className="text-xs text-green-600 font-medium flex items-center gap-0.5"><ArrowUp size={10} />Nouveau</span>
+  const delta = Math.round(((current - prev) / prev) * 100)
+  if (Math.abs(delta) < 1) return <span className="text-xs text-gray-400 flex items-center gap-0.5"><Minus size={10} />Stable</span>
+  const up = delta > 0
+  return (
+    <span className={cn('text-xs font-medium flex items-center gap-0.5', up ? 'text-green-600' : 'text-red-500')}>
+      {up ? <ArrowUp size={10} /> : <ArrowDown size={10} />}{Math.abs(delta)} %
+    </span>
+  )
 }
 
 function PctBadge({ value, bold = false }: { value: number; bold?: boolean }) {
@@ -170,46 +184,44 @@ export default function CloserView({ entrees, userId, prenom }: {
   userId:  string
   prenom:  string
 }) {
-  const [moisSelect, setMoisSelect] = useState(currentMonthKey)
+  const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [modalEntry, setModalEntry] = useState<CloserEntry | null | 'new'>(null)
 
-  const moisOptions = useMemo(() => {
-    const seen = new Set<string>()
-    const opts: { value: string; label: string }[] = []
-    for (const e of entrees) {
-      const [y, m] = e.entry_date.split('-').map(Number)
-      const key = `${y}-${String(m).padStart(2, '0')}`
-      if (!seen.has(key)) {
-        seen.add(key)
-        opts.push({ value: key, label: `${MOIS_FR[m - 1]} ${y}` })
-      }
-    }
-    return opts.sort((a, b) => b.value.localeCompare(a.value))
-  }, [entrees])
+  const prevRange = useMemo(() => computePrevRange(periode, offset, range), [periode, offset, range])
 
-  const filtrees = useMemo(() => {
-    if (moisSelect === 'tout') return entrees
-    const [y, m] = moisSelect.split('-').map(Number)
-    return entrees.filter(e => {
-      const [ey, em] = e.entry_date.split('-').map(Number)
-      return ey === y && em === m
-    })
-  }, [entrees, moisSelect])
+  const filtrees     = useMemo(
+    () => !range.start ? [] : entrees.filter(e => e.entry_date >= range.start && e.entry_date <= range.end),
+    [entrees, range],
+  )
+  const filtreesPrev = useMemo(
+    () => !prevRange.start ? [] : entrees.filter(e => e.entry_date >= prevRange.start && e.entry_date <= prevRange.end),
+    [entrees, prevRange],
+  )
 
-  const kpis = useMemo(() => {
-    const scheduled     = filtrees.reduce((s, e) => s + e.scheduled_calls, 0)
-    const shows         = filtrees.reduce((s, e) => s + e.show_calls,      0)
-    const pitches       = filtrees.reduce((s, e) => s + e.pitch_calls,     0)
-    const closes        = filtrees.reduce((s, e) => s + e.closes,          0)
-    const cash_collected = filtrees.reduce((s, e) => s + e.cash_collected, 0)
-    const revenue       = filtrees.reduce((s, e) => s + e.revenue,         0)
+  function computeKpis(rows: CloserEntry[]) {
+    const scheduled      = rows.reduce((s, e) => s + e.scheduled_calls, 0)
+    const shows          = rows.reduce((s, e) => s + e.show_calls,      0)
+    const pitches        = rows.reduce((s, e) => s + e.pitch_calls,     0)
+    const closes         = rows.reduce((s, e) => s + e.closes,          0)
+    const cash_collected = rows.reduce((s, e) => s + e.cash_collected,  0)
+    const revenue        = rows.reduce((s, e) => s + e.revenue,         0)
     return {
       scheduled, shows, pitches, closes, cash_collected, revenue,
       showRate:  pct(shows, scheduled),
       pitchRate: pct(pitches, shows),
       closeRate: pct(closes, shows),
     }
-  }, [filtrees])
+  }
+
+  const kpis     = useMemo(() => computeKpis(filtrees),     [filtrees])
+  const kpisPrev = useMemo(() => computeKpis(filtreesPrev), [filtreesPrev])
+
+  const chartData = useMemo(() => [
+    { name: 'Schedulés', current: kpis.scheduled, prev: kpisPrev.scheduled },
+    { name: 'Shows',     current: kpis.shows,      prev: kpisPrev.shows      },
+    { name: 'Pitches',   current: kpis.pitches,    prev: kpisPrev.pitches    },
+    { name: 'Closes',    current: kpis.closes,     prev: kpisPrev.closes     },
+  ], [kpis, kpisPrev])
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -228,44 +240,31 @@ export default function CloserView({ entrees, userId, prenom }: {
         }
       />
 
-      <MonthFilter
-        selected={moisSelect}
-        onChange={setMoisSelect}
-        options={moisOptions}
+      <PeriodFilter
+        periode={periode} offset={offset} onChange={onPeriodChange}
+        customStart={customStart} customEnd={customEnd} onCustomRange={onCustomRange}
       />
 
       {/* Appels */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Activité</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            label="Schedulés"
-            value={kpis.scheduled}
-            icon={Phone}
-            color="violet"
-            sub={`${filtrees.length} jour${filtrees.length !== 1 ? 's' : ''} saisi${filtrees.length !== 1 ? 's' : ''}`}
-          />
-          <MetricCard
-            label="Show rate"
-            value={`${kpis.showRate} %`}
-            icon={TrendingUp}
-            color="blue"
-            sub={`${kpis.shows} shows / ${kpis.scheduled} schedulés`}
-          />
-          <MetricCard
-            label="Pitch rate"
-            value={`${kpis.pitchRate} %`}
-            icon={Target}
-            color="amber"
-            sub={`${kpis.pitches} pitches / ${kpis.shows} shows`}
-          />
-          <MetricCard
-            label="Close rate"
-            value={`${kpis.closeRate} %`}
-            icon={CheckCircle2}
-            color="green"
-            sub={`${kpis.closes} closes / ${kpis.shows} shows`}
-          />
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Schedulés"  value={kpis.scheduled}        icon={Phone}        color="violet" sub={`${filtrees.length} jour${filtrees.length !== 1 ? 's' : ''} saisi${filtrees.length !== 1 ? 's' : ''}`} />
+            <DeltaBadge current={kpis.scheduled} prev={kpisPrev.scheduled} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Show rate"  value={`${kpis.showRate} %`}  icon={TrendingUp}   color="blue"   sub={`${kpis.shows} / ${kpis.scheduled}`} />
+            <DeltaBadge current={kpis.showRate} prev={kpisPrev.showRate} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Pitch rate" value={`${kpis.pitchRate} %`} icon={Target}       color="amber"  sub={`${kpis.pitches} / ${kpis.shows}`} />
+            <DeltaBadge current={kpis.pitchRate} prev={kpisPrev.pitchRate} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Close rate" value={`${kpis.closeRate} %`} icon={CheckCircle2} color="green"  sub={`${kpis.closes} closes`} />
+            <DeltaBadge current={kpis.closeRate} prev={kpisPrev.closeRate} />
+          </div>
         </div>
       </div>
 
@@ -273,20 +272,40 @@ export default function CloserView({ entrees, userId, prenom }: {
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Financier</p>
         <div className="grid grid-cols-2 gap-4">
-          <MetricCard
-            label="Cash collecté"
-            value={dollar(kpis.cash_collected)}
-            icon={Wallet}
-            color="blue"
-            sub={`${kpis.closes} close${kpis.closes !== 1 ? 's' : ''} ce mois`}
-          />
-          <MetricCard
-            label="Revenue"
-            value={dollar(kpis.revenue)}
-            icon={DollarSign}
-            color="green"
-            sub="Valeur des deals signés"
-          />
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Cash collecté" value={dollar(kpis.cash_collected)} icon={Wallet}     color="blue"  sub={`${kpis.closes} close${kpis.closes !== 1 ? 's' : ''}`} />
+            <DeltaBadge current={kpis.cash_collected} prev={kpisPrev.cash_collected} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Revenue"       value={dollar(kpis.revenue)}        icon={DollarSign} color="green" sub="Valeur deals signés" />
+            <DeltaBadge current={kpis.revenue} prev={kpisPrev.revenue} />
+          </div>
+        </div>
+      </div>
+
+      {/* Graphique comparatif */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Comparatif période précédente</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{range.label} vs {prevRange.label}</p>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-gray-500">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm inline-block bg-violet-600" />{range.label}</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm inline-block bg-gray-200" />{prevRange.label}</span>
+          </div>
+        </div>
+        <div className="p-5">
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData} barGap={4} barCategoryGap="30%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', fontSize: 12 }} cursor={{ fill: '#f9fafb' }} />
+              <Bar dataKey="current" name={range.label}    fill="#831e3e" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="prev"    name={prevRange.label} fill="#e5e7eb" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
