@@ -9,6 +9,7 @@ import {
   FolderOpen,
   ShieldCheck,
   RefreshCw,
+  HeartHandshake,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -32,6 +33,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Récurrents',  href: '/recurrents',   icon: RefreshCw       },
     { label: 'Cash',        href: '/cash',         icon: Wallet          },
     { label: 'Cash Collect',href: '/cashcollect',  icon: Receipt         },
+    { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
     { label: 'Admin',       href: '/admin',        icon: ShieldCheck     },
@@ -44,15 +46,17 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Récurrents',  href: '/recurrents',   icon: RefreshCw       },
     { label: 'Cash',        href: '/cash',         icon: Wallet          },
     { label: 'Cash Collect',href: '/cashcollect',  icon: Receipt         },
+    { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
   ],
   closer: [
-    { label: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard },
-    { label: 'Mon Suivi',  href: '/closer',      icon: Phone           },
-    { label: 'Feedback',   href: '/feedback',    icon: MessageSquare   },
-    { label: 'Ma Paie',    href: '/payes',        icon: Banknote        },
-    { label: 'Documents',  href: '/documents',   icon: FolderOpen      },
+    { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
+    { label: 'Mon Suivi',    href: '/closer',       icon: Phone           },
+    { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
+    { label: 'Feedback',     href: '/feedback',     icon: MessageSquare   },
+    { label: 'Ma Paie',      href: '/payes',        icon: Banknote        },
+    { label: 'Documents',    href: '/documents',    icon: FolderOpen      },
   ],
   setter: [
     { label: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard },

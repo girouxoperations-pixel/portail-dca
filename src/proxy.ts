@@ -25,11 +25,12 @@ const PUBLIC_PATHS = ['/login', '/unauthorized', '/reset-password']
 // authentifiés (la RLS Supabase protège les données au niveau DB).
 // ----------------------------------------------------------------
 const ROUTE_RULES: { prefix: string; roles: string[] }[] = [
-  { prefix: '/cash',    roles: ['admin', 'csm']              },
-  { prefix: '/admin',   roles: ['admin', 'csm']              },
-  { prefix: '/closer',  roles: ['admin', 'csm', 'closer']    },
-  { prefix: '/setter',  roles: ['admin', 'csm', 'setter']    },
-  { prefix: '/feedback',roles: ['admin', 'csm', 'closer', 'setter'] },
+  { prefix: '/cash',         roles: ['admin', 'csm']                       },
+  { prefix: '/admin',        roles: ['admin', 'csm']                       },
+  { prefix: '/closer',       roles: ['admin', 'csm', 'closer']             },
+  { prefix: '/setter',       roles: ['admin', 'csm', 'setter']             },
+  { prefix: '/feedback',     roles: ['admin', 'csm', 'closer', 'setter']   },
+  { prefix: '/suivi-client', roles: ['admin', 'csm', 'closer']             },
 ]
 
 export async function proxy(request: NextRequest) {
