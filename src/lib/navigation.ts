@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   RefreshCw,
   HeartHandshake,
+  BookUser,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -34,6 +35,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Cash',        href: '/cash',         icon: Wallet          },
     { label: 'Cash Collect',href: '/cashcollect',  icon: Receipt         },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
+    { label: 'Clientes CSM', href: '/csm',         icon: BookUser        },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
     { label: 'Admin',       href: '/admin',        icon: ShieldCheck     },
@@ -47,6 +49,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Cash',        href: '/cash',         icon: Wallet          },
     { label: 'Cash Collect',href: '/cashcollect',  icon: Receipt         },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake },
+    { label: 'Clientes CSM', href: '/csm',         icon: BookUser        },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
   ],
