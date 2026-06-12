@@ -56,6 +56,11 @@ export default function CloserTodoView({ suiviTasks, versementTasks, prospectTas
       prospectTasks.filter(t => periodOf(t.followupDate, t.done) === 'overdue').length,
   }
 
+  const overdueS = suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'overdue').length
+  const overdueV = versementTasks.filter(t => !t.done && periodOf(t.dueDate, false) === 'overdue').length
+  const overdueP = prospectTasks.filter(t => periodOf(t.followupDate, t.done) === 'overdue').length
+  const todayAll = counts.today
+
   const empty = suivis.length === 0 && prospects.length === 0 && versements.length === 0
 
   const TABS: { key: Tab; label: string }[] = [
@@ -73,6 +78,14 @@ export default function CloserTodoView({ suiviTasks, versementTasks, prospectTas
           {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">Bonjour {closerName} — voici tes tâches</p>
+      </div>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard icon={AlertCircle}   label="Suivis en retard"     value={overdueS} danger={overdueS > 0} />
+        <KpiCard icon={DollarSign}    label="Récurrents en retard" value={overdueV} danger={overdueV > 0} />
+        <KpiCard icon={UserSearch}    label="Prospects en retard"  value={overdueP} danger={overdueP > 0} />
+        <KpiCard icon={MessageSquare} label="Tâches aujourd'hui"   value={todayAll} />
       </div>
 
       {/* Period tabs */}
@@ -166,6 +179,26 @@ export default function CloserTodoView({ suiviTasks, versementTasks, prospectTas
 
       {/* Add prospect follow-up */}
       <AddProspectForm />
+    </div>
+  )
+}
+
+// ── KPI card ──────────────────────────────────────────────────────────
+function KpiCard({ icon: Icon, label, value, danger }: {
+  icon: React.ElementType; label: string; value: number; danger?: boolean
+}) {
+  return (
+    <div className={cn(
+      'rounded-xl border shadow-sm p-4',
+      danger && value > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100',
+    )}>
+      <div className="flex items-center gap-2 mb-1">
+        <Icon size={13} className={danger && value > 0 ? 'text-red-500' : 'text-gray-300'} />
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+      </div>
+      <p className={cn('text-2xl font-bold tabular-nums', danger && value > 0 ? 'text-red-600' : 'text-gray-900')}>
+        {value > 0 ? value : '—'}
+      </p>
     </div>
   )
 }
