@@ -46,7 +46,7 @@ export default async function CloserPage() {
       .select('*')
       .eq('user_id', user.id)
       .order('entry_date', { ascending: false }),
-    supabase.from('cash_entries')
+    db.from('cash_entries')
       .select('id, entry_date, client_name, montant_courant, collected, methode, close_type, notes')
       .eq('closed_by', user.id)
       .order('entry_date', { ascending: false }),
