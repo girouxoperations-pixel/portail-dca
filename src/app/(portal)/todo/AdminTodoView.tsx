@@ -4,12 +4,12 @@ import { useState, useMemo, useOptimistic, useTransition } from 'react'
 import Link from 'next/link'
 import {
   AlertCircle, CheckCircle2, Circle, Clock,
-  DollarSign, MessageSquare, ChevronDown, ChevronUp, Users, UserSearch,
+  DollarSign, MessageSquare, ChevronDown, ChevronUp, Users, UserSearch, ListTodo, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SuiviTask, VersementTask, ProspectTask } from './types'
 import { todayStr, weekEnd, classifyTask, dollar, fmtDate } from './types'
-import { toggleSuiviMessage, toggleProspectFollowup } from './actions'
+import { toggleSuiviMessage, toggleProspectFollowup, deleteProspectFollowup } from './actions'
 
 interface Props {
   suiviTasks:     SuiviTask[]
@@ -18,11 +18,14 @@ interface Props {
   closers:        { id: string; full_name: string | null }[]
 }
 
-type Tab = 'today' | 'week' | 'overdue'
+type Tab     = 'today' | 'week' | 'overdue'
+type MainTab = 'tasks' | 'followup'
 
 export default function AdminTodoView({ suiviTasks, versementTasks, prospectTasks, closers }: Props) {
-  const [tab, setTab]       = useState<Tab>('overdue')
-  const [closer, setCloser] = useState<string>('tous')
+  const [mainTab, setMainTab] = useState<MainTab>('tasks')
+  const [tab, setTab]         = useState<Tab>('overdue')
+  const [closer, setCloser]   = useState<string>('tous')
+  const [fuCloser, setFuCloser] = useState<string>('tous')
 
   const today = todayStr()
   const eow   = weekEnd()
@@ -83,91 +86,189 @@ export default function AdminTodoView({ suiviTasks, versementTasks, prospectTask
 
   const totalFiltered = filtered.suivis.length + filtered.versements.length + filtered.prospects.length
 
+  const nFuActif   = prospectTasks.filter(p => !p.done).length
+  const nFuOverdue = prospectTasks.filter(p => !p.done && p.followupDate < today).length
+
+  const filteredProspects = prospectTasks.filter(p =>
+    fuCloser === 'tous' || p.closerId === fuCloser
+  )
+  const profileMap = new Map(closers.map(c => [c.id, c.full_name ?? 'Inconnu']))
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Todo — Vue équipe</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </p>
+      <div className="flex items-end gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Todo — Vue équipe</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
+        {/* Main tab switcher */}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl ml-auto">
+          <button
+            onClick={() => setMainTab('tasks')}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
+              mainTab === 'tasks' ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            <ListTodo size={14} />Todo
+          </button>
+          <button
+            onClick={() => setMainTab('followup')}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
+              mainTab === 'followup' ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            <UserSearch size={14} />Follow up
+            {nFuActif > 0 && (
+              <span className={cn(
+                'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
+                nFuOverdue > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
+              )}>
+                {nFuActif}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard icon={AlertCircle}  label="Suivis en retard"      value={overdueS} danger={overdueS > 0} />
-        <KpiCard icon={DollarSign}   label="Versements en retard"  value={overdueV} danger={overdueV > 0} />
-        <KpiCard icon={UserSearch}   label="Prospects en retard"   value={overdueP} danger={overdueP > 0} />
-        <KpiCard icon={MessageSquare} label="Tâches aujourd'hui"   value={todayS + todayV + todayP} />
-      </div>
-
-      {/* Controls */}
-      <div className="flex flex-wrap gap-3 items-center">
-        {/* Tabs */}
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-          {TABS.map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={cn(
-                'flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm font-medium transition-all',
-                tab === t.key
-                  ? t.key === 'overdue'
-                    ? 'bg-red-600 text-white shadow-sm'
-                    : 'bg-white text-violet-700 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700',
-              )}
+      {/* ── Follow up tab ── */}
+      {mainTab === 'followup' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={fuCloser}
+              onChange={e => setFuCloser(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-500"
             >
-              {t.label}
-              {t.badgeCount > 0 && (
-                <span className={cn(
-                  'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
-                  tab === t.key
-                    ? t.key === 'overdue' ? 'bg-red-500 text-white' : 'bg-violet-100 text-violet-700'
-                    : t.key === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
-                )}>
-                  {t.badgeCount}
-                </span>
+              <option value="tous">Tous les closers</option>
+              {closers.map(c => <option key={c.id} value={c.id}>{c.full_name ?? 'Inconnu'}</option>)}
+            </select>
+            <span className="text-xs text-gray-400">
+              {filteredProspects.filter(p => !p.done).length} actif{filteredProspects.filter(p => !p.done).length !== 1 ? 's' : ''}
+              {filteredProspects.filter(p => !p.done && p.followupDate < today).length > 0 && (
+                <span className="text-red-500 font-medium"> · {filteredProspects.filter(p => !p.done && p.followupDate < today).length} en retard</span>
               )}
-            </button>
-          ))}
-        </div>
+              {' '}· {filteredProspects.filter(p => p.done).length} fait{filteredProspects.filter(p => p.done).length !== 1 ? 's' : ''}
+            </span>
+          </div>
 
-        {/* Closer filter */}
-        <select
-          value={closer}
-          onChange={e => setCloser(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-500"
-        >
-          <option value="tous">Tous les closers</option>
-          {closers.map(c => <option key={c.id} value={c.id}>{c.full_name ?? 'Inconnu'}</option>)}
-        </select>
-
-        <span className="text-xs text-gray-400 ml-auto">{totalFiltered} tâche{totalFiltered !== 1 ? 's' : ''}</span>
-      </div>
-
-      {/* Content */}
-      {totalFiltered === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-14 text-center">
-          <CheckCircle2 size={32} className="mx-auto text-green-300 mb-3" />
-          <p className="text-sm font-medium text-gray-400">Rien à signaler pour cette période</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {byCloser.map(([closerId, group]) => (
-            <CloserGroup
-              key={closerId}
-              closerName={group.name}
-              suivis={group.suivis}
-              versements={group.versements}
-              prospects={group.prospects}
-              today={today}
-              isOverdue={tab === 'overdue'}
-            />
-          ))}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            {filteredProspects.length === 0 ? (
+              <div className="py-12 text-center">
+                <UserSearch size={28} className="mx-auto text-gray-200 mb-2" />
+                <p className="text-sm text-gray-400">Aucun follow up</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                      <th className="px-4 py-3 w-8" />
+                      <th className="px-4 py-3 text-left">Prospect</th>
+                      <th className="px-4 py-3 text-left">Closer</th>
+                      <th className="px-4 py-3 text-left">Date</th>
+                      <th className="px-4 py-3 text-center">Statut</th>
+                      <th className="px-4 py-3 w-8" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredProspects
+                      .slice()
+                      .sort((a, b) => {
+                        if (a.done !== b.done) return a.done ? 1 : -1
+                        return a.followupDate.localeCompare(b.followupDate)
+                      })
+                      .map(p => (
+                        <AdminProspectTableRow key={p.id} task={p} today={today} closerName={profileMap.get(p.closerId) ?? '—'} />
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
+
+      {/* ── Tasks tab ── */}
+      {mainTab === 'tasks' && <>
+        {/* KPI cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KpiCard icon={AlertCircle}   label="Suivis en retard"     value={overdueS} danger={overdueS > 0} />
+          <KpiCard icon={DollarSign}    label="Versements en retard" value={overdueV} danger={overdueV > 0} />
+          <KpiCard icon={UserSearch}    label="Prospects en retard"  value={overdueP} danger={overdueP > 0} />
+          <KpiCard icon={MessageSquare} label="Tâches aujourd'hui"   value={todayS + todayV + todayP} />
+        </div>
+
+        {/* Controls */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+            {TABS.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  'flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm font-medium transition-all',
+                  tab === t.key
+                    ? t.key === 'overdue'
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'bg-white text-violet-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700',
+                )}
+              >
+                {t.label}
+                {t.badgeCount > 0 && (
+                  <span className={cn(
+                    'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
+                    tab === t.key
+                      ? t.key === 'overdue' ? 'bg-red-500 text-white' : 'bg-violet-100 text-violet-700'
+                      : t.key === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
+                  )}>
+                    {t.badgeCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <select
+            value={closer}
+            onChange={e => setCloser(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          >
+            <option value="tous">Tous les closers</option>
+            {closers.map(c => <option key={c.id} value={c.id}>{c.full_name ?? 'Inconnu'}</option>)}
+          </select>
+
+          <span className="text-xs text-gray-400 ml-auto">{totalFiltered} tâche{totalFiltered !== 1 ? 's' : ''}</span>
+        </div>
+
+        {totalFiltered === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-14 text-center">
+            <CheckCircle2 size={32} className="mx-auto text-green-300 mb-3" />
+            <p className="text-sm font-medium text-gray-400">Rien à signaler pour cette période</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {byCloser.map(([closerId, group]) => (
+              <CloserGroup
+                key={closerId}
+                closerName={group.name}
+                suivis={group.suivis}
+                versements={group.versements}
+                prospects={group.prospects}
+                today={today}
+                isOverdue={tab === 'overdue'}
+              />
+            ))}
+          </div>
+        )}
+      </>}
     </div>
   )
 }
@@ -352,5 +453,65 @@ function AdminVersementRow({ task: t, today }: { task: VersementTask; today: str
         <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded shrink-0">En retard</span>
       )}
     </Link>
+  )
+}
+
+// ── Admin prospect table row (for Follow up tab) ───────────────────────
+function AdminProspectTableRow({ task: t, today, closerName }: { task: ProspectTask; today: string; closerName: string }) {
+  const [optimisticDone, setOptimistic] = useOptimistic(t.done)
+  const [, startTransition] = useTransition()
+
+  function toggle() {
+    const next = !optimisticDone
+    startTransition(async () => {
+      setOptimistic(next)
+      await toggleProspectFollowup(t.id, next)
+    })
+  }
+
+  function del() {
+    startTransition(async () => { await deleteProspectFollowup(t.id) })
+  }
+
+  const overdue = !optimisticDone && t.followupDate < today
+  const isToday = !optimisticDone && t.followupDate === today
+
+  return (
+    <tr className={cn('hover:bg-gray-50/50 transition-colors', optimisticDone && 'opacity-50')}>
+      <td className="px-4 py-3">
+        <button onClick={toggle}>
+          {optimisticDone
+            ? <CheckCircle2 size={16} className="text-green-500" />
+            : overdue ? <AlertCircle size={16} className="text-red-400" />
+            : isToday ? <Clock       size={16} className="text-amber-400" />
+            :           <Circle      size={16} className="text-gray-200" />
+          }
+        </button>
+      </td>
+      <td className="px-4 py-3 font-medium text-gray-800">
+        <span className={cn(optimisticDone && 'line-through text-gray-400')}>{t.prospectName}</span>
+        {t.notes && <span className="text-xs text-gray-400 ml-2">· {t.notes}</span>}
+      </td>
+      <td className="px-4 py-3 text-gray-500 text-sm">{closerName}</td>
+      <td className="px-4 py-3 text-gray-500 text-sm whitespace-nowrap">
+        {new Date(t.followupDate + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+        {overdue && !optimisticDone && (
+          <span className="ml-2 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">En retard</span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-center">
+        <span className={cn(
+          'text-[11px] font-semibold px-2 py-0.5 rounded-full',
+          optimisticDone ? 'bg-green-50 text-green-700' : overdue ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700',
+        )}>
+          {optimisticDone ? 'Fait' : overdue ? 'En retard' : 'À faire'}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <button onClick={del} className="p-1 text-gray-200 hover:text-red-400 transition-colors">
+          <Trash2 size={13} />
+        </button>
+      </td>
+    </tr>
   )
 }

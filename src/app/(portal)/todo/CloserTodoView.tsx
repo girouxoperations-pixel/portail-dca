@@ -4,7 +4,7 @@ import { useState, useOptimistic, useTransition } from 'react'
 import Link from 'next/link'
 import {
   CheckCircle2, Circle, Clock, AlertCircle,
-  DollarSign, MessageSquare, UserSearch, Plus, Trash2, X,
+  DollarSign, MessageSquare, UserSearch, Plus, Trash2, X, ListTodo,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SuiviTask, VersementTask, ProspectTask } from './types'
@@ -19,9 +19,11 @@ interface Props {
   closerId:       string
 }
 
-type Tab = 'today' | 'week' | 'overdue'
+type Tab     = 'today' | 'week' | 'overdue'
+type MainTab = 'tasks' | 'followup'
 
 export default function CloserTodoView({ suiviTasks, versementTasks, prospectTasks, closerName }: Props) {
+  const [mainTab, setMainTab] = useState<MainTab>('tasks')
   const [tab, setTab] = useState<Tab>('today')
   const today = todayStr()
   const eow   = weekEnd()
@@ -62,107 +64,257 @@ export default function CloserTodoView({ suiviTasks, versementTasks, prospectTas
     { key: 'overdue', label: 'En retard'   },
   ]
 
+  const nFuActif   = prospectTasks.filter(p => !p.done).length
+  const nFuOverdue = prospectTasks.filter(p => !p.done && p.followupDate < today).length
+
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-5">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 capitalize">
-          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">Bonjour {closerName} — voici tes tâches</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-        {TABS.map(t => (
+      <div className="flex items-end gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 capitalize">
+            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">Bonjour {closerName} — voici tes tâches</p>
+        </div>
+        {/* Main tab switcher */}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl ml-auto">
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => setMainTab('tasks')}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-sm font-medium transition-all',
-              tab === t.key
-                ? t.key === 'overdue' ? 'bg-red-600 text-white shadow-sm' : 'bg-white text-violet-700 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+              mainTab === 'tasks' ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700',
             )}
           >
-            {t.label}
-            {counts[t.key] > 0 && (
+            <ListTodo size={14} />Todo
+          </button>
+          <button
+            onClick={() => setMainTab('followup')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+              mainTab === 'followup' ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            <UserSearch size={14} />Follow up
+            {nFuActif > 0 && (
               <span className={cn(
                 'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
-                tab === t.key
-                  ? t.key === 'overdue' ? 'bg-red-500 text-white' : 'bg-violet-100 text-violet-700'
-                  : t.key === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
+                nFuOverdue > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
               )}>
-                {counts[t.key]}
+                {nFuActif}
               </span>
             )}
           </button>
-        ))}
+        </div>
       </div>
 
-      {empty ? (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-12 text-center">
-          <CheckCircle2 size={32} className="mx-auto text-green-300 mb-3" />
-          <p className="text-sm font-medium text-gray-400">Rien à faire ici</p>
-          <p className="text-xs text-gray-300 mt-1">Tu es à jour pour cette période.</p>
+      {/* ── Follow up tab ── */}
+      {mainTab === 'followup' && (
+        <FollowUpSection prospects={prospectTasks} today={today} />
+      )}
+
+      {/* ── Tasks tab ── */}
+      {mainTab === 'tasks' && <>
+        {/* Period tabs */}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-sm font-medium transition-all',
+                tab === t.key
+                  ? t.key === 'overdue' ? 'bg-red-600 text-white shadow-sm' : 'bg-white text-violet-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700',
+              )}
+            >
+              {t.label}
+              {counts[t.key] > 0 && (
+                <span className={cn(
+                  'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
+                  tab === t.key
+                    ? t.key === 'overdue' ? 'bg-red-500 text-white' : 'bg-violet-100 text-violet-700'
+                    : t.key === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
+                )}>
+                  {counts[t.key]}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-      ) : (
-        <div className="space-y-4">
 
-          {/* Prospects à relancer */}
-          {prospects.length > 0 && (
-            <section>
-              <div className="flex items-center gap-2 mb-2.5">
-                <UserSearch size={14} className="text-violet-500" />
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Prospects à relancer — {prospects.length}
-                </h2>
-              </div>
-              <div className="space-y-2">
-                {prospects.map(t => <ProspectRow key={t.id} task={t} today={today} />)}
-              </div>
-            </section>
-          )}
+        {empty ? (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-12 text-center">
+            <CheckCircle2 size={32} className="mx-auto text-green-300 mb-3" />
+            <p className="text-sm font-medium text-gray-400">Rien à faire ici</p>
+            <p className="text-xs text-gray-300 mt-1">Tu es à jour pour cette période.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
 
-          {/* Suivis clients */}
-          {suivis.length > 0 && (
-            <section>
-              <div className="flex items-center gap-2 mb-2.5">
-                <MessageSquare size={14} className="text-blue-500" />
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Suivis clients — {suivis.length} message{suivis.length > 1 ? 's' : ''}
-                </h2>
-              </div>
-              <div className="space-y-2">
-                {suivis.map(t => <SuiviRow key={`${t.followupId}-${t.messageNum}`} task={t} today={today} />)}
-              </div>
-            </section>
-          )}
+            {/* Prospects à relancer */}
+            {prospects.length > 0 && (
+              <section>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <UserSearch size={14} className="text-violet-500" />
+                  <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Prospects à relancer — {prospects.length}
+                  </h2>
+                </div>
+                <div className="space-y-2">
+                  {prospects.map(t => <ProspectRow key={t.id} task={t} today={today} />)}
+                </div>
+              </section>
+            )}
 
-          {/* Versements */}
-          {versements.length > 0 && (
-            <section>
-              <div className="flex items-center gap-2 mb-2.5">
-                <DollarSign size={14} className="text-green-500" />
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Versements à collecter — {versements.length}
-                </h2>
-              </div>
-              <div className="space-y-2">
-                {versements.map(t => <VersementRow key={t.occurrenceId} task={t} today={today} />)}
-              </div>
-              <p className="text-[11px] text-gray-400 mt-2 ml-1">
-                Marquer reçu depuis <Link href="/recurrents" className="text-violet-500 hover:underline">Récurrents →</Link>
-              </p>
-            </section>
-          )}
+            {/* Suivis clients */}
+            {suivis.length > 0 && (
+              <section>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <MessageSquare size={14} className="text-blue-500" />
+                  <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Suivis clients — {suivis.length} message{suivis.length > 1 ? 's' : ''}
+                  </h2>
+                </div>
+                <div className="space-y-2">
+                  {suivis.map(t => <SuiviRow key={`${t.followupId}-${t.messageNum}`} task={t} today={today} />)}
+                </div>
+              </section>
+            )}
+
+            {/* Versements */}
+            {versements.length > 0 && (
+              <section>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <DollarSign size={14} className="text-green-500" />
+                  <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Versements à collecter — {versements.length}
+                  </h2>
+                </div>
+                <div className="space-y-2">
+                  {versements.map(t => <VersementRow key={t.occurrenceId} task={t} today={today} />)}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2 ml-1">
+                  Marquer reçu depuis <Link href="/recurrents" className="text-violet-500 hover:underline">Récurrents →</Link>
+                </p>
+              </section>
+            )}
+          </div>
+        )}
+
+        {/* Add prospect follow-up */}
+        <AddProspectForm />
+      </>}
+    </div>
+  )
+}
+
+// ── Follow up section (full prospect list) ────────────────────────────
+function FollowUpSection({ prospects, today }: { prospects: ProspectTask[]; today: string }) {
+  const [showForm, setShowForm] = useState(false)
+  const [showDone, setShowDone] = useState(false)
+
+  const active  = prospects.filter(p => !p.done)
+  const done    = prospects.filter(p => p.done)
+  const nOverdue = active.filter(p => p.followupDate < today).length
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">
+          {active.length} actif{active.length !== 1 ? 's' : ''}
+          {nOverdue > 0 && <> · <span className="text-red-500 font-medium">{nOverdue} en retard</span></>}
+          {done.length > 0 && <> · {done.length} fait{done.length !== 1 ? 's' : ''}</>}
+        </p>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
+        >
+          <Plus size={13} />Ajouter
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="bg-white rounded-xl border border-violet-200 shadow-sm p-4 space-y-3">
+          <AddProspectInlineForm onDone={() => setShowForm(false)} />
         </div>
       )}
 
-      {/* Add prospect follow-up */}
-      <AddProspectForm />
+      {active.length === 0 && !showForm ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-10 text-center">
+          <UserSearch size={28} className="mx-auto text-gray-200 mb-2" />
+          <p className="text-sm text-gray-400">Aucun follow up actif</p>
+          <button onClick={() => setShowForm(true)} className="mt-3 text-xs text-violet-600 hover:underline">
+            + Ajouter un prospect
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {active.sort((a, b) => a.followupDate.localeCompare(b.followupDate)).map(t => (
+            <ProspectRow key={t.id} task={t} today={today} />
+          ))}
+        </div>
+      )}
+
+      {done.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowDone(v => !v)}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors mb-2"
+          >
+            {showDone ? '▲' : '▼'} Complétés ({done.length})
+          </button>
+          {showDone && (
+            <div className="space-y-2">
+              {done.map(t => <ProspectRow key={t.id} task={t} today={today} />)}
+            </div>
+          )}
+        </div>
+      )}
     </div>
+  )
+}
+
+function AddProspectInlineForm({ onDone }: { onDone: () => void }) {
+  const [pending, startTransition] = useTransition()
+
+  function submit(formData: FormData) {
+    startTransition(async () => {
+      await addProspectFollowup(formData)
+      onDone()
+    })
+  }
+
+  return (
+    <form action={submit} className="space-y-3">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          <UserSearch size={14} className="text-violet-500" />
+          Nouveau follow-up prospect
+        </p>
+        <button type="button" onClick={onDone} className="text-gray-300 hover:text-gray-500">
+          <X size={16} />
+        </button>
+      </div>
+      <input name="prospect_name" required placeholder="Nom du prospect"
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+      <div className="flex gap-2">
+        <input name="followup_date" type="date" required defaultValue={new Date().toISOString().split('T')[0]}
+          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+      </div>
+      <input name="notes" placeholder="Notes (optionnel)"
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+      <div className="flex gap-2">
+        <button type="submit" disabled={pending}
+          className="flex-1 bg-violet-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-violet-700 disabled:opacity-50">
+          {pending ? 'Ajout…' : 'Ajouter'}
+        </button>
+        <button type="button" onClick={onDone} className="px-4 text-sm text-gray-500 hover:bg-gray-50 rounded-lg">
+          Annuler
+        </button>
+      </div>
+    </form>
   )
 }
 
