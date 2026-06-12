@@ -15,6 +15,8 @@ import DashboardPeriodFilter from '@/components/dashboard/DashboardPeriodFilter'
 import FunnelCard            from '@/components/dashboard/FunnelCard'
 import ClosersTable          from '@/components/dashboard/ClosersTable'
 import QuickCashModal        from '@/components/dashboard/QuickCashModal'
+import RecurrentsHealthSection from '@/components/dashboard/RecurrentsHealthSection'
+import type { RecurrentsOcc } from '@/components/dashboard/RecurrentsHealthSection'
 import ExportCsvButton       from '@/components/ui/ExportCsvButton'
 import type { TrendPoint }   from '@/components/dashboard/TrendChart'
 import { MOIS_FR, MOIS_COURT, PALIERS, dollar, getPalier } from '@/lib/constants'
@@ -609,7 +611,7 @@ export default async function DashboardPage({
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
     db.from('recurring_occurrences')
-      .select('id, date_attendue, montant_attendu, recu, mois, annee')
+      .select('id, date_attendue, montant_attendu, recu, mois, annee, recurring_deals(client_name, closer_id)')
       .eq('recu', false),
   ])
 
@@ -702,16 +704,35 @@ export default async function DashboardPage({
 
   // ── Récurrents health (always relative to today, not the period) ────
   const occs = recurringOccs ?? []
-  const nRetard    = occs.filter(o => o.date_attendue < todayStr).length
-  const montRetard = occs.filter(o => o.date_attendue < todayStr).reduce((s, o) => s + (o.montant_attendu ?? 0), 0)
-  const nSemaine   = occs.filter(o => o.date_attendue >= todayStr && o.date_attendue <= weekEndStr).length
-  const montSemaine = occs.filter(o => o.date_attendue >= todayStr && o.date_attendue <= weekEndStr).reduce((s, o) => s + (o.montant_attendu ?? 0), 0)
-  const curMonth   = now.getMonth() + 1
-  const curYear    = now.getFullYear()
-  const nMois      = occs.filter(o => o.mois === curMonth && o.annee === curYear && o.date_attendue >= todayStr).length
-  const montMois   = occs.filter(o => o.mois === curMonth && o.annee === curYear && o.date_attendue >= todayStr).reduce((s, o) => s + (o.montant_attendu ?? 0), 0)
+  const curMonth = now.getMonth() + 1
+  const curYear  = now.getFullYear()
 
-  const recurrentsHealth: RecurrentsHealth = { nRetard, montRetard, nSemaine, montSemaine, nMois, montMois }
+  function toHealthOcc(o: typeof occs[number]): RecurrentsOcc {
+    const raw  = o.recurring_deals as unknown
+    const deal = (Array.isArray(raw) ? raw[0] : raw) as { client_name: string; closer_id: string | null } | null
+    return {
+      id:              o.id,
+      date_attendue:   o.date_attendue,
+      montant_attendu: o.montant_attendu,
+      mois:            o.mois,
+      annee:           o.annee,
+      clientName:      deal?.client_name ?? '—',
+      closerName:      deal?.closer_id ? (profileMap.get(deal.closer_id) ?? undefined) : undefined,
+    }
+  }
+
+  const occsRetardHealth  = occs.filter(o => o.date_attendue < todayStr).map(toHealthOcc)
+  const occsSemaineHealth = occs.filter(o => o.date_attendue >= todayStr && o.date_attendue <= weekEndStr).map(toHealthOcc)
+  const occsMoisHealth    = occs.filter(o => o.mois === curMonth && o.annee === curYear && o.date_attendue >= todayStr).map(toHealthOcc)
+
+  const recurrentsHealth: RecurrentsHealth = {
+    nRetard:    occsRetardHealth.length,
+    montRetard: occsRetardHealth.reduce((s, o) => s + o.montant_attendu, 0),
+    nSemaine:   occsSemaineHealth.length,
+    montSemaine: occsSemaineHealth.reduce((s, o) => s + o.montant_attendu, 0),
+    nMois:      occsMoisHealth.length,
+    montMois:   occsMoisHealth.reduce((s, o) => s + o.montant_attendu, 0),
+  }
 
   // ── KPIs ─────────────────────────────────────────────────────────
   const cashRevenu    = (cashMois ?? []).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
@@ -1016,7 +1037,11 @@ export default async function DashboardPage({
       {/* Santé des récurrents */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Santé des récurrents</p>
-        <RecurrentsHealthRow health={recurrentsHealth} />
+        <RecurrentsHealthSection
+          occsRetard={occsRetardHealth}
+          occsSemaine={occsSemaineHealth}
+          occsMois={occsMoisHealth}
+        />
       </div>
 
       {/* Objectifs — mois mode only */}
