@@ -51,3 +51,15 @@ export function dollar(n: number): string {
 export function fmtDate(d: string): string {
   return new Date(d + 'T00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
 }
+
+export interface ProspectTask {
+  type:         'prospect'
+  id:           string
+  prospectName: string
+  followupDate: string
+  notes:        string | null
+  done:         boolean
+  doneDate:     string | null
+  closerId:     string
+  closerName:   string
+}

@@ -23,13 +23,28 @@ export default async function SuiviClientPage() {
   const db = createAdminClient()
 
   if (role === 'closer') {
-    const { data: followups } = await db
-      .from('client_followups')
-      .select('*')
-      .eq('closer_id', user.id)
-      .order('close_date', { ascending: false })
+    const [{ data: followups }, { data: prospects }] = await Promise.all([
+      db.from('client_followups')
+        .select('*')
+        .eq('closer_id', user.id)
+        .order('close_date', { ascending: false }),
+      db.from('prospect_followups')
+        .select('id, prospect_name, followup_date, notes, done, done_date')
+        .eq('closer_id', user.id)
+        .eq('done', false)
+        .order('followup_date', { ascending: true }),
+    ])
 
-    return <CloserFollowupView followups={followups ?? []} />
+    const prospectItems = (prospects ?? []).map(p => ({
+      id:           p.id,
+      prospectName: p.prospect_name,
+      followupDate: p.followup_date,
+      notes:        p.notes,
+      done:         p.done,
+      doneDate:     p.done_date,
+    }))
+
+    return <CloserFollowupView followups={followups ?? []} prospects={prospectItems} />
   }
 
   // admin / csm

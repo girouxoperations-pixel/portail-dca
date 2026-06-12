@@ -4,6 +4,65 @@ import { revalidatePath }    from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// ── Prospect follow-ups ──────────────────────────────────────────────
+export async function addProspectFollowup(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non authentifié')
+
+  const db = createAdminClient()
+  const { error } = await db.from('prospect_followups').insert({
+    closer_id:     user.id,
+    prospect_name: (formData.get('prospect_name') as string).trim(),
+    followup_date: formData.get('followup_date') as string,
+    notes:         (formData.get('notes') as string)?.trim() || null,
+  })
+  if (error) throw error
+  revalidatePath('/todo')
+  revalidatePath('/suivi-client')
+}
+
+export async function toggleProspectFollowup(id: string, done: boolean) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non authentifié')
+
+  const db = createAdminClient()
+  // Security: verify ownership or admin
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'csm'
+  if (!isAdmin) {
+    const { data: fp } = await db.from('prospect_followups').select('closer_id').eq('id', id).single()
+    if (!fp || fp.closer_id !== user.id) throw new Error('Non autorisé')
+  }
+
+  const { error } = await db.from('prospect_followups').update({
+    done,
+    done_date: done ? new Date().toISOString().split('T')[0] : null,
+  }).eq('id', id)
+  if (error) throw error
+  revalidatePath('/todo')
+  revalidatePath('/suivi-client')
+}
+
+export async function deleteProspectFollowup(id: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non authentifié')
+
+  const db = createAdminClient()
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'csm'
+  if (!isAdmin) {
+    const { data: fp } = await db.from('prospect_followups').select('closer_id').eq('id', id).single()
+    if (!fp || fp.closer_id !== user.id) throw new Error('Non autorisé')
+  }
+
+  await db.from('prospect_followups').delete().eq('id', id)
+  revalidatePath('/todo')
+  revalidatePath('/suivi-client')
+}
+
 // ── Toggle suivi message ─────────────────────────────────────────────
 export async function toggleSuiviMessage(
   followupId: string,

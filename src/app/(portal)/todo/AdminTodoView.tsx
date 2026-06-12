@@ -4,22 +4,23 @@ import { useState, useMemo, useOptimistic, useTransition } from 'react'
 import Link from 'next/link'
 import {
   AlertCircle, CheckCircle2, Circle, Clock,
-  DollarSign, MessageSquare, ChevronDown, ChevronUp, Users,
+  DollarSign, MessageSquare, ChevronDown, ChevronUp, Users, UserSearch,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { SuiviTask, VersementTask } from './types'
+import type { SuiviTask, VersementTask, ProspectTask } from './types'
 import { todayStr, weekEnd, classifyTask, dollar, fmtDate } from './types'
-import { toggleSuiviMessage } from './actions'
+import { toggleSuiviMessage, toggleProspectFollowup } from './actions'
 
 interface Props {
   suiviTasks:     SuiviTask[]
   versementTasks: VersementTask[]
+  prospectTasks:  ProspectTask[]
   closers:        { id: string; full_name: string | null }[]
 }
 
 type Tab = 'today' | 'week' | 'overdue'
 
-export default function AdminTodoView({ suiviTasks, versementTasks, closers }: Props) {
+export default function AdminTodoView({ suiviTasks, versementTasks, prospectTasks, closers }: Props) {
   const [tab, setTab]       = useState<Tab>('overdue')
   const [closer, setCloser] = useState<string>('tous')
 
@@ -29,8 +30,9 @@ export default function AdminTodoView({ suiviTasks, versementTasks, closers }: P
   const allTasks = useMemo(() => {
     const s = suiviTasks.filter(t => closer === 'tous' || t.closerId === closer)
     const v = versementTasks.filter(t => closer === 'tous' || t.closerId === closer)
-    return { suivis: s, versements: v }
-  }, [suiviTasks, versementTasks, closer])
+    const p = prospectTasks.filter(t => closer === 'tous' || t.closerId === closer)
+    return { suivis: s, versements: v, prospects: p }
+  }, [suiviTasks, versementTasks, prospectTasks, closer])
 
   function period(dueDate: string, done: boolean) {
     return classifyTask(dueDate, done, today, eow)
@@ -39,39 +41,47 @@ export default function AdminTodoView({ suiviTasks, versementTasks, closers }: P
   const filtered = useMemo(() => {
     const suivis     = allTasks.suivis.filter(t => period(t.dueDate, t.done) === tab)
     const versements = allTasks.versements.filter(t => period(t.dueDate, false) === tab)
-    return { suivis, versements }
+    const prospects  = allTasks.prospects.filter(t => period(t.followupDate, t.done) === tab)
+    return { suivis, versements, prospects }
   }, [allTasks, tab, today, eow])
 
   // KPIs (global, no filter)
   const overdueS = suiviTasks.filter(t => period(t.dueDate, t.done) === 'overdue').length
   const overdueV = versementTasks.filter(t => period(t.dueDate, false) === 'overdue').length
+  const overdueP = prospectTasks.filter(t => period(t.followupDate, t.done) === 'overdue').length
   const todayS   = suiviTasks.filter(t => period(t.dueDate, t.done) === 'today').length
   const todayV   = versementTasks.filter(t => period(t.dueDate, false) === 'today').length
+  const todayP   = prospectTasks.filter(t => period(t.followupDate, t.done) === 'today').length
 
   const TABS: { key: Tab; label: string; badgeCount: number }[] = [
-    { key: 'today',   label: "Aujourd'hui", badgeCount: todayS + todayV   },
-    { key: 'week',    label: 'Cette semaine', badgeCount: 0                },
-    { key: 'overdue', label: 'En retard',   badgeCount: overdueS + overdueV },
+    { key: 'today',   label: "Aujourd'hui", badgeCount: todayS + todayV + todayP },
+    { key: 'week',    label: 'Cette semaine', badgeCount: 0                       },
+    { key: 'overdue', label: 'En retard',   badgeCount: overdueS + overdueV + overdueP },
   ]
 
   // Group by closer for the overview
   const byCloser = useMemo(() => {
-    const map = new Map<string, { name: string; suivis: SuiviTask[]; versements: VersementTask[] }>()
+    const map = new Map<string, { name: string; suivis: SuiviTask[]; versements: VersementTask[]; prospects: ProspectTask[] }>()
     for (const t of filtered.suivis) {
-      if (!map.has(t.closerId)) map.set(t.closerId, { name: t.closerName, suivis: [], versements: [] })
+      if (!map.has(t.closerId)) map.set(t.closerId, { name: t.closerName, suivis: [], versements: [], prospects: [] })
       map.get(t.closerId)!.suivis.push(t)
     }
     for (const t of filtered.versements) {
       const key = t.closerId ?? '__none__'
-      if (!map.has(key)) map.set(key, { name: t.closerName ?? 'Non assigné', suivis: [], versements: [] })
+      if (!map.has(key)) map.set(key, { name: t.closerName ?? 'Non assigné', suivis: [], versements: [], prospects: [] })
       map.get(key)!.versements.push(t)
     }
+    for (const t of filtered.prospects) {
+      if (!map.has(t.closerId)) map.set(t.closerId, { name: t.closerName, suivis: [], versements: [], prospects: [] })
+      map.get(t.closerId)!.prospects.push(t)
+    }
     return [...map.entries()].sort((a, b) =>
-      (b[1].suivis.length + b[1].versements.length) - (a[1].suivis.length + a[1].versements.length)
+      (b[1].suivis.length + b[1].versements.length + b[1].prospects.length) -
+      (a[1].suivis.length + a[1].versements.length + a[1].prospects.length)
     )
   }, [filtered])
 
-  const totalFiltered = filtered.suivis.length + filtered.versements.length
+  const totalFiltered = filtered.suivis.length + filtered.versements.length + filtered.prospects.length
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
@@ -86,10 +96,10 @@ export default function AdminTodoView({ suiviTasks, versementTasks, closers }: P
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard icon={AlertCircle} label="Suivis en retard" value={overdueS} danger={overdueS > 0} />
-        <KpiCard icon={DollarSign}  label="Versements en retard" value={overdueV} danger={overdueV > 0} />
-        <KpiCard icon={MessageSquare} label="Suivis aujourd'hui" value={todayS} />
-        <KpiCard icon={DollarSign}  label="Versements aujourd'hui" value={todayV} />
+        <KpiCard icon={AlertCircle}  label="Suivis en retard"      value={overdueS} danger={overdueS > 0} />
+        <KpiCard icon={DollarSign}   label="Versements en retard"  value={overdueV} danger={overdueV > 0} />
+        <KpiCard icon={UserSearch}   label="Prospects en retard"   value={overdueP} danger={overdueP > 0} />
+        <KpiCard icon={MessageSquare} label="Tâches aujourd'hui"   value={todayS + todayV + todayP} />
       </div>
 
       {/* Controls */}
@@ -151,6 +161,7 @@ export default function AdminTodoView({ suiviTasks, versementTasks, closers }: P
               closerName={group.name}
               suivis={group.suivis}
               versements={group.versements}
+              prospects={group.prospects}
               today={today}
               isOverdue={tab === 'overdue'}
             />
@@ -182,15 +193,16 @@ function KpiCard({ icon: Icon, label, value, danger }: {
 }
 
 // ── Per-closer collapsible group ──────────────────────────────────────
-function CloserGroup({ closerName, suivis, versements, today, isOverdue }: {
+function CloserGroup({ closerName, suivis, versements, prospects, today, isOverdue }: {
   closerName: string
   suivis:     SuiviTask[]
   versements: VersementTask[]
+  prospects:  ProspectTask[]
   today:      string
   isOverdue:  boolean
 }) {
   const [open, setOpen] = useState(true)
-  const total = suivis.length + versements.length
+  const total = suivis.length + versements.length + prospects.length
 
   return (
     <div className={cn(
@@ -219,6 +231,9 @@ function CloserGroup({ closerName, suivis, versements, today, isOverdue }: {
 
       {open && (
         <div className="divide-y divide-gray-50">
+          {prospects.map(t => (
+            <AdminProspectRow key={t.id} task={t} today={today} />
+          ))}
           {suivis.map(t => (
             <AdminSuiviRow key={`${t.followupId}-${t.messageNum}`} task={t} today={today} />
           ))}
@@ -228,6 +243,50 @@ function CloserGroup({ closerName, suivis, versements, today, isOverdue }: {
         </div>
       )}
     </div>
+  )
+}
+
+// ── Admin prospect row ────────────────────────────────────────────────
+function AdminProspectRow({ task: t, today }: { task: ProspectTask; today: string }) {
+  const [optimisticDone, setOptimistic] = useOptimistic(t.done)
+  const [, startTransition] = useTransition()
+
+  function toggle() {
+    const next = !optimisticDone
+    startTransition(async () => {
+      setOptimistic(next)
+      await toggleProspectFollowup(t.id, next)
+    })
+  }
+
+  const overdue = !optimisticDone && t.followupDate < today
+  const isToday = !optimisticDone && t.followupDate === today
+
+  return (
+    <button
+      onClick={toggle}
+      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left transition-colors"
+    >
+      {optimisticDone
+        ? <CheckCircle2 size={16} className="text-green-500 shrink-0" />
+        : overdue
+          ? <AlertCircle size={16} className="text-red-400 shrink-0" />
+          : isToday
+            ? <Clock size={16} className="text-amber-400 shrink-0" />
+            : <Circle size={16} className="text-gray-200 shrink-0" />
+      }
+      <UserSearch size={12} className="text-violet-300 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <span className={cn('text-sm', optimisticDone ? 'text-gray-300 line-through' : 'text-gray-700')}>
+          {t.prospectName}
+        </span>
+        {t.notes && <span className="text-xs text-gray-400 ml-2">· {t.notes}</span>}
+      </div>
+      <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">{fmtDate(t.followupDate)}</span>
+      {overdue && !optimisticDone && (
+        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded shrink-0">En retard</span>
+      )}
+    </button>
   )
 }
 

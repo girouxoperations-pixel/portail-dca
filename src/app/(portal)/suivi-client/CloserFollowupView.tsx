@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useOptimistic, useTransition } from 'react'
-import { CheckCircle2, Clock, AlertCircle, Circle, Users } from 'lucide-react'
+import { CheckCircle2, Clock, AlertCircle, Circle, Users, UserSearch } from 'lucide-react'
 import { toggleMessage } from './actions'
+import { toggleProspectFollowup } from '@/app/(portal)/todo/actions'
 import { cn } from '@/lib/utils'
 
 export interface Followup {
@@ -96,7 +97,59 @@ function MsgCheckbox({ followupId, num, done, dueDate, doneDate }: MsgCheckboxPr
   )
 }
 
-export default function CloserFollowupView({ followups }: { followups: Followup[] }) {
+interface ProspectItem {
+  id:           string
+  prospectName: string
+  followupDate: string
+  notes:        string | null
+  done:         boolean
+  doneDate:     string | null
+}
+
+function ProspectRow({ p }: { p: ProspectItem }) {
+  const td = today()
+  const [optimisticDone, setOptimistic] = useOptimistic(p.done)
+  const [, startTransition] = useTransition()
+
+  function toggle() {
+    const next = !optimisticDone
+    startTransition(async () => {
+      setOptimistic(next)
+      await toggleProspectFollowup(p.id, next)
+    })
+  }
+
+  const overdue = !optimisticDone && p.followupDate < td
+  const isToday = !optimisticDone && p.followupDate === td
+
+  return (
+    <button
+      onClick={toggle}
+      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left transition-colors"
+    >
+      {optimisticDone
+        ? <CheckCircle2 size={16} className="text-green-500 shrink-0" />
+        : overdue
+          ? <AlertCircle size={16} className="text-red-400 shrink-0" />
+          : isToday
+            ? <Clock size={16} className="text-amber-400 shrink-0" />
+            : <Circle size={16} className="text-gray-200 shrink-0" />
+      }
+      <div className="flex-1 min-w-0">
+        <span className={cn('text-sm font-medium', optimisticDone ? 'text-gray-300 line-through' : 'text-gray-700')}>
+          {p.prospectName}
+        </span>
+        {p.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{p.notes}</p>}
+      </div>
+      <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">{formatDate(p.followupDate)}</span>
+      {overdue && !optimisticDone && (
+        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded shrink-0">En retard</span>
+      )}
+    </button>
+  )
+}
+
+export default function CloserFollowupView({ followups, prospects = [] }: { followups: Followup[]; prospects?: ProspectItem[] }) {
   const [filter, setFilter] = useState<Filter>('tous')
 
   const filtered = followups.filter(f => {
@@ -145,6 +198,22 @@ export default function CloserFollowupView({ followups }: { followups: Followup[
           </button>
         ))}
       </div>
+
+      {/* Relances prospects */}
+      {prospects.length > 0 && (
+        <div className="bg-white rounded-xl border border-violet-100 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 bg-violet-50 border-b border-violet-100">
+            <UserSearch size={14} className="text-violet-500" />
+            <span className="text-sm font-semibold text-violet-800">Relances prospects</span>
+            <span className="ml-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+              {prospects.filter(p => !p.done).length}
+            </span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {prospects.map(p => <ProspectRow key={p.id} p={p} />)}
+          </div>
+        </div>
+      )}
 
       {/* Liste */}
       {filtered.length === 0 ? (
