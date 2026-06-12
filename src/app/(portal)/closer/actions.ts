@@ -81,3 +81,29 @@ export async function supprimerEntree(id: string) {
   revalidatePath('/closer')
   revalidatePath('/dashboard')
 }
+
+export async function creerDealCloser(formData: FormData) {
+  const { userId } = await requireRole(['admin', 'csm', 'closer'])
+  const db = createAdminClient()
+
+  const entryDate = formData.get('entry_date') as string
+  const [year, month] = entryDate.split('-').map(Number)
+
+  const { error } = await db.from('cash_entries').insert({
+    entry_date:      entryDate,
+    client_name:     (formData.get('client_name') as string) || null,
+    montant_courant: Number(formData.get('montant_courant')),
+    collected:       Number(formData.get('collected')),
+    methode:         (formData.get('methode') as string) || null,
+    close_type:      (formData.get('close_type') as string) || null,
+    closed_by:       userId,
+    year,
+    month,
+    notes:           (formData.get('notes') as string) || null,
+    created_by:      userId,
+  })
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/closer')
+  revalidatePath('/dashboard')
+}

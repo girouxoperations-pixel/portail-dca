@@ -41,15 +41,21 @@ export default async function CloserPage() {
   }
 
   // ── Vue closer ──────────────────────────────────────────────────
-  const { data: entrees } = await db
-    .from('closer_entries')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('entry_date', { ascending: false })
+  const [{ data: entrees }, { data: deals }] = await Promise.all([
+    db.from('closer_entries')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('entry_date', { ascending: false }),
+    supabase.from('cash_entries')
+      .select('id, entry_date, client_name, montant_courant, collected, methode, close_type, notes')
+      .eq('closed_by', user.id)
+      .order('entry_date', { ascending: false }),
+  ])
 
   return (
     <CloserView
       entrees={entrees ?? []}
+      deals={deals ?? []}
       userId={user.id}
       prenom={profil.full_name?.split(' ')[0] ?? 'vous'}
     />
