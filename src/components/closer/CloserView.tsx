@@ -253,15 +253,31 @@ function ModalEntree({
 
 // ── Modal ajout deal ──────────────────────────────────────────────────
 
-function ModalDeal({ onClose }: { onClose: () => void }) {
+type PlanPaiement = 'pif' | 'versements_2' | 'versements_3' | 'financement'
+const PLAN_LABELS: Record<PlanPaiement, string> = {
+  pif:         'PIF',
+  versements_2: '2 vers.',
+  versements_3: '3 vers.',
+  financement: 'Fin. mensuel',
+}
+
+function ModalDeal({
+  setters,
+  onClose,
+}: {
+  setters: { id: string; full_name: string | null }[]
+  onClose: () => void
+}) {
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]         = useState<string | null>(null)
+  const [plan, setPlan]           = useState<PlanPaiement>('pif')
   const today = new Date().toISOString().slice(0, 10)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     const fd = new FormData(e.currentTarget)
+    fd.set('plan_paiement', plan)
     startTransition(async () => {
       try {
         await creerDealCloser(fd)
@@ -273,8 +289,9 @@ function ModalDeal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal titre="Nouveau deal" onClose={onClose} maxWidth="max-w-md">
+    <Modal titre="Nouveau deal" onClose={onClose} maxWidth="max-w-md" scrollable>
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {/* Date + Client */}
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-gray-600">Date</label>
@@ -286,6 +303,20 @@ function ModalDeal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
+        {/* Setter */}
+        {setters.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-gray-600">Setter (optionnel)</label>
+            <select name="set_by" className={INPUT_CLS}>
+              <option value="">— Sans setter —</option>
+              {setters.map(s => (
+                <option key={s.id} value={s.id}>{s.full_name ?? s.id}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Montant + Cash */}
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-gray-600">Montant deal ($)</label>
@@ -297,6 +328,59 @@ function ModalDeal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
+        {/* Plan de paiement */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-gray-600">Plan de paiement</label>
+          <div className="grid grid-cols-4 rounded-lg border border-gray-300 overflow-hidden text-xs">
+            {(Object.keys(PLAN_LABELS) as PlanPaiement[]).map((p, i) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPlan(p)}
+                className={cn(
+                  'py-2.5 font-medium transition-colors',
+                  i > 0 ? 'border-l border-gray-300' : '',
+                  plan === p ? 'bg-violet-600 text-white' : 'text-gray-500 hover:bg-gray-50',
+                )}
+              >
+                {PLAN_LABELS[p]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Versements: date prochain + montant calculé */}
+        {(plan === 'versements_2' || plan === 'versements_3') && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-gray-600">Date prochain versement</label>
+            <input name="prochain_versement" type="date" required className={INPUT_CLS} />
+            <p className="text-xs text-gray-400">
+              {plan === 'versements_2' ? '1 versement restant sera créé automatiquement.' : '2 versements restants seront créés (2e = +30 jours).'}
+            </p>
+          </div>
+        )}
+
+        {/* Financement mensuel */}
+        {plan === 'financement' && (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-gray-600">Date 1ère mensualité</label>
+              <input name="prochain_versement" type="date" required className={INPUT_CLS} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-gray-600">Montant mensuel ($)</label>
+                <input name="montant_mensuel" type="number" min="0" step="0.01" defaultValue={0} required className={INPUT_CLS} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-gray-600">Durée (mois)</label>
+                <input name="nb_mois" type="number" min="1" max="60" defaultValue={12} required className={INPUT_CLS} />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Type de close */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-gray-600">Type de close</label>
           <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
@@ -313,6 +397,7 @@ function ModalDeal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
+        {/* Méthode */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-gray-600">Méthode de paiement</label>
           <select name="methode" className={INPUT_CLS}>
@@ -325,6 +410,7 @@ function ModalDeal({ onClose }: { onClose: () => void }) {
           </select>
         </div>
 
+        {/* Notes */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-gray-600">Notes (optionnel)</label>
           <input name="notes" type="text" placeholder="Remarques..." className={INPUT_CLS} />
@@ -347,11 +433,12 @@ function ModalDeal({ onClose }: { onClose: () => void }) {
 
 // ── Composant principal ───────────────────────────────────────────────
 
-export default function CloserView({ entrees, deals, userId, prenom }: {
-  entrees: CloserEntry[]
-  deals:   Deal[]
-  userId:  string
-  prenom:  string
+export default function CloserView({ entrees, deals, setters, userId, prenom }: {
+  entrees:  CloserEntry[]
+  deals:    Deal[]
+  setters:  { id: string; full_name: string | null }[]
+  userId:   string
+  prenom:   string
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [tab, setTab]           = useState<'activite' | 'deals'>('activite')
@@ -690,7 +777,7 @@ export default function CloserView({ entrees, deals, userId, prenom }: {
           onClose={() => setModalEntry(null)}
         />
       )}
-      {modalDeal && <ModalDeal onClose={() => setModalDeal(false)} />}
+      {modalDeal && <ModalDeal setters={setters} onClose={() => setModalDeal(false)} />}
     </div>
   )
 }
