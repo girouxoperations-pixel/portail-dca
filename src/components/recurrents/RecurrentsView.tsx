@@ -49,10 +49,13 @@ interface Deal {
   recurring_occurrences: Occurrence[]
 }
 
+type Filtre = 'retard' | 'semaine' | 'mois' | 'tout'
+
 interface Props {
-  deals:    Deal[]
-  profiles: Profile[]
-  isAdmin:  boolean
+  deals:         Deal[]
+  profiles:      Profile[]
+  isAdmin:       boolean
+  initialFiltre?: string
 }
 
 // ── Styles ────────────────────────────────────────────────────────────
@@ -400,12 +403,18 @@ function DealCard({ deal, profileMap, isAdmin }: {
 
 // ── Vue principale ─────────────────────────────────────────────────────
 
-export default function RecurrentsView({ deals, profiles, isAdmin }: Props) {
+function toValidFiltre(s: string | undefined): Filtre {
+  if (s === 'semaine' || s === 'mois' || s === 'tout') return s
+  return 'retard'
+}
+
+export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre }: Props) {
   const now = new Date()
   const [mois,  setMois]     = useState(now.getMonth() + 1)
   const [annee, setAnnee]    = useState(now.getFullYear())
   const [modalOuvert, setModalOuvert] = useState(false)
   const [showInactifs, setShowInactifs] = useState(false)
+  const [filtre, setFiltre]  = useState<Filtre>(() => toValidFiltre(initialFiltre))
 
   const profileMap = useMemo(
     () => new Map(profiles.map(p => [p.id, p.full_name ?? 'Inconnu'])),
@@ -437,6 +446,23 @@ export default function RecurrentsView({ deals, profiles, isAdmin }: Props) {
     return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
   }, [deals])
 
+  // Occurrences cette semaine (7 jours à partir d'aujourd'hui, non reçues)
+  const occsSemaine = useMemo(() => {
+    const todayStr   = new Date().toISOString().split('T')[0]
+    const weekEndDate = new Date(now)
+    weekEndDate.setDate(now.getDate() + 7)
+    const weekEndStr = weekEndDate.toISOString().split('T')[0]
+    const rows: { occ: Occurrence; deal: Deal }[] = []
+    for (const d of deals) {
+      if (!d.actif) continue
+      for (const occ of d.recurring_occurrences) {
+        if (!occ.recu && occ.date_attendue >= todayStr && occ.date_attendue <= weekEndStr)
+          rows.push({ occ, deal: d })
+      }
+    }
+    return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
+  }, [deals])
+
   // Occurrences pour le mois sélectionné (tous deals actifs)
   const occsMois = useMemo(() => {
     const rows: { occ: Occurrence; deal: Deal }[] = []
@@ -451,6 +477,22 @@ export default function RecurrentsView({ deals, profiles, isAdmin }: Props) {
   const nbRecus   = occsMois.filter(r => r.occ.recu).length
   const nbAttente = occsMois.length - nbRecus
   const totalMois = occsMois.filter(r => r.occ.recu).reduce((s, r) => s + (r.occ.montant_recu ?? 0), 0)
+
+  // "Ce mois" quick-filter: current month, not received, from today
+  const curMoisFilter = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0]
+    const curM = now.getMonth() + 1
+    const curY = now.getFullYear()
+    const rows: { occ: Occurrence; deal: Deal }[] = []
+    for (const d of deals) {
+      if (!d.actif) continue
+      for (const occ of d.recurring_occurrences) {
+        if (!occ.recu && occ.mois === curM && occ.annee === curY && occ.date_attendue >= todayStr)
+          rows.push({ occ, deal: d })
+      }
+    }
+    return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
+  }, [deals])
 
   const actifsDeals   = deals.filter(d => d.actif)
   const inactifsDeals = deals.filter(d => !d.actif)
@@ -467,13 +509,166 @@ export default function RecurrentsView({ deals, profiles, isAdmin }: Props) {
             className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-lg transition-colors"
           >
             <Plus size={15} />
+
             Nouveau deal
           </button>
         }
       />
 
-      {/* ── Non reçus / En retard ── */}
-      {enRetard.length > 0 && (
+      {/* ── Filtres rapides ── */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+        {([
+          { key: 'retard',  label: 'En retard',     count: enRetard.length      },
+          { key: 'semaine', label: 'Cette semaine',  count: occsSemaine.length   },
+          { key: 'mois',    label: 'Ce mois',        count: curMoisFilter.length },
+          { key: 'tout',    label: 'Tout voir',      count: 0                    },
+        ] as const).map(f => (
+          <button
+            key={f.key}
+            onClick={() => setFiltre(f.key)}
+            className={cn(
+              'flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm font-medium transition-all',
+              filtre === f.key
+                ? f.key === 'retard'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'bg-white text-violet-700 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            {f.label}
+            {f.count > 0 && (
+              <span className={cn(
+                'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
+                filtre === f.key
+                  ? f.key === 'retard' ? 'bg-red-500 text-white' : 'bg-violet-100 text-violet-700'
+                  : f.key === 'retard' ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
+              )}>
+                {f.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Vue filtrée : En retard ── */}
+      {filtre === 'retard' && (
+        <div className="bg-white rounded-xl border-2 border-red-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-red-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+              <div>
+                <h3 className="text-sm font-bold text-red-800">
+                  Versements non reçus — {enRetard.length} en retard
+                </h3>
+                <p className="text-xs text-red-400 mt-0.5">Ces clients n&apos;ont pas encore payé leur versement dû</p>
+              </div>
+            </div>
+            <span className="text-sm font-bold tabular-nums text-red-700">
+              {dollar(enRetard.reduce((s, r) => s + r.occ.montant_attendu, 0))}
+            </span>
+          </div>
+          {enRetard.length === 0 ? (
+            <div className="px-5 py-10 text-center">
+              <p className="text-sm text-gray-400">Aucun versement en retard 🎉</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-red-50/60 text-xs font-medium text-red-400 uppercase tracking-wide">
+                    <th className="px-4 py-2.5 text-left">Client · Équipe</th>
+                    <th className="px-4 py-2.5 text-left">Devait être reçu</th>
+                    <th className="px-4 py-2.5 text-right">Montant ($)</th>
+                    <th className="px-4 py-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {enRetard.map(({ occ, deal }) => (
+                    <OccurrenceRow key={occ.id} occ={occ} deal={deal} profileMap={profileMap} isAdmin={isAdmin} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Vue filtrée : Cette semaine ── */}
+      {filtre === 'semaine' && (
+        <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-amber-100 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-amber-800">
+              À encaisser cette semaine — {occsSemaine.length} versement{occsSemaine.length !== 1 ? 's' : ''}
+            </h3>
+            <span className="text-sm font-bold tabular-nums text-amber-700">
+              {dollar(occsSemaine.reduce((s, r) => s + r.occ.montant_attendu, 0))}
+            </span>
+          </div>
+          {occsSemaine.length === 0 ? (
+            <div className="px-5 py-10 text-center">
+              <p className="text-sm text-gray-400">Aucun versement attendu cette semaine</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-amber-50/60 text-xs font-medium text-amber-400 uppercase tracking-wide">
+                    <th className="px-4 py-2.5 text-left">Client · Équipe</th>
+                    <th className="px-4 py-2.5 text-left">Date attendue</th>
+                    <th className="px-4 py-2.5 text-right">Montant ($)</th>
+                    <th className="px-4 py-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {occsSemaine.map(({ occ, deal }) => (
+                    <OccurrenceRow key={occ.id} occ={occ} deal={deal} profileMap={profileMap} isAdmin={isAdmin} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Vue filtrée : Ce mois ── */}
+      {filtre === 'mois' && (
+        <div className="bg-white rounded-xl border border-violet-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-violet-100 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-violet-800">
+              À encaisser ce mois — {curMoisFilter.length} versement{curMoisFilter.length !== 1 ? 's' : ''}
+            </h3>
+            <span className="text-sm font-bold tabular-nums text-violet-700">
+              {dollar(curMoisFilter.reduce((s, r) => s + r.occ.montant_attendu, 0))}
+            </span>
+          </div>
+          {curMoisFilter.length === 0 ? (
+            <div className="px-5 py-10 text-center">
+              <p className="text-sm text-gray-400">Aucun versement à venir ce mois</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-violet-50/60 text-xs font-medium text-violet-400 uppercase tracking-wide">
+                    <th className="px-4 py-2.5 text-left">Client · Équipe</th>
+                    <th className="px-4 py-2.5 text-left">Date attendue</th>
+                    <th className="px-4 py-2.5 text-right">Montant ($)</th>
+                    <th className="px-4 py-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {curMoisFilter.map(({ occ, deal }) => (
+                    <OccurrenceRow key={occ.id} occ={occ} deal={deal} profileMap={profileMap} isAdmin={isAdmin} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Vue complète (filtre = tout) ── */}
+      {filtre === 'tout' && enRetard.length > 0 && (
         <div className="bg-white rounded-xl border-2 border-violet-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-violet-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -517,7 +712,9 @@ export default function RecurrentsView({ deals, profiles, isAdmin }: Props) {
         </div>
       )}
 
-      {/* ── Navigation mois ── */}
+      {/* ── Vue complète : navigation mois + deals ── */}
+      {filtre === 'tout' && <>
+
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <button
@@ -627,6 +824,8 @@ export default function RecurrentsView({ deals, profiles, isAdmin }: Props) {
           )}
         </div>
       )}
+
+      </>}
 
       {modalOuvert && (
         <ModalNouveauDeal

@@ -3,7 +3,11 @@ import { createClient }    from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import RecurrentsView      from '@/components/recurrents/RecurrentsView'
 
-export default async function RecurrentsPage() {
+export default async function RecurrentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filtre?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -14,6 +18,7 @@ export default async function RecurrentsPage() {
   const role = profil?.role ?? ''
   if (!['admin', 'csm'].includes(role)) redirect('/dashboard')
 
+  const { filtre } = await searchParams
   const db = createAdminClient()
 
   const [{ data: deals }, { data: profiles }] = await Promise.all([
@@ -41,6 +46,7 @@ export default async function RecurrentsPage() {
       deals={dealsNorm}
       profiles={profiles ?? []}
       isAdmin={role === 'admin'}
+      initialFiltre={filtre ?? 'retard'}
     />
   )
 }

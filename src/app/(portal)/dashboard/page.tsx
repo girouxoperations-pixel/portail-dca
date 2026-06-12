@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import {
   Wallet, Phone, Target, AlertTriangle, Calendar, TrendingUp,
   ArrowUp, ArrowDown, Clock,
@@ -300,12 +301,13 @@ function RecurrentsHealthRow({ health }: { health: RecurrentsHealth }) {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div className={cn(
-        'rounded-xl border shadow-sm p-4',
-        health.nRetard > 0
-          ? 'bg-red-50 border-red-200'
-          : 'bg-white border-gray-100',
-      )}>
+      <Link
+        href="/recurrents?filtre=retard"
+        className={cn(
+          'rounded-xl border shadow-sm p-4 transition-all hover:shadow-md hover:-translate-y-0.5',
+          health.nRetard > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100',
+        )}
+      >
         <div className="flex items-center gap-2 mb-2">
           <AlertTriangle size={14} className={health.nRetard > 0 ? 'text-red-500' : 'text-gray-300'} />
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">En retard</p>
@@ -316,9 +318,12 @@ function RecurrentsHealthRow({ health }: { health: RecurrentsHealth }) {
         <p className="text-xs text-gray-400 mt-0.5">
           {health.nRetard} versement{health.nRetard !== 1 ? 's' : ''} non reçu{health.nRetard !== 1 ? 's' : ''}
         </p>
-      </div>
+      </Link>
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <Link
+        href="/recurrents?filtre=semaine"
+        className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 transition-all hover:shadow-md hover:-translate-y-0.5"
+      >
         <div className="flex items-center gap-2 mb-2">
           <Clock size={14} className="text-amber-500" />
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cette semaine</p>
@@ -329,9 +334,12 @@ function RecurrentsHealthRow({ health }: { health: RecurrentsHealth }) {
         <p className="text-xs text-gray-400 mt-0.5">
           {health.nSemaine} versement{health.nSemaine !== 1 ? 's' : ''} attendu{health.nSemaine !== 1 ? 's' : ''}
         </p>
-      </div>
+      </Link>
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <Link
+        href="/recurrents?filtre=mois"
+        className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 transition-all hover:shadow-md hover:-translate-y-0.5"
+      >
         <div className="flex items-center gap-2 mb-2">
           <Calendar size={14} className="text-violet-500" />
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ce mois (à venir)</p>
@@ -342,7 +350,7 @@ function RecurrentsHealthRow({ health }: { health: RecurrentsHealth }) {
         <p className="text-xs text-gray-400 mt-0.5">
           {health.nMois} versement{health.nMois !== 1 ? 's' : ''} à encaisser
         </p>
-      </div>
+      </Link>
     </div>
   )
 }
