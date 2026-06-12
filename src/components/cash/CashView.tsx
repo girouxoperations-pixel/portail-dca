@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown, Zap, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { creerCash, modifierCash, supprimerCash } from '@/app/(portal)/cash/actions'
 
@@ -15,6 +15,7 @@ interface CashEntry {
   collected: number
   a_collecter: number
   methode: string | null
+  close_type: string | null
   set_by: string | null
   closed_by: string | null
   month: number | null
@@ -226,6 +227,25 @@ function ModalForm({
             </Champ>
           </div>
 
+          <Champ label="Type de close">
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+              {(['on_the_spot', 'follow_up'] as const).map((v, i) => (
+                <label key={v} className={cn(
+                  'flex-1 text-center py-2.5 cursor-pointer font-medium transition-colors',
+                  i === 0 ? 'border-r border-gray-200' : '',
+                  'has-[:checked]:bg-violet-600 has-[:checked]:text-white text-gray-500 hover:bg-gray-50',
+                )}>
+                  <input
+                    type="radio" name="close_type" value={v}
+                    defaultChecked={entry?.close_type === v || (!entry && v === 'on_the_spot')}
+                    className="sr-only"
+                  />
+                  {v === 'on_the_spot' ? 'On the spot' : 'Follow up'}
+                </label>
+              ))}
+            </div>
+          </Champ>
+
           <Champ label="Notes (optionnel)">
             <textarea
               name="notes" rows={2} placeholder="Remarques..."
@@ -299,6 +319,12 @@ export default function CashView({
     ? Math.round((totaux.collected / totaux.montant) * 100)
     : 0
 
+  const nOnTheSpot = filtrees.filter(e => e.close_type === 'on_the_spot').length
+  const nFollowUp  = filtrees.filter(e => e.close_type === 'follow_up').length
+  const nTyped     = nOnTheSpot + nFollowUp
+  const pctSpot    = nTyped > 0 ? Math.round((nOnTheSpot / nTyped) * 100) : 0
+  const pctFU      = nTyped > 0 ? Math.round((nFollowUp  / nTyped) * 100) : 0
+
   function handleDelete(id: string) {
     if (!confirm('Supprimer cette entrée cash ?')) return
     startTransition(async () => { await supprimerCash(id) })
@@ -335,7 +361,7 @@ export default function CashView({
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <KpiCard
           title="Montant total"
           value={dollar(totaux.montant)}
@@ -356,6 +382,20 @@ export default function CashView({
           icon={TrendingDown}
           color="red"
           subtitle="Montants en attente"
+        />
+        <KpiCard
+          title="On the spot"
+          value={String(nOnTheSpot)}
+          icon={Zap}
+          color="green"
+          subtitle={nTyped > 0 ? `${pctSpot} % des closes` : 'Aucune donnée'}
+        />
+        <KpiCard
+          title="Follow up"
+          value={String(nFollowUp)}
+          icon={Clock}
+          color="blue"
+          subtitle={nTyped > 0 ? `${pctFU} % des closes` : 'Aucune donnée'}
         />
       </div>
 
@@ -384,6 +424,7 @@ export default function CashView({
                   <th className="px-4 py-2.5 text-left">Client</th>
                   <th className="px-4 py-2.5 text-left">Closer</th>
                   <th className="px-4 py-2.5 text-left">Setter</th>
+                  <th className="px-4 py-2.5 text-left">Type</th>
                   <th className="px-4 py-2.5 text-right">Montant</th>
                   <th className="px-4 py-2.5 text-right">Collecté</th>
                   <th className="px-4 py-2.5 text-right">À collecter</th>
@@ -406,6 +447,19 @@ export default function CashView({
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       {e.set_by ? (profileMap.get(e.set_by) ?? '—') : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {e.close_type === 'on_the_spot' && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700">
+                          <Zap size={9} />On the spot
+                        </span>
+                      )}
+                      {e.close_type === 'follow_up' && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                          <Clock size={9} />Follow up
+                        </span>
+                      )}
+                      {!e.close_type && <span className="text-gray-300 text-xs">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">
                       {dollar(e.montant_courant)}
@@ -456,7 +510,7 @@ export default function CashView({
                 <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700">
                   <td
                     className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide"
-                    colSpan={4}
+                    colSpan={5}
                   >
                     Totaux
                   </td>

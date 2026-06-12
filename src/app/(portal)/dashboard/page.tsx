@@ -586,7 +586,7 @@ export default async function DashboardPage({
     db.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
     db.from('cash_entries')
-      .select('montant_courant, collected, closed_by, set_by')
+      .select('montant_courant, collected, closed_by, set_by, close_type')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
     db.from('cash_entries')
@@ -737,6 +737,8 @@ export default async function DashboardPage({
   // ── KPIs ─────────────────────────────────────────────────────────
   const cashRevenu    = (cashMois ?? []).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
   const cashCollected = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
+  const nOnTheSpotDash = (cashMois ?? []).filter(e => e.close_type === 'on_the_spot').length
+  const nFollowUpDash  = (cashMois ?? []).filter(e => e.close_type === 'follow_up').length
   const prevCollected = (cashPrevMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
   const cashTrend     = prevCollected > 0
     ? Math.round(((cashCollected - prevCollected) / prevCollected) * 100)
@@ -1012,7 +1014,7 @@ export default async function DashboardPage({
           value={closes}
           icon={Target}
           color="green"
-          subtitle={`Close rate : ${closeRate} %`}
+          subtitle={`Close rate : ${closeRate} % · ⚡ ${nOnTheSpotDash} spot · 🔄 ${nFollowUpDash} FU`}
         />
         {/* Projection card — mois mode only */}
         <div className="sm:col-span-2 lg:col-span-1">
