@@ -11,6 +11,7 @@ import {
   RefreshCw,
   HeartHandshake,
   BookUser,
+  ListTodo,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -28,6 +29,7 @@ export interface NavItem {
 export const NAV_ITEMS: Record<string, NavItem[]> = {
   admin: [
     { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard },
+    { label: 'Todo',        href: '/todo',         icon: ListTodo        },
     { label: 'Closers',     href: '/closer',       icon: Phone           },
     { label: 'Setters',     href: '/setter',       icon: Users           },
     { label: 'Paie',        href: '/payes',        icon: Banknote        },
@@ -42,6 +44,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
   ],
   csm: [
     { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard },
+    { label: 'Todo',        href: '/todo',         icon: ListTodo        },
     { label: 'Closers',     href: '/closer',       icon: Phone           },
     { label: 'Setters',     href: '/setter',       icon: Users           },
     { label: 'Paie',        href: '/payes',        icon: Banknote        },
@@ -55,6 +58,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
   ],
   closer: [
     { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
+    { label: 'Todo',         href: '/todo',         icon: ListTodo        },
     { label: 'Mon Suivi',    href: '/closer',       icon: Phone           },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
     { label: 'Feedback',     href: '/feedback',     icon: MessageSquare   },
