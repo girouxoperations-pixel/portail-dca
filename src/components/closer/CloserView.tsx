@@ -4,6 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import { Plus, Pencil, Phone, TrendingUp, Target, CheckCircle2, Wallet, DollarSign, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { ajouterEntree, modifierEntree } from '@/app/(portal)/closer/actions'
+import { addProspectFollowup } from '@/app/(portal)/todo/actions'
 import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
 import PeriodFilter, { usePeriodFilter, computePrevRange } from '@/components/ui/PeriodFilter'
@@ -77,6 +78,10 @@ function ModalEntree({
   onClose: () => void
 }) {
   const [pending, startTransition] = useTransition()
+  const [fuPending, startFuTransition] = useTransition()
+  const [fuName, setFuName] = useState('')
+  const [fuDate, setFuDate] = useState('')
+  const [fuAdded, setFuAdded] = useState<string[]>([])
   const isEdit = entry !== null
   const today  = new Date().toISOString().slice(0, 10)
 
@@ -91,6 +96,22 @@ function ModalEntree({
         await ajouterEntree(fd)
       }
       onClose()
+    })
+  }
+
+  function handleAddFu(e: React.FormEvent) {
+    e.preventDefault()
+    if (!fuName.trim() || !fuDate) return
+    const name = fuName.trim()
+    const date = fuDate
+    startFuTransition(async () => {
+      const fd = new FormData()
+      fd.set('prospect_name', name)
+      fd.set('followup_date', date)
+      await addProspectFollowup(fd)
+      setFuAdded(prev => [...prev, name])
+      setFuName('')
+      setFuDate('')
     })
   }
 
@@ -173,6 +194,41 @@ function ModalEntree({
           </button>
         </div>
       </form>
+
+      {/* Follow ups du jour */}
+      <div className="border-t border-gray-100 px-6 pb-6 pt-5">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Follow ups du jour</p>
+        {fuAdded.length > 0 && (
+          <div className="mb-3 space-y-1">
+            {fuAdded.map((n, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1.5 rounded-lg">
+                <CheckCircle2 size={11} /> {n}
+              </div>
+            ))}
+          </div>
+        )}
+        <form onSubmit={handleAddFu} className="flex gap-2">
+          <input
+            value={fuName}
+            onChange={e => setFuName(e.target.value)}
+            placeholder="Nom du prospect"
+            className={`${INPUT_CLS} flex-1`}
+          />
+          <input
+            type="date"
+            value={fuDate}
+            onChange={e => setFuDate(e.target.value)}
+            className={`${INPUT_CLS} w-36`}
+          />
+          <button
+            type="submit"
+            disabled={fuPending || !fuName.trim() || !fuDate}
+            className="px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Plus size={14} />
+          </button>
+        </form>
+      </div>
     </Modal>
   )
 }

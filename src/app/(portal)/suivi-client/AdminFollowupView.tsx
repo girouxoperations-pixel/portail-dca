@@ -1,16 +1,28 @@
 'use client'
 
-import { useState } from 'react'
-import { Users, CheckCircle2, AlertCircle, Clock, Circle, TrendingUp } from 'lucide-react'
+import { useState, useOptimistic, useTransition } from 'react'
+import { Users, CheckCircle2, AlertCircle, Clock, Circle, TrendingUp, UserSearch, Trash2 } from 'lucide-react'
 import ExportCsvButton from '@/components/ui/ExportCsvButton'
 import { cn } from '@/lib/utils'
 import type { Followup } from './CloserFollowupView'
+import { toggleProspectFollowup, deleteProspectFollowup } from '@/app/(portal)/todo/actions'
 
 interface Profile { id: string; full_name: string | null }
+
+interface ProspectRow {
+  id:           string
+  closerId:     string
+  prospectName: string
+  followupDate: string
+  notes:        string | null
+  done:         boolean
+  doneDate:     string | null
+}
 
 interface Props {
   followups: (Followup & { closer_id: string })[]
   profiles:  Profile[]
+  prospects: ProspectRow[]
 }
 
 type StatusFilter = 'tous' | 'en-cours' | 'completes' | 'en-retard'
@@ -47,9 +59,75 @@ function MsgCell({ done, due }: { done: boolean; due: string }) {
   return <Circle size={16} className="text-gray-300 mx-auto" />
 }
 
-export default function AdminFollowupView({ followups, profiles }: Props) {
+type MainTab = 'suivi' | 'followup'
+
+function AdminProspectRow({ p, profileMap }: { p: ProspectRow; profileMap: Map<string, string> }) {
+  const t = new Date().toISOString().split('T')[0]
+  const [optimisticDone, setOptimistic] = useOptimistic(p.done)
+  const [, startTransition] = useTransition()
+
+  function toggle() {
+    const next = !optimisticDone
+    startTransition(async () => {
+      setOptimistic(next)
+      await toggleProspectFollowup(p.id, next)
+    })
+  }
+
+  function del() {
+    startTransition(async () => { await deleteProspectFollowup(p.id) })
+  }
+
+  const overdue = !optimisticDone && p.followupDate < t
+  const isToday = !optimisticDone && p.followupDate === t
+
+  return (
+    <tr className={cn('hover:bg-gray-50/50 transition-colors', optimisticDone && 'opacity-50')}>
+      <td className="px-4 py-3">
+        <button onClick={toggle}>
+          {optimisticDone
+            ? <CheckCircle2 size={16} className="text-green-500" />
+            : overdue
+              ? <AlertCircle  size={16} className="text-red-400"   />
+              : isToday
+                ? <Clock        size={16} className="text-amber-400" />
+                : <Circle       size={16} className="text-gray-200"  />
+          }
+        </button>
+      </td>
+      <td className="px-4 py-3 font-medium text-gray-800">
+        <span className={cn(optimisticDone && 'line-through text-gray-400')}>{p.prospectName}</span>
+        {p.notes && <span className="text-xs text-gray-400 ml-2">· {p.notes}</span>}
+      </td>
+      <td className="px-4 py-3 text-gray-500 text-sm">{profileMap.get(p.closerId) ?? '—'}</td>
+      <td className="px-4 py-3 text-gray-500 text-sm whitespace-nowrap">
+        {new Date(p.followupDate + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+        {overdue && !optimisticDone && (
+          <span className="ml-2 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">En retard</span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-center">
+        <span className={cn(
+          'text-[11px] font-semibold px-2 py-0.5 rounded-full',
+          optimisticDone ? 'bg-green-50 text-green-700' : overdue ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700',
+        )}>
+          {optimisticDone ? 'Fait' : overdue ? 'En retard' : 'À faire'}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <button onClick={del} className="p-1 text-gray-200 hover:text-red-400 transition-colors">
+          <Trash2 size={13} />
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+export default function AdminFollowupView({ followups, profiles, prospects }: Props) {
+  const [mainTab, setMainTab]         = useState<MainTab>('suivi')
   const [closerFilter, setCloserFilter] = useState<string>('tous')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('tous')
+  const [fuCloserFilter, setFuCloserFilter] = useState<string>('tous')
 
   const profileMap = new Map(profiles.map(p => [p.id, p.full_name ?? 'Inconnu']))
 
@@ -94,14 +172,100 @@ export default function AdminFollowupView({ followups, profiles }: Props) {
     { key: 'en-retard',  label: 'En retard' },
   ]
 
+  const filteredProspects = prospects.filter(p =>
+    fuCloserFilter === 'tous' || p.closerId === fuCloserFilter
+  )
+  const fuActive  = filteredProspects.filter(p => !p.done)
+  const fuDone    = filteredProspects.filter(p => p.done)
+  const fuOverdue = fuActive.filter(p => p.followupDate < new Date().toISOString().split('T')[0]).length
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
 
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Suivi client</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Vue équipe — tous les closers</p>
+      {/* Header + main tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Suivi client</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Vue équipe — tous les closers</p>
+        </div>
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl ml-auto">
+          <button
+            onClick={() => setMainTab('suivi')}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
+              mainTab === 'suivi' ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            <Users size={14} />Suivi client
+          </button>
+          <button
+            onClick={() => setMainTab('followup')}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
+              mainTab === 'followup' ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            <UserSearch size={14} />Follow up
+            {prospects.filter(p => !p.done).length > 0 && (
+              <span className={cn(
+                'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
+                fuOverdue > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
+              )}>
+                {prospects.filter(p => !p.done).length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* ── Follow up tab ── */}
+      {mainTab === 'followup' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={fuCloserFilter}
+              onChange={e => setFuCloserFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+            >
+              <option value="tous">Tous les closers</option>
+              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name ?? 'Inconnu'}</option>)}
+            </select>
+            <span className="text-xs text-gray-400">
+              {fuActive.length} actif{fuActive.length !== 1 ? 's' : ''} · {fuOverdue > 0 && <>{fuOverdue} en retard · </>}{fuDone.length} fait{fuDone.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            {filteredProspects.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-12">Aucun follow up</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                      <th className="px-4 py-3 w-8" />
+                      <th className="px-4 py-3 text-left">Prospect</th>
+                      <th className="px-4 py-3 text-left">Closer</th>
+                      <th className="px-4 py-3 text-left">Date</th>
+                      <th className="px-4 py-3 text-center">Statut</th>
+                      <th className="px-4 py-3 w-8" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredProspects
+                      .sort((a, b) => a.followupDate.localeCompare(b.followupDate))
+                      .map(p => <AdminProspectRow key={p.id} p={p} profileMap={profileMap} />)
+                    }
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Suivi client tab ── */}
+      {mainTab === 'suivi' && <>
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -233,6 +397,8 @@ export default function AdminFollowupView({ followups, profiles }: Props) {
           </div>
         )}
       </div>
+    </>}
+
     </div>
   )
 }
