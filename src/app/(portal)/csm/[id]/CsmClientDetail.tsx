@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, CheckCircle2, Circle, Calendar,
   MessageSquare, Shield, Target, Phone, Edit2, Check, X,
+  DollarSign, User,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CsmClient } from '../types'
@@ -14,7 +15,20 @@ import {
   updateCircleLogin, updateTheory, updateStatus, updateNotes,
 } from '../actions'
 
-interface Props { client: CsmClient }
+interface CashEntry { montant_courant: number; collected: number; entry_date: string; methode: string | null }
+interface Followup {
+  id: string; due_message1: string; due_message2: string; due_message3: string
+  message1_done: boolean; message1_date: string | null
+  message2_done: boolean; message2_date: string | null
+  message3_done: boolean; message3_date: string | null
+}
+
+interface Props {
+  client:      CsmClient
+  cashEntry:   CashEntry | null
+  followup:    Followup | null
+  closerName:  string | null
+}
 
 // ── Inline editable date input ────────────────────────────────────────
 function DateInput({
@@ -177,7 +191,11 @@ function NotesEditor({ value, onSave }: { value: string | null; onSave: (v: stri
   )
 }
 
-export default function CsmClientDetail({ client: c }: Props) {
+function dollar(n: number) {
+  return new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(n)
+}
+
+export default function CsmClientDetail({ client: c, cashEntry, followup, closerName }: Props) {
   const todayStr = today()
   const due = computeDueDates(c.enrollment_date)
   const dayN = Math.floor((new Date(todayStr).getTime() - new Date(c.enrollment_date + 'T00:00').getTime()) / 86400000)
@@ -229,6 +247,25 @@ export default function CsmClientDetail({ client: c }: Props) {
             ))}
           </select>
         </div>
+
+        {/* Deal info from cash entry */}
+        {(cashEntry || closerName) && (
+          <div className="mt-3 flex flex-wrap gap-3">
+            {closerName && (
+              <span className="inline-flex items-center gap-1.5 text-xs bg-violet-50 text-violet-700 px-2.5 py-1 rounded-full">
+                <User size={11} />
+                Closer : {closerName}
+              </span>
+            )}
+            {cashEntry && (
+              <span className="inline-flex items-center gap-1.5 text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-full">
+                <DollarSign size={11} />
+                {dollar(cashEntry.montant_courant)}
+                {cashEntry.methode && <span className="opacity-70">· {cashEntry.methode}</span>}
+              </span>
+            )}
+          </div>
+        )}
 
         {c.onboarding_notes && (
           <div className="mt-4 p-3 bg-gray-50 rounded-lg">
@@ -389,6 +426,48 @@ export default function CsmClientDetail({ client: c }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Suivi client (client_followups) */}
+      {followup && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-2 mb-3">
+            <Phone size={14} />
+            Suivi closer — 3 textos
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {([1, 2, 3] as const).map(n => {
+              const done = followup[`message${n}_done` as 'message1_done']
+              const due  = followup[`due_message${n}` as 'due_message1']
+              const date = followup[`message${n}_date` as 'message1_date']
+              return (
+                <div
+                  key={n}
+                  className={cn(
+                    'flex flex-col items-center gap-1 px-4 py-3 rounded-xl ring-1',
+                    done ? 'bg-green-50 ring-green-200'
+                    : due < todayStr ? 'bg-red-50 ring-red-200'
+                    : 'bg-yellow-50 ring-yellow-200',
+                  )}
+                >
+                  {done
+                    ? <CheckCircle2 size={16} className="text-green-500" />
+                    : due < todayStr
+                      ? <Circle size={16} className="text-red-400" />
+                      : <Circle size={16} className="text-yellow-400" />
+                  }
+                  <span className="text-[11px] font-semibold text-gray-600">Msg {n}</span>
+                  <span className="text-[10px] text-gray-400">
+                    {done && date ? `Fait le ${formatDate(date)}` : formatDate(due)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <Link href="/suivi-client" className="inline-block mt-3 text-xs text-violet-500 hover:underline">
+            Voir dans Suivi client →
+          </Link>
+        </div>
+      )}
 
       {/* Notes */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
