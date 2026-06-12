@@ -16,6 +16,7 @@ export interface VersementTask {
   clientName:   string
   montant:      number
   dueDate:      string
+  done:         boolean
   closerId:     string | null
   closerName?:  string
 }

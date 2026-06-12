@@ -4,7 +4,7 @@ import { useState, useOptimistic, useTransition } from 'react'
 import Link from 'next/link'
 import {
   CheckCircle2, Circle, Clock, AlertCircle,
-  DollarSign, MessageSquare, UserSearch, Plus, Trash2, X, ListTodo,
+  DollarSign, MessageSquare, UserSearch, Plus, Trash2, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SuiviTask, VersementTask, ProspectTask } from './types'
@@ -19,302 +19,154 @@ interface Props {
   closerId:       string
 }
 
-type Tab     = 'today' | 'week' | 'overdue'
-type MainTab = 'tasks' | 'followup'
+type Tab = 'today' | 'week' | 'overdue'
 
 export default function CloserTodoView({ suiviTasks, versementTasks, prospectTasks, closerName }: Props) {
-  const [mainTab, setMainTab] = useState<MainTab>('tasks')
   const [tab, setTab] = useState<Tab>('today')
   const today = todayStr()
   const eow   = weekEnd()
 
-  function period(dueDate: string, done: boolean) {
+  function periodOf(dueDate: string, done: boolean) {
     return classifyTask(dueDate, done, today, eow)
   }
 
-  // Filter each type by tab
-  const suivis     = suiviTasks.filter(t => period(t.dueDate, t.done) === tab)
+  const suivis     = suiviTasks.filter(t => periodOf(t.dueDate, t.done) === tab)
   const versements = versementTasks.filter(t => {
-    const p = period(t.dueDate, false)
+    const p = periodOf(t.dueDate, false)
     return tab === 'today' ? (p === 'today' || p === 'overdue') : p === tab
   })
   const prospects  = prospectTasks.filter(t => {
-    const p = period(t.followupDate, t.done)
+    const p = periodOf(t.followupDate, t.done)
     return tab === 'today' ? (p === 'today' || p === 'overdue') : p === tab
   })
 
-  // Badge counts
+  // Badge counts: only pending (not done) items
   const counts = {
-    today:   suiviTasks.filter(t => period(t.dueDate, t.done) === 'today').length
-           + versementTasks.filter(t => { const p = period(t.dueDate, false); return p === 'today' || p === 'overdue' }).length
-           + prospectTasks.filter(t => { const p = period(t.followupDate, t.done); return p === 'today' || p === 'overdue' }).length,
-    week:    suiviTasks.filter(t => period(t.dueDate, t.done) === 'week').length
-           + versementTasks.filter(t => period(t.dueDate, false) === 'week').length
-           + prospectTasks.filter(t => period(t.followupDate, t.done) === 'week').length,
-    overdue: suiviTasks.filter(t => period(t.dueDate, t.done) === 'overdue').length
-           + versementTasks.filter(t => period(t.dueDate, false) === 'overdue').length
-           + prospectTasks.filter(t => period(t.followupDate, t.done) === 'overdue').length,
+    today:
+      suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'today').length +
+      versementTasks.filter(t => !t.done && (periodOf(t.dueDate, false) === 'today' || periodOf(t.dueDate, false) === 'overdue')).length +
+      prospectTasks.filter(t => { const p = periodOf(t.followupDate, t.done); return p === 'today' || p === 'overdue' }).length,
+    week:
+      suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'week').length +
+      versementTasks.filter(t => !t.done && periodOf(t.dueDate, false) === 'week').length +
+      prospectTasks.filter(t => periodOf(t.followupDate, t.done) === 'week').length,
+    overdue:
+      suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'overdue').length +
+      versementTasks.filter(t => !t.done && periodOf(t.dueDate, false) === 'overdue').length +
+      prospectTasks.filter(t => periodOf(t.followupDate, t.done) === 'overdue').length,
   }
 
-  const empty = suivis.length === 0 && versements.length === 0 && prospects.length === 0
+  const empty = suivis.length === 0 && prospects.length === 0 && versements.length === 0
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'today',   label: "Aujourd'hui" },
+    { key: 'today',   label: "Aujourd'hui"  },
     { key: 'week',    label: 'Cette semaine' },
-    { key: 'overdue', label: 'En retard'   },
+    { key: 'overdue', label: 'En retard'    },
   ]
-
-  const nFuActif   = prospectTasks.filter(p => !p.done).length
-  const nFuOverdue = prospectTasks.filter(p => !p.done && p.followupDate < today).length
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-5">
 
       {/* Header */}
-      <div className="flex items-end gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 capitalize">
-            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">Bonjour {closerName} — voici tes tâches</p>
-        </div>
-        {/* Main tab switcher */}
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl ml-auto">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 capitalize">
+          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">Bonjour {closerName} — voici tes tâches</p>
+      </div>
+
+      {/* Period tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+        {TABS.map(t => (
           <button
-            onClick={() => setMainTab('tasks')}
+            key={t.key}
+            onClick={() => setTab(t.key)}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
-              mainTab === 'tasks' ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+              'flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-sm font-medium transition-all',
+              tab === t.key
+                ? t.key === 'overdue' ? 'bg-red-600 text-white shadow-sm' : 'bg-white text-violet-700 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700',
             )}
           >
-            <ListTodo size={14} />Todo
-          </button>
-          <button
-            onClick={() => setMainTab('followup')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
-              mainTab === 'followup' ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700',
-            )}
-          >
-            <UserSearch size={14} />Follow up
-            {nFuActif > 0 && (
+            {t.label}
+            {counts[t.key] > 0 && (
               <span className={cn(
                 'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
-                nFuOverdue > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
+                tab === t.key
+                  ? t.key === 'overdue' ? 'bg-red-500 text-white' : 'bg-violet-100 text-violet-700'
+                  : t.key === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
               )}>
-                {nFuActif}
+                {counts[t.key]}
               </span>
             )}
           </button>
-        </div>
+        ))}
       </div>
 
-      {/* ── Follow up tab ── */}
-      {mainTab === 'followup' && (
-        <FollowUpSection prospects={prospectTasks} today={today} />
-      )}
-
-      {/* ── Tasks tab ── */}
-      {mainTab === 'tasks' && <>
-        {/* Period tabs */}
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-          {TABS.map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-sm font-medium transition-all',
-                tab === t.key
-                  ? t.key === 'overdue' ? 'bg-red-600 text-white shadow-sm' : 'bg-white text-violet-700 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700',
-              )}
-            >
-              {t.label}
-              {counts[t.key] > 0 && (
-                <span className={cn(
-                  'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
-                  tab === t.key
-                    ? t.key === 'overdue' ? 'bg-red-500 text-white' : 'bg-violet-100 text-violet-700'
-                    : t.key === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
-                )}>
-                  {counts[t.key]}
-                </span>
-              )}
-            </button>
-          ))}
+      {empty ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-12 text-center">
+          <CheckCircle2 size={32} className="mx-auto text-green-300 mb-3" />
+          <p className="text-sm font-medium text-gray-400">Rien à faire ici</p>
+          <p className="text-xs text-gray-300 mt-1">Tu es à jour pour cette période.</p>
         </div>
+      ) : (
+        <div className="space-y-4">
 
-        {empty ? (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-12 text-center">
-            <CheckCircle2 size={32} className="mx-auto text-green-300 mb-3" />
-            <p className="text-sm font-medium text-gray-400">Rien à faire ici</p>
-            <p className="text-xs text-gray-300 mt-1">Tu es à jour pour cette période.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
+          {/* Follow up prospects */}
+          {prospects.length > 0 && (
+            <section>
+              <div className="flex items-center gap-2 mb-2.5">
+                <UserSearch size={14} className="text-violet-500" />
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Follow up — {prospects.length} prospect{prospects.length > 1 ? 's' : ''}
+                </h2>
+              </div>
+              <div className="space-y-2">
+                {prospects.map(t => <ProspectRow key={t.id} task={t} today={today} />)}
+              </div>
+            </section>
+          )}
 
-            {/* Prospects à relancer */}
-            {prospects.length > 0 && (
-              <section>
-                <div className="flex items-center gap-2 mb-2.5">
-                  <UserSearch size={14} className="text-violet-500" />
-                  <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Prospects à relancer — {prospects.length}
-                  </h2>
-                </div>
-                <div className="space-y-2">
-                  {prospects.map(t => <ProspectRow key={t.id} task={t} today={today} />)}
-                </div>
-              </section>
-            )}
+          {/* Suivi client */}
+          {suivis.length > 0 && (
+            <section>
+              <div className="flex items-center gap-2 mb-2.5">
+                <MessageSquare size={14} className="text-blue-500" />
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Suivi client — {suivis.length} message{suivis.length > 1 ? 's' : ''}
+                </h2>
+              </div>
+              <div className="space-y-2">
+                {suivis.map(t => <SuiviRow key={`${t.followupId}-${t.messageNum}`} task={t} today={today} />)}
+              </div>
+            </section>
+          )}
 
-            {/* Suivis clients */}
-            {suivis.length > 0 && (
-              <section>
-                <div className="flex items-center gap-2 mb-2.5">
-                  <MessageSquare size={14} className="text-blue-500" />
-                  <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Suivis clients — {suivis.length} message{suivis.length > 1 ? 's' : ''}
-                  </h2>
-                </div>
-                <div className="space-y-2">
-                  {suivis.map(t => <SuiviRow key={`${t.followupId}-${t.messageNum}`} task={t} today={today} />)}
-                </div>
-              </section>
-            )}
-
-            {/* Versements */}
-            {versements.length > 0 && (
-              <section>
-                <div className="flex items-center gap-2 mb-2.5">
-                  <DollarSign size={14} className="text-green-500" />
-                  <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Versements à collecter — {versements.length}
-                  </h2>
-                </div>
-                <div className="space-y-2">
-                  {versements.map(t => <VersementRow key={t.occurrenceId} task={t} today={today} />)}
-                </div>
+          {/* Récurrents */}
+          {versements.length > 0 && (
+            <section>
+              <div className="flex items-center gap-2 mb-2.5">
+                <DollarSign size={14} className="text-green-500" />
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Récurrents — {versements.length}
+                </h2>
+              </div>
+              <div className="space-y-2">
+                {versements.map(t => <VersementRow key={t.occurrenceId} task={t} today={today} />)}
+              </div>
+              {versements.some(t => !t.done) && (
                 <p className="text-[11px] text-gray-400 mt-2 ml-1">
                   Marquer reçu depuis <Link href="/recurrents" className="text-violet-500 hover:underline">Récurrents →</Link>
                 </p>
-              </section>
-            )}
-          </div>
-        )}
-
-        {/* Add prospect follow-up */}
-        <AddProspectForm />
-      </>}
-    </div>
-  )
-}
-
-// ── Follow up section (full prospect list) ────────────────────────────
-function FollowUpSection({ prospects, today }: { prospects: ProspectTask[]; today: string }) {
-  const [showForm, setShowForm] = useState(false)
-  const [showDone, setShowDone] = useState(false)
-
-  const active  = prospects.filter(p => !p.done)
-  const done    = prospects.filter(p => p.done)
-  const nOverdue = active.filter(p => p.followupDate < today).length
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          {active.length} actif{active.length !== 1 ? 's' : ''}
-          {nOverdue > 0 && <> · <span className="text-red-500 font-medium">{nOverdue} en retard</span></>}
-          {done.length > 0 && <> · {done.length} fait{done.length !== 1 ? 's' : ''}</>}
-        </p>
-        <button
-          onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
-        >
-          <Plus size={13} />Ajouter
-        </button>
-      </div>
-
-      {showForm && (
-        <div className="bg-white rounded-xl border border-violet-200 shadow-sm p-4 space-y-3">
-          <AddProspectInlineForm onDone={() => setShowForm(false)} />
-        </div>
-      )}
-
-      {active.length === 0 && !showForm ? (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-10 text-center">
-          <UserSearch size={28} className="mx-auto text-gray-200 mb-2" />
-          <p className="text-sm text-gray-400">Aucun follow up actif</p>
-          <button onClick={() => setShowForm(true)} className="mt-3 text-xs text-violet-600 hover:underline">
-            + Ajouter un prospect
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {active.sort((a, b) => a.followupDate.localeCompare(b.followupDate)).map(t => (
-            <ProspectRow key={t.id} task={t} today={today} />
-          ))}
-        </div>
-      )}
-
-      {done.length > 0 && (
-        <div>
-          <button
-            onClick={() => setShowDone(v => !v)}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors mb-2"
-          >
-            {showDone ? '▲' : '▼'} Complétés ({done.length})
-          </button>
-          {showDone && (
-            <div className="space-y-2">
-              {done.map(t => <ProspectRow key={t.id} task={t} today={today} />)}
-            </div>
+              )}
+            </section>
           )}
         </div>
       )}
+
+      {/* Add prospect follow-up */}
+      <AddProspectForm />
     </div>
-  )
-}
-
-function AddProspectInlineForm({ onDone }: { onDone: () => void }) {
-  const [pending, startTransition] = useTransition()
-
-  function submit(formData: FormData) {
-    startTransition(async () => {
-      await addProspectFollowup(formData)
-      onDone()
-    })
-  }
-
-  return (
-    <form action={submit} className="space-y-3">
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-          <UserSearch size={14} className="text-violet-500" />
-          Nouveau follow-up prospect
-        </p>
-        <button type="button" onClick={onDone} className="text-gray-300 hover:text-gray-500">
-          <X size={16} />
-        </button>
-      </div>
-      <input name="prospect_name" required placeholder="Nom du prospect"
-        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500" />
-      <div className="flex gap-2">
-        <input name="followup_date" type="date" required defaultValue={new Date().toISOString().split('T')[0]}
-          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500" />
-      </div>
-      <input name="notes" placeholder="Notes (optionnel)"
-        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500" />
-      <div className="flex gap-2">
-        <button type="submit" disabled={pending}
-          className="flex-1 bg-violet-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-violet-700 disabled:opacity-50">
-          {pending ? 'Ajout…' : 'Ajouter'}
-        </button>
-        <button type="button" onClick={onDone} className="px-4 text-sm text-gray-500 hover:bg-gray-50 rounded-lg">
-          Annuler
-        </button>
-      </div>
-    </form>
   )
 }
 
@@ -351,33 +203,15 @@ function AddProspectForm() {
           <X size={16} />
         </button>
       </div>
-
-      <input
-        name="prospect_name"
-        required
-        placeholder="Nom du prospect"
-        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500"
-      />
+      <input name="prospect_name" required placeholder="Nom du prospect"
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+      <input name="followup_date" type="date" required defaultValue={new Date().toISOString().split('T')[0]}
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+      <input name="notes" placeholder="Notes (optionnel)"
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500" />
       <div className="flex gap-2">
-        <input
-          name="followup_date"
-          type="date"
-          required
-          defaultValue={new Date().toISOString().split('T')[0]}
-          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500"
-        />
-      </div>
-      <input
-        name="notes"
-        placeholder="Notes (optionnel)"
-        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500"
-      />
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="flex-1 bg-violet-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-violet-700 disabled:opacity-50"
-        >
+        <button type="submit" disabled={pending}
+          className="flex-1 bg-violet-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-violet-700 disabled:opacity-50">
           {pending ? 'Ajout…' : 'Ajouter'}
         </button>
         <button type="button" onClick={() => setOpen(false)} className="px-4 text-sm text-gray-500 hover:bg-gray-50 rounded-lg">
@@ -494,23 +328,33 @@ function SuiviRow({ task: t, today }: { task: SuiviTask; today: string }) {
   )
 }
 
-// ── Versement row ─────────────────────────────────────────────────────
+// ── Versement row — shows done state when collected ───────────────────
 function VersementRow({ task: t, today }: { task: VersementTask; today: string }) {
-  const isOverdue = t.dueDate < today
+  const isOverdue = !t.done && t.dueDate < today
   return (
     <Link
       href="/recurrents"
       className={cn(
         'flex items-center gap-3 p-3.5 rounded-xl border transition-all',
-        isOverdue ? 'bg-orange-50 border-orange-200 hover:bg-orange-100' : 'bg-white border-gray-100 hover:border-gray-200',
+        t.done     ? 'bg-green-50 border-green-100'
+        : isOverdue ? 'bg-orange-50 border-orange-200 hover:bg-orange-100'
+        : 'bg-white border-gray-100 hover:border-gray-200',
       )}
     >
-      <DollarSign size={20} className={isOverdue ? 'text-orange-500 shrink-0' : 'text-gray-300 shrink-0'} />
+      {t.done
+        ? <CheckCircle2 size={20} className="text-green-500 shrink-0" />
+        : <DollarSign   size={20} className={isOverdue ? 'text-orange-500 shrink-0' : 'text-gray-300 shrink-0'} />
+      }
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800">{t.clientName}</p>
+        <p className={cn('text-sm font-medium', t.done ? 'text-gray-400 line-through' : 'text-gray-800')}>
+          {t.clientName}
+        </p>
         <p className="text-xs text-gray-400 mt-0.5">{fmtDate(t.dueDate)}</p>
       </div>
-      <span className="text-sm font-semibold text-gray-700 shrink-0">{dollar(t.montant)}</span>
+      <span className={cn('text-sm font-semibold shrink-0', t.done ? 'text-gray-400' : 'text-gray-700')}>
+        {dollar(t.montant)}
+      </span>
+      {t.done    && <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0">Reçu ✓</span>}
       {isOverdue && <span className="text-[10px] font-semibold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full shrink-0">En retard</span>}
     </Link>
   )

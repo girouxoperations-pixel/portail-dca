@@ -22,6 +22,10 @@ export default async function TodoPage() {
 
   const db = createAdminClient()
 
+  const sixtyDaysAgo = new Date()
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+  const cutoff = sixtyDaysAgo.toISOString().split('T')[0]
+
   if (role === 'closer') {
     const [{ data: followups }, { data: occurrences }, { data: prospects }] = await Promise.all([
       db.from('client_followups')
@@ -30,8 +34,8 @@ export default async function TodoPage() {
         .order('due_message1', { ascending: true }),
       db.from('recurring_occurrences')
         .select('*, recurring_deals!inner(client_name, closer_id)')
-        .eq('recu', false)
         .eq('recurring_deals.closer_id', user.id)
+        .gte('date_attendue', cutoff)
         .order('date_attendue', { ascending: true }),
       db.from('prospect_followups')
         .select('*')
@@ -58,7 +62,7 @@ export default async function TodoPage() {
       .order('due_message1', { ascending: true }),
     db.from('recurring_occurrences')
       .select('*, recurring_deals!inner(client_name, closer_id, profiles!closer_id(full_name))')
-      .eq('recu', false)
+      .gte('date_attendue', cutoff)
       .order('date_attendue', { ascending: true }),
     db.from('profiles').select('id, full_name').eq('role', 'closer'),
     db.from('prospect_followups')
@@ -112,12 +116,12 @@ type RawOccurrence = {
 }
 
 function buildVersementTasks(occurrences: RawOccurrence[], profileMap: Map<string, string> | undefined): VersementTask[] {
-  return (occurrences ?? []).filter(o => !o.recu && o.recurring_deals).map(o => {
+  return (occurrences ?? []).filter(o => o.recurring_deals).map(o => {
     const deal = o.recurring_deals!
     const closerName = profileMap
       ? (deal.closer_id ? (profileMap.get(deal.closer_id) ?? 'Inconnu') : null)
       : ((deal.profiles as { full_name: string | null } | null)?.full_name ?? null)
-    return { type: 'versement' as const, occurrenceId: o.id, clientName: deal.client_name, montant: o.montant_attendu, dueDate: o.date_attendue, closerId: deal.closer_id, closerName: closerName ?? undefined }
+    return { type: 'versement' as const, occurrenceId: o.id, clientName: deal.client_name, montant: o.montant_attendu, dueDate: o.date_attendue, done: o.recu, closerId: deal.closer_id, closerName: closerName ?? undefined }
   })
 }
 
