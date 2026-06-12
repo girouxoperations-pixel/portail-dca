@@ -583,30 +583,30 @@ export default async function DashboardPage({
     { data: setterEntriesMois },
     { data: recurringOccs },
   ] = await Promise.all([
-    db.from('monthly_stats')
+    supabase.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
-    db.from('cash_entries')
+    supabase.from('cash_entries')
       .select('montant_courant, collected, closed_by, set_by, close_type')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
-    db.from('cash_entries')
+    supabase.from('cash_entries')
       .select('montant_courant, collected')
       .gte('entry_date', prevMin)
       .lt('entry_date', prevMax),
-    db.from('profiles')
+    supabase.from('profiles')
       .select('id, full_name, role'),
-    db.from('cash_entries')
+    supabase.from('cash_entries')
       .select('year, month')
       .not('year', 'is', null)
       .not('month', 'is', null),
-    db.from('goals')
+    supabase.from('goals')
       .select('target_cash, target_closes, target_revenue')
       .eq('year', selYear)
       .eq('month', selMonth)
       .maybeSingle(),
-    db.from('closer_entries')
+    supabase.from('closer_entries')
       .select('user_id, entry_date, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
-    db.from('setter_entries')
+    supabase.from('setter_entries')
       .select('user_id, entry_date, attempts, contacts, rdv_booked, showed, no_show, disqualified, cancelled')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
