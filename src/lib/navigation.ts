@@ -57,8 +57,8 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
   ],
   closer: [
-    { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
     { label: 'Todo',         href: '/todo',         icon: ListTodo        },
+    { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
     { label: 'Mon Suivi',    href: '/closer',       icon: Phone           },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
     { label: 'Feedback',     href: '/feedback',     icon: MessageSquare   },
