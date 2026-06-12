@@ -65,6 +65,20 @@ export default function AdminTodoView({ suiviTasks, versementTasks, prospectTask
     { key: 'overdue', label: 'En retard',    badgeCount: overdueS + overdueV + overdueP },
   ]
 
+  const [expandedCard, setExpandedCard] = useState<'suivis' | 'versements' | 'prospects' | 'today' | null>(null)
+  function toggleCard(card: typeof expandedCard) {
+    setExpandedCard(v => v === card ? null : card)
+  }
+
+  const overdueSuivis     = suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'overdue')
+  const overdueVersements = versementTasks.filter(t => !t.done && periodOf(t.dueDate, false) === 'overdue')
+  const overdueProspects  = prospectTasks.filter(t => periodOf(t.followupDate, t.done) === 'overdue')
+  const todayItems = {
+    suivis:     suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'today'),
+    versements: versementTasks.filter(t => !t.done && (periodOf(t.dueDate, false) === 'today' || periodOf(t.dueDate, false) === 'overdue')),
+    prospects:  prospectTasks.filter(t => { const p = periodOf(t.followupDate, t.done); return p === 'today' || p === 'overdue' }),
+  }
+
   // Group by closer
   const byCloser = useMemo(() => {
     const map = new Map<string, { name: string; suivis: SuiviTask[]; versements: VersementTask[]; prospects: ProspectTask[] }>()
@@ -102,11 +116,93 @@ export default function AdminTodoView({ suiviTasks, versementTasks, prospectTask
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard icon={AlertCircle}   label="Suivis en retard"     value={overdueS} danger={overdueS > 0} />
-        <KpiCard icon={DollarSign}    label="Récurrents en retard" value={overdueV} danger={overdueV > 0} />
-        <KpiCard icon={UserSearch}    label="Prospects en retard"  value={overdueP} danger={overdueP > 0} />
-        <KpiCard icon={MessageSquare} label="Tâches aujourd'hui"   value={todayS + todayV + todayP} />
+        <KpiCard icon={AlertCircle}   label="Suivis en retard"     value={overdueS} danger={overdueS > 0} active={expandedCard === 'suivis'}     onClick={() => toggleCard('suivis')} />
+        <KpiCard icon={DollarSign}    label="Récurrents en retard" value={overdueV} danger={overdueV > 0} active={expandedCard === 'versements'} onClick={() => toggleCard('versements')} />
+        <KpiCard icon={UserSearch}    label="Prospects en retard"  value={overdueP} danger={overdueP > 0} active={expandedCard === 'prospects'}  onClick={() => toggleCard('prospects')} />
+        <KpiCard icon={MessageSquare} label="Tâches aujourd'hui"   value={todayS + todayV + todayP}       active={expandedCard === 'today'}      onClick={() => toggleCard('today')} />
       </div>
+
+      {/* Inline expand panel */}
+      {expandedCard && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {expandedCard === 'suivis' && (
+            overdueSuivis.length === 0
+              ? <p className="text-sm text-gray-400 text-center py-5">Aucun suivi en retard</p>
+              : <div className="divide-y divide-gray-50">
+                  {overdueSuivis.map(t => (
+                    <div key={`${t.followupId}-${t.messageNum}`} className="flex items-center gap-3 px-4 py-2.5">
+                      <AlertCircle size={13} className="text-red-400 shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1">{t.clientName}</span>
+                      <span className="text-xs text-gray-400">{t.closerName}</span>
+                      <span className="text-xs text-gray-400">Msg {t.messageNum}</span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(t.dueDate)}</span>
+                    </div>
+                  ))}
+                </div>
+          )}
+          {expandedCard === 'versements' && (
+            overdueVersements.length === 0
+              ? <p className="text-sm text-gray-400 text-center py-5">Aucun récurrent en retard</p>
+              : <div className="divide-y divide-gray-50">
+                  {overdueVersements.map(t => (
+                    <div key={t.occurrenceId} className="flex items-center gap-3 px-4 py-2.5">
+                      <DollarSign size={13} className="text-orange-400 shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1">{t.clientName}</span>
+                      <span className="text-xs text-gray-400">{t.closerName}</span>
+                      <span className="text-xs font-semibold text-gray-600">{dollar(t.montant)}</span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(t.dueDate)}</span>
+                    </div>
+                  ))}
+                </div>
+          )}
+          {expandedCard === 'prospects' && (
+            overdueProspects.length === 0
+              ? <p className="text-sm text-gray-400 text-center py-5">Aucun prospect en retard</p>
+              : <div className="divide-y divide-gray-50">
+                  {overdueProspects.map(t => (
+                    <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <UserSearch size={13} className="text-violet-400 shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1">{t.prospectName}</span>
+                      <span className="text-xs text-gray-400">{t.closerName}</span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(t.followupDate)}</span>
+                    </div>
+                  ))}
+                </div>
+          )}
+          {expandedCard === 'today' && (
+            (todayItems.suivis.length + todayItems.versements.length + todayItems.prospects.length) === 0
+              ? <p className="text-sm text-gray-400 text-center py-5">Rien pour aujourd'hui</p>
+              : <div className="divide-y divide-gray-50">
+                  {todayItems.prospects.map(t => (
+                    <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <UserSearch size={13} className="text-violet-400 shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1">{t.prospectName}</span>
+                      <span className="text-xs text-gray-400">{t.closerName}</span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(t.followupDate)}</span>
+                    </div>
+                  ))}
+                  {todayItems.suivis.map(t => (
+                    <div key={`${t.followupId}-${t.messageNum}`} className="flex items-center gap-3 px-4 py-2.5">
+                      <MessageSquare size={13} className="text-blue-400 shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1">{t.clientName}</span>
+                      <span className="text-xs text-gray-400">{t.closerName}</span>
+                      <span className="text-xs text-gray-400">Msg {t.messageNum}</span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(t.dueDate)}</span>
+                    </div>
+                  ))}
+                  {todayItems.versements.map(t => (
+                    <div key={t.occurrenceId} className="flex items-center gap-3 px-4 py-2.5">
+                      <DollarSign size={13} className="text-green-400 shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1">{t.clientName}</span>
+                      <span className="text-xs text-gray-400">{t.closerName}</span>
+                      <span className="text-xs font-semibold text-gray-600">{dollar(t.montant)}</span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(t.dueDate)}</span>
+                    </div>
+                  ))}
+                </div>
+          )}
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex flex-wrap gap-3 items-center">
@@ -175,14 +271,20 @@ export default function AdminTodoView({ suiviTasks, versementTasks, prospectTask
 }
 
 // ── KPI card ──────────────────────────────────────────────────────────
-function KpiCard({ icon: Icon, label, value, danger }: {
-  icon: React.ElementType; label: string; value: number; danger?: boolean
+function KpiCard({ icon: Icon, label, value, danger, active, onClick }: {
+  icon: React.ElementType; label: string; value: number
+  danger?: boolean; active?: boolean; onClick?: () => void
 }) {
   return (
-    <div className={cn(
-      'rounded-xl border shadow-sm p-4',
-      danger && value > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100',
-    )}>
+    <button
+      onClick={onClick}
+      className={cn(
+        'rounded-xl border shadow-sm p-4 text-left w-full transition-all',
+        active            ? 'ring-2 ring-violet-400 bg-white border-violet-200'
+        : danger && value > 0 ? 'bg-red-50 border-red-200 hover:bg-red-100'
+        : 'bg-white border-gray-100 hover:bg-gray-50',
+      )}
+    >
       <div className="flex items-center gap-2 mb-1">
         <Icon size={13} className={danger && value > 0 ? 'text-red-500' : 'text-gray-300'} />
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
@@ -190,7 +292,7 @@ function KpiCard({ icon: Icon, label, value, danger }: {
       <p className={cn('text-2xl font-bold tabular-nums', danger && value > 0 ? 'text-red-600' : 'text-gray-900')}>
         {value > 0 ? value : '—'}
       </p>
-    </div>
+    </button>
   )
 }
 
