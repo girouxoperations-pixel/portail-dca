@@ -48,19 +48,33 @@ export default async function SuiviClientPage() {
   }
 
   // admin / csm
-  const [{ data: followups }, { data: profiles }] = await Promise.all([
+  const [{ data: followups }, { data: profiles }, { data: allProspects }] = await Promise.all([
     db.from('client_followups')
       .select('*')
       .order('close_date', { ascending: false }),
     db.from('profiles')
       .select('id, full_name')
       .eq('role', 'closer'),
+    db.from('prospect_followups')
+      .select('id, closer_id, prospect_name, followup_date, notes, done, done_date')
+      .order('followup_date', { ascending: false }),
   ])
+
+  const adminProspects = (allProspects ?? []).map(p => ({
+    id:           p.id,
+    closerId:     p.closer_id,
+    prospectName: p.prospect_name,
+    followupDate: p.followup_date,
+    notes:        p.notes,
+    done:         p.done,
+    doneDate:     p.done_date,
+  }))
 
   return (
     <AdminFollowupView
       followups={followups ?? []}
       profiles={profiles ?? []}
+      prospects={adminProspects}
     />
   )
 }
