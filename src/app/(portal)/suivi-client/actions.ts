@@ -34,3 +34,29 @@ export async function toggleMessage(
 
   revalidatePath('/suivi-client')
 }
+
+export async function toggleMessageAdmin(
+  followupId: string,
+  messageNum: 1 | 2 | 3,
+  done: boolean,
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non authentifié')
+
+  const { data: profil } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single()
+
+  if (!profil || !['admin', 'csm'].includes(profil.role)) throw new Error('Accès refusé')
+
+  const db = createAdminClient()
+  await db
+    .from('client_followups')
+    .update({
+      [`message${messageNum}_done`]: done,
+      [`message${messageNum}_date`]: done ? new Date().toISOString().split('T')[0] : null,
+    })
+    .eq('id', followupId)
+
+  revalidatePath('/suivi-client')
+}

@@ -6,6 +6,7 @@ import ExportCsvButton from '@/components/ui/ExportCsvButton'
 import { cn } from '@/lib/utils'
 import type { Followup } from './CloserFollowupView'
 import { toggleProspectFollowup, deleteProspectFollowup } from '@/app/(portal)/todo/actions'
+import { toggleMessageAdmin } from './actions'
 
 interface Profile { id: string; full_name: string | null }
 
@@ -51,12 +52,29 @@ function formatDate(d: string | null) {
   return new Date(d + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 
-function MsgCell({ done, due }: { done: boolean; due: string }) {
-  const status = getMsgStatus(done, due)
-  if (status === 'done')    return <CheckCircle2 size={16} className="text-green-500 mx-auto" />
-  if (status === 'overdue') return <AlertCircle  size={16} className="text-red-500 mx-auto"   />
-  if (status === 'soon')    return <Clock        size={16} className="text-amber-500 mx-auto"  />
-  return <Circle size={16} className="text-gray-300 mx-auto" />
+function AdminMsgCell({ followupId, num, done, due }: {
+  followupId: string; num: 1 | 2 | 3; done: boolean; due: string
+}) {
+  const [optimisticDone, setOptimistic] = useOptimistic(done)
+  const [, startTransition] = useTransition()
+  const status = getMsgStatus(optimisticDone, due)
+
+  function handle() {
+    const next = !optimisticDone
+    startTransition(async () => {
+      setOptimistic(next)
+      await toggleMessageAdmin(followupId, num, next)
+    })
+  }
+
+  return (
+    <button onClick={handle} className="mx-auto block hover:opacity-70 transition-opacity">
+      {status === 'done'    && <CheckCircle2 size={16} className="text-green-500" />}
+      {status === 'overdue' && <AlertCircle  size={16} className="text-red-500"   />}
+      {status === 'soon'    && <Clock        size={16} className="text-amber-500" />}
+      {status === 'pending' && <Circle       size={16} className="text-gray-300"  />}
+    </button>
+  )
 }
 
 type MainTab = 'suivi' | 'followup'
@@ -118,6 +136,48 @@ function AdminProspectRow({ p, profileMap }: { p: ProspectRow; profileMap: Map<s
         <button onClick={del} className="p-1 text-gray-200 hover:text-red-400 transition-colors">
           <Trash2 size={13} />
         </button>
+      </td>
+    </tr>
+  )
+}
+
+function AdminFollowupRow({ f, profileMap }: {
+  f: Followup & { closer_id: string }
+  profileMap: Map<string, string>
+}) {
+  const gs = getGlobalStatus(f)
+  return (
+    <tr className="hover:bg-gray-50/50 transition-colors">
+      <td className="px-4 py-3 font-medium text-gray-800">{f.client_name}</td>
+      <td className="px-4 py-3 text-gray-500">{profileMap.get(f.closer_id) ?? '—'}</td>
+      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(f.close_date)}</td>
+      <td className="px-4 py-3">
+        <div className="flex flex-col items-center gap-0.5">
+          <AdminMsgCell followupId={f.id} num={1} done={f.message1_done} due={f.due_message1} />
+          <span className="text-[10px] text-gray-400">{formatDate(f.due_message1)}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-col items-center gap-0.5">
+          <AdminMsgCell followupId={f.id} num={2} done={f.message2_done} due={f.due_message2} />
+          <span className="text-[10px] text-gray-400">{formatDate(f.due_message2)}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-col items-center gap-0.5">
+          <AdminMsgCell followupId={f.id} num={3} done={f.message3_done} due={f.due_message3} />
+          <span className="text-[10px] text-gray-400">{formatDate(f.due_message3)}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-center">
+        <span className={cn(
+          'text-[11px] font-semibold px-2 py-0.5 rounded-full',
+          gs === 'complete'  ? 'bg-green-50 text-green-700'  :
+          gs === 'en-retard' ? 'bg-red-50 text-red-700'      :
+          'bg-blue-50 text-blue-700',
+        )}>
+          {gs === 'complete' ? 'Complété' : gs === 'en-retard' ? 'En retard' : 'En cours'}
+        </span>
       </td>
     </tr>
   )
@@ -354,44 +414,9 @@ export default function AdminFollowupView({ followups, profiles, prospects }: Pr
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.map(f => {
-                  const gs = getGlobalStatus(f)
-                  return (
-                    <tr key={f.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-800">{f.client_name}</td>
-                      <td className="px-4 py-3 text-gray-500">{profileMap.get(f.closer_id) ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(f.close_date)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <MsgCell done={f.message1_done} due={f.due_message1} />
-                          <span className="text-[10px] text-gray-400">{formatDate(f.due_message1)}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <MsgCell done={f.message2_done} due={f.due_message2} />
-                          <span className="text-[10px] text-gray-400">{formatDate(f.due_message2)}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <MsgCell done={f.message3_done} due={f.due_message3} />
-                          <span className="text-[10px] text-gray-400">{formatDate(f.due_message3)}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={cn(
-                          'text-[11px] font-semibold px-2 py-0.5 rounded-full',
-                          gs === 'complete'  ? 'bg-green-50 text-green-700'  :
-                          gs === 'en-retard' ? 'bg-red-50 text-red-700'      :
-                          'bg-blue-50 text-blue-700',
-                        )}>
-                          {gs === 'complete' ? 'Complété' : gs === 'en-retard' ? 'En retard' : 'En cours'}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {filtered.map(f => (
+                  <AdminFollowupRow key={f.id} f={f} profileMap={profileMap} />
+                ))}
               </tbody>
             </table>
           </div>
