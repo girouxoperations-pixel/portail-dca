@@ -236,6 +236,7 @@ export async function creerDealCloser(formData: FormData) {
   }
 
   revalidatePath('/closer')
+  revalidatePath('/payes')
   revalidatePath('/dashboard')
 }
 
@@ -318,6 +319,7 @@ export async function marquerRecuCloser(occurrenceId: string, montantRecu: numbe
   }
 
   revalidatePath('/closer')
+  revalidatePath('/payes')
   revalidatePath('/recurrents')
   revalidatePath('/dashboard')
 }
