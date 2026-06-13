@@ -586,7 +586,7 @@ export default async function DashboardPage({
     supabase.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
     supabase.from('cash_entries')
-      .select('montant_courant, collected, closed_by, set_by, close_type')
+      .select('montant_courant, collected, closed_by, set_by, close_type, notes')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
     supabase.from('cash_entries')
@@ -739,6 +739,13 @@ export default async function DashboardPage({
   const cashCollected = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
   const nOnTheSpotDash = (cashMois ?? []).filter(e => e.close_type === 'on_the_spot').length
   const nFollowUpDash  = (cashMois ?? []).filter(e => e.close_type === 'follow_up').length
+
+  const dealsCollected = (cashMois ?? [])
+    .filter(e => !e.notes?.startsWith('Récurrent'))
+    .reduce((s, e) => s + (e.collected ?? 0), 0)
+  const recCollected = (cashMois ?? [])
+    .filter(e => e.notes?.startsWith('Récurrent'))
+    .reduce((s, e) => s + (e.collected ?? 0), 0)
   const prevCollected = (cashPrevMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
   const cashTrend     = prevCollected > 0
     ? Math.round(((cashCollected - prevCollected) / prevCollected) * 100)
@@ -905,7 +912,9 @@ export default async function DashboardPage({
           value={dollar(cashCollected)}
           icon={Wallet}
           color="blue"
-          subtitle={`Revenus deals : ${dollar(cashRevenu)}`}
+          subtitle={recCollected > 0
+            ? `⚡ ${dollar(dealsCollected)} deals · 🔄 ${dollar(recCollected)} réc.`
+            : `Revenus deals : ${dollar(cashRevenu)}`}
           trend={cashTrend !== null ? {
             label: `${cashTrend > 0 ? '+' : ''}${cashTrend} % vs période préc.`,
             direction: cashTrend > 0 ? 'up' : cashTrend < 0 ? 'down' : 'neutral',
