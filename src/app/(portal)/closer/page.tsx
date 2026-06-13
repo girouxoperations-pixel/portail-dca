@@ -41,7 +41,7 @@ export default async function CloserPage() {
   }
 
   // ── Vue closer ──────────────────────────────────────────────────
-  const [{ data: entrees }, { data: deals }, { data: setters }] = await Promise.all([
+  const [{ data: entrees }, { data: deals }, { data: setters }, { data: recurrents }] = await Promise.all([
     db.from('closer_entries')
       .select('*')
       .eq('user_id', user.id)
@@ -53,6 +53,10 @@ export default async function CloserPage() {
     db.from('profiles')
       .select('id, full_name')
       .eq('role', 'setter'),
+    db.from('recurring_deals')
+      .select('id, client_name, montant_mensuel, date_debut, actif, notes, recurring_occurrences(id, mois, annee, date_attendue, montant_attendu, recu, date_recue, montant_recu)')
+      .eq('closer_id', user.id)
+      .order('created_at', { ascending: false }),
   ])
 
   return (
@@ -60,6 +64,7 @@ export default async function CloserPage() {
       entrees={entrees ?? []}
       deals={deals ?? []}
       setters={setters ?? []}
+      recurrents={recurrents ?? []}
       userId={user.id}
       prenom={profil.full_name?.split(' ')[0] ?? 'vous'}
     />

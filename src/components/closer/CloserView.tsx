@@ -38,6 +38,27 @@ interface Deal {
   notes:           string | null
 }
 
+interface RecurringOcc {
+  id:              string
+  mois:            number
+  annee:           number
+  date_attendue:   string
+  montant_attendu: number
+  recu:            boolean
+  date_recue:      string | null
+  montant_recu:    number | null
+}
+
+interface RecurringDeal {
+  id:                    string
+  client_name:           string
+  montant_mensuel:       number
+  date_debut:            string
+  actif:                 boolean
+  notes:                 string | null
+  recurring_occurrences: RecurringOcc[]
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 const INPUT_CLS =
@@ -433,15 +454,16 @@ function ModalDeal({
 
 // ── Composant principal ───────────────────────────────────────────────
 
-export default function CloserView({ entrees, deals, setters, userId, prenom }: {
-  entrees:  CloserEntry[]
-  deals:    Deal[]
-  setters:  { id: string; full_name: string | null }[]
-  userId:   string
-  prenom:   string
+export default function CloserView({ entrees, deals, setters, recurrents, userId, prenom }: {
+  entrees:    CloserEntry[]
+  deals:      Deal[]
+  setters:    { id: string; full_name: string | null }[]
+  recurrents: RecurringDeal[]
+  userId:     string
+  prenom:     string
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
-  const [tab, setTab]           = useState<'activite' | 'deals'>('activite')
+  const [tab, setTab]           = useState<'activite' | 'deals' | 'recurrents'>('activite')
   const [modalEntry, setModalEntry] = useState<CloserEntry | null | 'new'>(null)
   const [modalDeal, setModalDeal]   = useState(false)
 
@@ -495,6 +517,29 @@ export default function CloserView({ entrees, deals, setters, userId, prenom }: 
     fu:        filteredDeals.filter(d => d.close_type === 'follow_up').length,
   }), [filteredDeals])
 
+  // ── Récurrents ────────────────────────────────────────────────
+  const allOccs = useMemo(
+    () => recurrents.flatMap(d => d.recurring_occurrences.map(o => ({ ...o, client_name: d.client_name }))),
+    [recurrents],
+  )
+  const filteredOccs = useMemo(
+    () => !range.start ? [] : allOccs.filter(o => o.date_attendue >= range.start && o.date_attendue <= range.end),
+    [allOccs, range],
+  )
+  const recurKpis = useMemo(() => {
+    const activeDeals  = recurrents.filter(d => d.actif)
+    const received     = filteredOccs.filter(o => o.recu)
+    const pending      = filteredOccs.filter(o => !o.recu)
+    return {
+      activeCount:    activeDeals.length,
+      mensuelTotal:   activeDeals.reduce((s, d) => s + d.montant_mensuel, 0),
+      totalReceived:  received.reduce((s, o) => s + (o.montant_recu ?? o.montant_attendu), 0),
+      totalPending:   pending.reduce((s, o) => s + o.montant_attendu, 0),
+      receivedCount:  received.length,
+      pendingCount:   pending.length,
+    }
+  }, [recurrents, filteredOccs])
+
   const tabCls = (t: typeof tab) => cn(
     'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
     tab === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
@@ -519,10 +564,14 @@ export default function CloserView({ entrees, deals, setters, userId, prenom }: 
 
       {/* Tab switcher */}
       <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        <button className={tabCls('activite')} onClick={() => setTab('activite')}>Mon Activité</button>
-        <button className={tabCls('deals')}    onClick={() => setTab('deals')}>
+        <button className={tabCls('activite')}   onClick={() => setTab('activite')}>Mon Activité</button>
+        <button className={tabCls('deals')}      onClick={() => setTab('deals')}>
           Mes Deals
           {deals.length > 0 && <span className="ml-1.5 text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">{deals.length}</span>}
+        </button>
+        <button className={tabCls('recurrents')} onClick={() => setTab('recurrents')}>
+          Récurrents
+          {recurrents.length > 0 && <span className="ml-1.5 text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">{recurrents.length}</span>}
         </button>
       </div>
 
@@ -763,6 +812,145 @@ export default function CloserView({ entrees, deals, setters, userId, prenom }: 
                       <td colSpan={3} />
                     </tr>
                   </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Tab: Récurrents ───────────────────────────────────────── */}
+      {tab === 'recurrents' && (
+        <>
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs text-gray-400 mb-1">Deals actifs</p>
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">{recurKpis.activeCount}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{recurrents.length} au total</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs text-gray-400 mb-1">Mensuel total</p>
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">{dollar(recurKpis.mensuelTotal)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Deals actifs</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs text-gray-400 mb-1">Reçu</p>
+              <p className="text-2xl font-bold text-green-700 tabular-nums">{dollar(recurKpis.totalReceived)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{recurKpis.receivedCount} versement{recurKpis.receivedCount !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs text-gray-400 mb-1">En attente</p>
+              <p className={cn('text-2xl font-bold tabular-nums', recurKpis.totalPending > 0 ? 'text-amber-600' : 'text-gray-300')}>
+                {dollar(recurKpis.totalPending)}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">{recurKpis.pendingCount} versement{recurKpis.pendingCount !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+
+          {/* Occurrences table */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+              <h3 className="text-sm font-semibold text-gray-900">Versements sur la période</h3>
+              <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">{filteredOccs.length} versement{filteredOccs.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            {filteredOccs.length === 0 ? (
+              <div className="px-5 py-12 text-center">
+                <p className="text-sm text-gray-400">Aucun versement pour cette période</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                      <th className="px-4 py-2.5 text-left">Date attendue</th>
+                      <th className="px-4 py-2.5 text-left">Client</th>
+                      <th className="px-4 py-2.5 text-right">Montant</th>
+                      <th className="px-4 py-2.5 text-center">Statut</th>
+                      <th className="px-4 py-2.5 text-right">Reçu</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {[...filteredOccs].sort((a, b) => a.date_attendue.localeCompare(b.date_attendue)).map(o => (
+                      <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(o.date_attendue, MOIS_COURT)}</td>
+                        <td className="px-4 py-3 font-medium text-gray-800">{o.client_name}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(o.montant_attendu)}</td>
+                        <td className="px-4 py-3 text-center">
+                          {o.recu
+                            ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 ring-1 ring-green-200"><CheckCircle2 size={10} />Reçu</span>
+                            : <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200"><Minus size={10} />En attente</span>
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {o.recu
+                            ? <span className="text-green-700 font-medium">{dollar(o.montant_recu ?? o.montant_attendu)}</span>
+                            : <span className="text-gray-300">—</span>
+                          }
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-gray-100 bg-gray-50/50 text-xs font-semibold text-gray-700">
+                      <td colSpan={2} className="px-4 py-3 text-gray-500 uppercase tracking-wide">Totaux</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{dollar(filteredOccs.reduce((s, o) => s + o.montant_attendu, 0))}</td>
+                      <td />
+                      <td className="px-4 py-3 text-right tabular-nums text-green-700">{dollar(recurKpis.totalReceived)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Deals summary */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-50">
+              <h3 className="text-sm font-semibold text-gray-900">Mes deals récurrents</h3>
+            </div>
+            {recurrents.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-gray-400">Aucun deal récurrent</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                      <th className="px-4 py-2.5 text-left">Client</th>
+                      <th className="px-4 py-2.5 text-right">$/mois</th>
+                      <th className="px-4 py-2.5 text-right">Début</th>
+                      <th className="px-4 py-2.5 text-right">Progression</th>
+                      <th className="px-4 py-2.5 text-center">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {recurrents.map(d => {
+                      const total   = d.recurring_occurrences.length
+                      const recu    = d.recurring_occurrences.filter(o => o.recu).length
+                      return (
+                        <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3 font-medium text-gray-800">{d.client_name}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(d.montant_mensuel)}</td>
+                          <td className="px-4 py-3 text-right text-xs text-gray-500 whitespace-nowrap">{formatDate(d.date_debut, MOIS_COURT)}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-green-500 rounded-full" style={{ width: total > 0 ? `${(recu / total) * 100}%` : '0%' }} />
+                              </div>
+                              <span className="text-xs text-gray-500 tabular-nums">{recu}/{total}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {d.actif
+                              ? <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 ring-1 ring-green-200">Actif</span>
+                              : <span className="text-xs px-2 py-0.5 rounded-full bg-gray-50 text-gray-400 ring-1 ring-gray-200">Terminé</span>
+                            }
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
                 </table>
               </div>
             )}
