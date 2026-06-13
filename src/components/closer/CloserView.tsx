@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import { Plus, Pencil, Phone, TrendingUp, Target, CheckCircle2, Wallet, DollarSign, ArrowUp, ArrowDown, Minus, Zap, RefreshCw } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { ajouterEntree, modifierEntree, creerDealCloser } from '@/app/(portal)/closer/actions'
+import { ajouterEntree, modifierEntree, creerDealCloser, marquerRecuCloser } from '@/app/(portal)/closer/actions'
 import { addProspectFollowup } from '@/app/(portal)/todo/actions'
 import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
@@ -452,6 +452,68 @@ function ModalDeal({
   )
 }
 
+// ── Ligne occurrence récurrente (avec action Marquer reçu) ───────────
+
+function RecuOccRow({ occ }: { occ: RecurringOcc & { client_name: string } }) {
+  const [amount, setAmount]       = useState(String(occ.montant_attendu))
+  const [pending, startTransition] = useTransition()
+  const [err, setErr]             = useState<string | null>(null)
+
+  function handleMarquer() {
+    const val = Number(amount)
+    if (isNaN(val) || val <= 0) return
+    setErr(null)
+    startTransition(async () => {
+      try {
+        await marquerRecuCloser(occ.id, val)
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : 'Erreur')
+      }
+    })
+  }
+
+  return (
+    <tr className={cn('transition-colors', occ.recu ? 'bg-green-50/30' : 'hover:bg-gray-50/50')}>
+      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(occ.date_attendue, MOIS_COURT)}</td>
+      <td className="px-4 py-3 font-medium text-gray-800">{occ.client_name}</td>
+      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(occ.montant_attendu)}</td>
+      <td className="px-4 py-3">
+        {occ.recu ? (
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 ring-1 ring-green-200">
+            <CheckCircle2 size={10} />Reçu
+          </span>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              min="0"
+              step="0.01"
+              className="w-24 px-2 py-1 rounded border border-gray-200 text-xs text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500"
+            />
+            <button
+              onClick={handleMarquer}
+              disabled={pending}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              <CheckCircle2 size={11} />
+              {pending ? '…' : 'Marquer reçu'}
+            </button>
+          </div>
+        )}
+        {err && <p className="text-[10px] text-red-500 mt-1">{err}</p>}
+      </td>
+      <td className="px-4 py-3 text-right tabular-nums">
+        {occ.recu
+          ? <span className="text-green-700 font-medium">{dollar(occ.montant_recu ?? occ.montant_attendu)}</span>
+          : <span className="text-gray-300">—</span>
+        }
+      </td>
+    </tr>
+  )
+}
+
 // ── Composant principal ───────────────────────────────────────────────
 
 export default function CloserView({ entrees, deals, setters, recurrents, userId, prenom }: {
@@ -867,29 +929,13 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
                       <th className="px-4 py-2.5 text-left">Date attendue</th>
                       <th className="px-4 py-2.5 text-left">Client</th>
                       <th className="px-4 py-2.5 text-right">Montant</th>
-                      <th className="px-4 py-2.5 text-center">Statut</th>
+                      <th className="px-4 py-2.5 text-left">Statut / Action</th>
                       <th className="px-4 py-2.5 text-right">Reçu</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {[...filteredOccs].sort((a, b) => a.date_attendue.localeCompare(b.date_attendue)).map(o => (
-                      <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(o.date_attendue, MOIS_COURT)}</td>
-                        <td className="px-4 py-3 font-medium text-gray-800">{o.client_name}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(o.montant_attendu)}</td>
-                        <td className="px-4 py-3 text-center">
-                          {o.recu
-                            ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 ring-1 ring-green-200"><CheckCircle2 size={10} />Reçu</span>
-                            : <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200"><Minus size={10} />En attente</span>
-                          }
-                        </td>
-                        <td className="px-4 py-3 text-right tabular-nums">
-                          {o.recu
-                            ? <span className="text-green-700 font-medium">{dollar(o.montant_recu ?? o.montant_attendu)}</span>
-                            : <span className="text-gray-300">—</span>
-                          }
-                        </td>
-                      </tr>
+                      <RecuOccRow key={o.id} occ={o} />
                     ))}
                   </tbody>
                   <tfoot>
