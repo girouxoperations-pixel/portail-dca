@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useOptimistic, useTransition } from 'react'
+import { useState, useOptimistic, useTransition } from 'react' // useOptimistic kept for AdminProspectRow
 import { Users, CheckCircle2, AlertCircle, Clock, Circle, TrendingUp, UserSearch, Trash2 } from 'lucide-react'
 import ExportCsvButton from '@/components/ui/ExportCsvButton'
 import { cn } from '@/lib/utils'
@@ -50,31 +50,6 @@ function getGlobalStatus(f: Followup): 'complete' | 'en-retard' | 'en-cours' {
 function formatDate(d: string | null) {
   if (!d) return '—'
   return new Date(d + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-}
-
-function AdminMsgCell({ followupId, num, done, due }: {
-  followupId: string; num: 1 | 2 | 3; done: boolean; due: string
-}) {
-  const [optimisticDone, setOptimistic] = useOptimistic(done)
-  const [, startTransition] = useTransition()
-  const status = getMsgStatus(optimisticDone, due)
-
-  function handle() {
-    const next = !optimisticDone
-    startTransition(async () => {
-      setOptimistic(next)
-      await toggleMessageAdmin(followupId, num, next)
-    })
-  }
-
-  return (
-    <button onClick={handle} className="mx-auto block hover:opacity-70 transition-opacity">
-      {status === 'done'    && <CheckCircle2 size={16} className="text-green-500" />}
-      {status === 'overdue' && <AlertCircle  size={16} className="text-red-500"   />}
-      {status === 'soon'    && <Clock        size={16} className="text-amber-500" />}
-      {status === 'pending' && <Circle       size={16} className="text-gray-300"  />}
-    </button>
-  )
 }
 
 type MainTab = 'suivi' | 'followup'
@@ -145,7 +120,29 @@ function AdminFollowupRow({ f, profileMap }: {
   f: Followup & { closer_id: string }
   profileMap: Map<string, string>
 }) {
-  const gs = getGlobalStatus(f)
+  const [msg1, setMsg1] = useState(f.message1_done)
+  const [msg2, setMsg2] = useState(f.message2_done)
+  const [msg3, setMsg3] = useState(f.message3_done)
+  const [pending, startTransition] = useTransition()
+
+  function toggle(num: 1 | 2 | 3) {
+    const next = num === 1 ? !msg1 : num === 2 ? !msg2 : !msg3
+    if (num === 1) setMsg1(next)
+    if (num === 2) setMsg2(next)
+    if (num === 3) setMsg3(next)
+    startTransition(() => { toggleMessageAdmin(f.id, num, next) })
+  }
+
+  function icon(done: boolean, due: string) {
+    const s = getMsgStatus(done, due)
+    if (s === 'done')    return <CheckCircle2 size={16} className="text-green-500" />
+    if (s === 'overdue') return <AlertCircle  size={16} className="text-red-500"   />
+    if (s === 'soon')    return <Clock        size={16} className="text-amber-500" />
+    return <Circle size={16} className="text-gray-300" />
+  }
+
+  const gs = getGlobalStatus({ ...f, message1_done: msg1, message2_done: msg2, message3_done: msg3 })
+
   return (
     <tr className="hover:bg-gray-50/50 transition-colors">
       <td className="px-4 py-3 font-medium text-gray-800">{f.client_name}</td>
@@ -153,19 +150,25 @@ function AdminFollowupRow({ f, profileMap }: {
       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(f.close_date)}</td>
       <td className="px-4 py-3">
         <div className="flex flex-col items-center gap-0.5">
-          <AdminMsgCell followupId={f.id} num={1} done={f.message1_done} due={f.due_message1} />
+          <button disabled={pending} onClick={() => toggle(1)} className="mx-auto block hover:opacity-70 transition-opacity disabled:opacity-40">
+            {icon(msg1, f.due_message1)}
+          </button>
           <span className="text-[10px] text-gray-400">{formatDate(f.due_message1)}</span>
         </div>
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-col items-center gap-0.5">
-          <AdminMsgCell followupId={f.id} num={2} done={f.message2_done} due={f.due_message2} />
+          <button disabled={pending} onClick={() => toggle(2)} className="mx-auto block hover:opacity-70 transition-opacity disabled:opacity-40">
+            {icon(msg2, f.due_message2)}
+          </button>
           <span className="text-[10px] text-gray-400">{formatDate(f.due_message2)}</span>
         </div>
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-col items-center gap-0.5">
-          <AdminMsgCell followupId={f.id} num={3} done={f.message3_done} due={f.due_message3} />
+          <button disabled={pending} onClick={() => toggle(3)} className="mx-auto block hover:opacity-70 transition-opacity disabled:opacity-40">
+            {icon(msg3, f.due_message3)}
+          </button>
           <span className="text-[10px] text-gray-400">{formatDate(f.due_message3)}</span>
         </div>
       </td>
