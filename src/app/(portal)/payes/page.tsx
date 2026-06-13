@@ -131,6 +131,8 @@ export default async function PayesPage() {
       myCollected={myCollected}
       myBonus={getPalier(myCollected)}
       moisLabel={moisLabel}
+      periodesCourant={periodes}
+      periodeDefaut={periode.label}
     />
   )
 }
