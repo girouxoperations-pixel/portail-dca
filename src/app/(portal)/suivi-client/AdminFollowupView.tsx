@@ -148,27 +148,30 @@ function AdminFollowupRow({ f, profileMap }: {
       <td className="px-4 py-3 font-medium text-gray-800">{f.client_name}</td>
       <td className="px-4 py-3 text-gray-500">{profileMap.get(f.closer_id) ?? '—'}</td>
       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(f.close_date)}</td>
-      <td className="px-4 py-3">
+      <td
+        className={cn('px-4 py-3 text-center select-none', !pending && 'cursor-pointer hover:bg-violet-50')}
+        onClick={() => !pending && toggle(1)}
+      >
         <div className="flex flex-col items-center gap-0.5">
-          <button disabled={pending} onClick={() => toggle(1)} className="mx-auto block hover:opacity-70 transition-opacity disabled:opacity-40">
-            {icon(msg1, f.due_message1)}
-          </button>
+          {icon(msg1, f.due_message1)}
           <span className="text-[10px] text-gray-400">{formatDate(f.due_message1)}</span>
         </div>
       </td>
-      <td className="px-4 py-3">
+      <td
+        className={cn('px-4 py-3 text-center select-none', !pending && 'cursor-pointer hover:bg-violet-50')}
+        onClick={() => !pending && toggle(2)}
+      >
         <div className="flex flex-col items-center gap-0.5">
-          <button disabled={pending} onClick={() => toggle(2)} className="mx-auto block hover:opacity-70 transition-opacity disabled:opacity-40">
-            {icon(msg2, f.due_message2)}
-          </button>
+          {icon(msg2, f.due_message2)}
           <span className="text-[10px] text-gray-400">{formatDate(f.due_message2)}</span>
         </div>
       </td>
-      <td className="px-4 py-3">
+      <td
+        className={cn('px-4 py-3 text-center select-none', !pending && 'cursor-pointer hover:bg-violet-50')}
+        onClick={() => !pending && toggle(3)}
+      >
         <div className="flex flex-col items-center gap-0.5">
-          <button disabled={pending} onClick={() => toggle(3)} className="mx-auto block hover:opacity-70 transition-opacity disabled:opacity-40">
-            {icon(msg3, f.due_message3)}
-          </button>
+          {icon(msg3, f.due_message3)}
           <span className="text-[10px] text-gray-400">{formatDate(f.due_message3)}</span>
         </div>
       </td>
