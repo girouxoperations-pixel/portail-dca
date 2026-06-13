@@ -22,7 +22,7 @@ export default async function CashPage() {
   const db    = createAdminClient()
   const annee = new Date().getFullYear()
 
-  const [{ data: entrees }, { data: allProfiles }] = await Promise.all([
+  const [{ data: entrees }, { data: allProfiles }, { data: recOccs }] = await Promise.all([
     db.from('cash_entries')
       .select('*')
       .eq('year', annee)
@@ -30,10 +30,16 @@ export default async function CashPage() {
     db.from('profiles')
       .select('id, full_name, role')
       .in('role', ['closer', 'setter']),
+    db.from('recurring_occurrences')
+      .select('cash_entry_id')
+      .not('cash_entry_id', 'is', null),
   ])
 
   const closers = (allProfiles ?? []).filter(p => p.role === 'closer')
   const setters = (allProfiles ?? []).filter(p => p.role === 'setter')
+  const recurringCashIds = (recOccs ?? [])
+    .map(o => o.cash_entry_id as string)
+    .filter(Boolean)
 
   return (
     <CashView
@@ -42,6 +48,7 @@ export default async function CashPage() {
       setters={setters}
       allProfiles={allProfiles ?? []}
       isAdmin={role === 'admin'}
+      recurringCashIds={recurringCashIds}
     />
   )
 }
