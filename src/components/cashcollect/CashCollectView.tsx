@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown, Zap, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   creerCashCollect, modifierCashEntry, supprimerCashCollect,
@@ -400,17 +400,24 @@ function ModalModifier({ entry, closers, setters, onClose }: { entry: CashEntry;
 
 type ModalState = { type: 'add' } | { type: 'edit'; entry: CashEntry } | null
 
+function isRecurring(e: CashEntry, recurringIds: Set<string>) {
+  return recurringIds.has(e.id) || (e.notes?.startsWith('Récurrent') ?? false)
+}
+
 export default function CashCollectView({
-  entrees, closers, setters, isAdmin,
+  entrees, closers, setters, isAdmin, recurringCashIds,
 }: {
-  entrees:  CashEntry[]
-  closers:  Profil[]
-  setters:  Profil[]
-  isAdmin:  boolean
+  entrees:          CashEntry[]
+  closers:          Profil[]
+  setters:          Profil[]
+  isAdmin:          boolean
+  recurringCashIds: string[]
 }) {
   const [moisSelect, setMoisSelect] = useState(currentMonthKey)
   const [modal,      setModal]      = useState<ModalState>(null)
   const [pending, startTransition]  = useTransition()
+
+  const recurringIds = useMemo(() => new Set(recurringCashIds), [recurringCashIds])
 
   const profileMap = useMemo(() => {
     const all = [...closers, ...setters]
@@ -446,15 +453,27 @@ export default function CashCollectView({
     return entrees.filter(e => e.year === y && e.month === m)
   }, [entrees, moisSelect])
 
-  const totaux = useMemo(() => ({
-    montant:    filtrees.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
-    collected:  filtrees.reduce((s, e) => s + (e.collected       ?? 0), 0),
-    aCollecter: filtrees.reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
-  }), [filtrees])
+  const { deals, recurrents } = useMemo(() => {
+    const deals:      CashEntry[] = []
+    const recurrents: CashEntry[] = []
+    for (const e of filtrees) {
+      if (isRecurring(e, recurringIds)) recurrents.push(e)
+      else deals.push(e)
+    }
+    return { deals, recurrents }
+  }, [filtrees, recurringIds])
 
-  const pctCollecte = totaux.montant > 0
-    ? Math.round((totaux.collected / totaux.montant) * 100)
-    : 0
+  const totauxDeals = useMemo(() => ({
+    montant:    deals.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
+    collected:  deals.reduce((s, e) => s + (e.collected       ?? 0), 0),
+    aCollecter: deals.reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
+  }), [deals])
+
+  const totauxRec = useMemo(() => ({
+    collected: recurrents.reduce((s, e) => s + (e.collected ?? 0), 0),
+  }), [recurrents])
+
+  const totalCollecte = totauxDeals.collected + totauxRec.collected
 
   function handleDelete(id: string) {
     if (!confirm('Supprimer ce deal ?')) return
@@ -485,23 +504,61 @@ export default function CashCollectView({
         allCount={entrees.length}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricCard label="Montant total des deals" value={dollar(totaux.montant)}    icon={DollarSign}  color="green" sub={`${filtrees.length} deal${filtrees.length !== 1 ? 's' : ''}`} />
-        <MetricCard label="Cash collecté"           value={dollar(totaux.collected)}  icon={Wallet}      color="blue"  sub={`${pctCollecte} % encaissé`} />
-        <MetricCard label="Solde à collecter"       value={dollar(totaux.aCollecter)} icon={TrendingDown} color="red"   sub="Montants en attente" />
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <MetricCard
+          label="Deals — montant"
+          value={dollar(totauxDeals.montant)}
+          icon={Zap}
+          color="green"
+          sub={`${deals.length} deal${deals.length !== 1 ? 's' : ''}`}
+        />
+        <MetricCard
+          label="Deals — collecté"
+          value={dollar(totauxDeals.collected)}
+          icon={Wallet}
+          color="blue"
+          sub={totauxDeals.montant > 0 ? `${Math.round(totauxDeals.collected / totauxDeals.montant * 100)} % encaissé` : '—'}
+        />
+        <MetricCard
+          label="Récurrents reçus"
+          value={dollar(totauxRec.collected)}
+          icon={RefreshCw}
+          color="violet"
+          sub={`${recurrents.length} paiement${recurrents.length !== 1 ? 's' : ''}`}
+        />
+        <MetricCard
+          label="Solde à collecter"
+          value={dollar(totauxDeals.aCollecter)}
+          icon={TrendingDown}
+          color="red"
+          sub={`Total reçu : ${dollar(totalCollecte)}`}
+        />
       </div>
 
+      {/* ── Section Nouvelles deals ───────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-gray-900">Deals</h3>
-          <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-            {filtrees.length} deal{filtrees.length !== 1 ? 's' : ''}
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-green-100">
+            <Zap size={13} className="text-green-600" />
           </span>
+          <h3 className="text-sm font-semibold text-gray-900">Nouvelles deals</h3>
+          <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+            {deals.length} deal{deals.length !== 1 ? 's' : ''}
+          </span>
+          {deals.length > 0 && (
+            <div className="ml-auto flex items-center gap-4 text-xs">
+              <span className="text-gray-400">Collecté <span className="font-semibold text-blue-600 tabular-nums">{dollar(totauxDeals.collected)}</span></span>
+              {totauxDeals.aCollecter > 0 && (
+                <span className="text-gray-400">Reste <span className="font-semibold text-red-600 tabular-nums">{dollar(totauxDeals.aCollecter)}</span></span>
+              )}
+            </div>
+          )}
         </div>
 
-        {filtrees.length === 0 ? (
-          <div className="px-5 py-12 text-center">
-            <p className="text-sm text-gray-400">Aucun deal pour cette période</p>
+        {deals.length === 0 ? (
+          <div className="px-5 py-10 text-center">
+            <p className="text-sm text-gray-400">Aucune nouvelle deal pour cette période</p>
             <p className="text-xs text-gray-300 mt-1">Cliquez sur &ldquo;Nouveau deal&rdquo; pour commencer.</p>
           </div>
         ) : (
@@ -522,7 +579,7 @@ export default function CashCollectView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtrees.map(e => (
+                {deals.map(e => (
                   <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                       {formatDate(e.entry_date, MOIS_COURT)}
@@ -557,8 +614,7 @@ export default function CashCollectView({
                           title="Modifier"
                           className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 rounded transition-colors disabled:opacity-40"
                         >
-                          <Pencil size={10} />
-                          Modifier
+                          <Pencil size={10} />Modifier
                         </button>
                         {isAdmin && (
                           <button
@@ -577,10 +633,114 @@ export default function CashCollectView({
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700">
-                  <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide" colSpan={2}>Total du mois</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{dollar(totaux.montant)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totaux.collected)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-red-600">{dollar(totaux.aCollecter)}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide" colSpan={2}>Total</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{dollar(totauxDeals.montant)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totauxDeals.collected)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-red-600">
+                    {totauxDeals.aCollecter > 0 ? dollar(totauxDeals.aCollecter) : '—'}
+                  </td>
+                  <td colSpan={5} />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Section Récurrents collectés ──────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-blue-100">
+            <RefreshCw size={13} className="text-blue-600" />
+          </span>
+          <h3 className="text-sm font-semibold text-gray-900">Récurrents collectés</h3>
+          <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+            {recurrents.length} paiement{recurrents.length !== 1 ? 's' : ''}
+          </span>
+          {recurrents.length > 0 && (
+            <span className="ml-auto text-xs text-gray-400">
+              Total reçu <span className="font-semibold text-blue-600 tabular-nums">{dollar(totauxRec.collected)}</span>
+            </span>
+          )}
+        </div>
+
+        {recurrents.length === 0 ? (
+          <div className="px-5 py-10 text-center">
+            <p className="text-sm text-gray-400">Aucun paiement récurrent reçu ce mois</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400">
+                  <th className="px-4 py-2.5 text-left whitespace-nowrap">Date reçue</th>
+                  <th className="px-4 py-2.5 text-left">Client</th>
+                  <th className="px-4 py-2.5 text-right whitespace-nowrap">Montant reçu</th>
+                  <th className="px-4 py-2.5 text-left">Méthode</th>
+                  <th className="px-4 py-2.5 text-left">Setter</th>
+                  <th className="px-4 py-2.5 text-left">Closer</th>
+                  <th className="px-4 py-2.5 text-left">Période</th>
+                  <th className="px-4 py-2.5 text-right whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {recurrents.map(e => {
+                  const periodeNote = e.notes?.replace('Récurrent — ', '') ?? null
+                  return (
+                    <tr key={e.id} className="hover:bg-blue-50/30 transition-colors">
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {formatDate(e.entry_date, MOIS_COURT)}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-800 max-w-[150px] truncate">
+                        {e.client_name ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-blue-700">
+                        {dollar(e.collected)}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{e.methode ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                        {e.set_by    ? (profileMap.get(e.set_by)    ?? '—') : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                        {e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {periodeNote && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                            <RefreshCw size={8} />{periodeNote}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => setModal({ type: 'edit', entry: e })}
+                            disabled={pending}
+                            title="Modifier"
+                            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 rounded transition-colors disabled:opacity-40"
+                          >
+                            <Pencil size={10} />Modifier
+                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleDelete(e.id)}
+                              disabled={pending}
+                              title="Supprimer"
+                              className="p-1.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-gray-100 bg-blue-50/30 font-semibold">
+                  <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide" colSpan={2}>Total récurrents</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totauxRec.collected)}</td>
                   <td colSpan={5} />
                 </tr>
               </tfoot>
