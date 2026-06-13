@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { CheckCircle2, Clock, Star, ChevronDown, ChevronUp, LayoutGrid, Table2, Pencil } from 'lucide-react'
+import { CheckCircle2, Clock, Star, ChevronDown, ChevronUp, LayoutGrid, Table2, Pencil, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   basculerStatut, assignerMVP,
   approuverPeriode, approuverPayesBatch, modifierPaye,
 } from '@/app/(portal)/payes/actions'
-import { PALIERS, dollar, getPalier } from '@/lib/constants'
+import { PALIERS, dollar, getPalier, MOIS_FR } from '@/lib/constants'
 import BonusCard  from '@/components/ui/BonusCard'
 import Badge      from '@/components/ui/Badge'
 import Modal      from '@/components/ui/Modal'
@@ -650,6 +650,53 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
   )
 }
 
+// ── Historique groupé accordion ───────────────────────────────────────
+
+function HistGroupSection({ label, totalComm, payeComm, employees }: {
+  label:      string
+  totalComm:  number
+  payeComm:   number
+  employees:  { nom: string; role: string; comm: number }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const attente = totalComm - payeComm
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
+      >
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-semibold text-gray-900">{label}</span>
+          <span className="text-xs text-gray-400">{employees.length} employé{employees.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <span className="text-sm font-bold tabular-nums text-violet-700">{dollar(totalComm)}</span>
+            {attente > 0 && (
+              <span className="ml-2 text-xs text-amber-500">({dollar(attente)} en attente)</span>
+            )}
+          </div>
+          {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+        </div>
+      </button>
+      {open && (
+        <div className="border-t border-gray-50 divide-y divide-gray-50">
+          {employees.map((emp, i) => (
+            <div key={i} className="px-5 py-3 flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-gray-800">{emp.nom}</span>
+                <span className="ml-2 text-xs text-gray-400 capitalize">{emp.role}</span>
+              </div>
+              <span className="text-sm font-semibold tabular-nums text-violet-700">{dollar(emp.comm)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Vue principale admin / CSM ────────────────────────────────────────
 
 export default function AdminView({
@@ -657,8 +704,12 @@ export default function AdminView({
   bonusClosers, bonusSetters, teamMembers,
   isAdmin, periodesCourant, periodeDefaut,
 }: Props) {
+  const [modeGlobal, setModeGlobal]             = useState<'periode' | 'historique'>('periode')
   const [periodeSelect, setPeriodeSelect]       = useState<string>(periodeDefaut)
   const [vue, setVue]                           = useState<'employe' | 'client'>('employe')
+  const [groupModeHist, setGroupModeHist]       = useState<'mois' | 'trimestre' | 'annee' | 'perso'>('mois')
+  const [dateDebutHist, setDateDebutHist]       = useState('')
+  const [dateFinHist, setDateFinHist]           = useState('')
   const [pending, startTransition]              = useTransition()
   const [entreeEnEdition, setEntreeEnEdition]   = useState<PayeEntry | null>(null)
 
@@ -732,6 +783,44 @@ export default function AdminView({
   const pendingPeriode = grouped.reduce((s, g) => s + g.pendingCommission, 0)
   const allPendingIds  = grouped.flatMap(g => g.pendingIds)
 
+  // ── Historique groupé ──────────────────────────────────────────────
+  const entreesHist = useMemo(() => {
+    if (groupModeHist !== 'perso') return entrees
+    const toYM = (s: string) => { const d = new Date(s + 'T00:00:00'); return d.getFullYear() * 100 + (d.getMonth() + 1) }
+    const startNum = dateDebutHist ? toYM(dateDebutHist) : 0
+    const endNum   = dateFinHist   ? toYM(dateFinHist)   : 999999
+    return entrees.filter(e => { const n = e.year * 100 + e.month; return n >= startNum && n <= endNum })
+  }, [entrees, groupModeHist, dateDebutHist, dateFinHist])
+
+  const histGrouped = useMemo(() => {
+    const histKey = (e: PayeEntry) => {
+      if (groupModeHist === 'annee')     return `${e.year}`
+      if (groupModeHist === 'trimestre') return `T${Math.ceil(e.month / 3)} ${e.year}`
+      return `${MOIS_FR[e.month - 1]} ${e.year}`
+    }
+    const map = new Map<string, { key: string; totalComm: number; payeComm: number; byEmployee: Map<string, { nom: string; role: string; comm: number }> }>()
+    for (const e of entreesHist) {
+      const key = histKey(e)
+      if (!map.has(key)) map.set(key, { key, totalComm: 0, payeComm: 0, byEmployee: new Map() })
+      const g = map.get(key)!
+      const addEmp = (uid: string, role: string, comm: number) => {
+        if (!g.byEmployee.has(uid)) g.byEmployee.set(uid, { nom: profileMap.get(uid) ?? '—', role, comm: 0 })
+        g.byEmployee.get(uid)!.comm += comm
+        g.totalComm += comm
+        if (e.statut === 'Payé') g.payeComm += comm
+      }
+      if (e.closer_id && e.commission > 0)        addEmp(e.closer_id, 'closer', e.commission)
+      if (e.setter_id && e.commission_setter > 0) addEmp(e.setter_id, 'setter', e.commission_setter)
+    }
+    return Array.from(map.values())
+  }, [entreesHist, groupModeHist, profileMap])
+
+  const histKpis = useMemo(() => {
+    const total = entreesHist.reduce((s, e) => s + e.commission + e.commission_setter, 0)
+    const paye  = entreesHist.filter(e => e.statut === 'Payé').reduce((s, e) => s + e.commission + e.commission_setter, 0)
+    return { total, paye, attente: total - paye }
+  }, [entreesHist])
+
   function handleApprouverPeriode() {
     if (!confirm(`Approuver toutes les paies de la période "${periodeSelect}" ?`)) return
     startTransition(async () => { await approuverPeriode(periodeSelect) })
@@ -755,6 +844,29 @@ export default function AdminView({
 
       <PageHeader titre="Paies" subtitle="Gestion des commissions et bonus" />
 
+      {/* Toggle mode global */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setModeGlobal('periode')}
+          className={cn(
+            'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            modeGlobal === 'periode' ? 'bg-violet-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50',
+          )}
+        >
+          Par période
+        </button>
+        <button
+          onClick={() => setModeGlobal('historique')}
+          className={cn(
+            'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            modeGlobal === 'historique' ? 'bg-violet-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50',
+          )}
+        >
+          <History size={14} />
+          Historique
+        </button>
+      </div>
+
       <SectionBonus
         bonusClosers={bonusClosers}
         bonusSetters={bonusSetters}
@@ -763,7 +875,84 @@ export default function AdminView({
         periodes={periodesCourant}
       />
 
+      {/* ── Historique groupé ─────────────────────────────────────────── */}
+      {modeGlobal === 'historique' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-gray-500">Regrouper par :</span>
+              {(['mois', 'trimestre', 'annee', 'perso'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setGroupModeHist(m)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                    groupModeHist === m ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100',
+                  )}
+                >
+                  {m === 'mois' ? 'Mois' : m === 'trimestre' ? 'Trimestre' : m === 'annee' ? 'Année' : 'Personnalisé'}
+                </button>
+              ))}
+            </div>
+            {groupModeHist === 'perso' && (
+              <div className="flex items-center gap-3 flex-wrap pt-1">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Du</label>
+                  <input type="date" value={dateDebutHist} onChange={e => setDateDebutHist(e.target.value)}
+                    className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Au</label>
+                  <input type="date" value={dateFinHist} onChange={e => setDateFinHist(e.target.value)}
+                    className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-6 pt-1 border-t border-gray-50">
+              <div>
+                <p className="text-xs text-gray-400">{groupModeHist === 'perso' ? 'Total plage' : 'Total all-time'}</p>
+                <p className="text-base font-bold tabular-nums text-gray-900">{dollar(histKpis.total)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-green-500">Payé</p>
+                <p className="text-base font-bold tabular-nums text-green-600">{dollar(histKpis.paye)}</p>
+              </div>
+              {histKpis.attente > 0 && (
+                <div>
+                  <p className="text-xs text-amber-500">En attente</p>
+                  <p className="text-base font-bold tabular-nums text-amber-600">{dollar(histKpis.attente)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {histGrouped.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-12 text-center">
+              <p className="text-sm text-gray-400">
+                {groupModeHist === 'perso' && (!dateDebutHist || !dateFinHist)
+                  ? 'Sélectionne une plage de dates pour filtrer'
+                  : 'Aucune entrée'}
+              </p>
+            </div>
+          ) : (
+            histGrouped.map(g => {
+              const employees = Array.from(g.byEmployee.values()).sort((a, b) => b.comm - a.comm)
+              return (
+                <HistGroupSection
+                  key={g.key}
+                  label={g.key}
+                  totalComm={g.totalComm}
+                  payeComm={g.payeComm}
+                  employees={employees}
+                />
+              )
+            })
+          )}
+        </div>
+      )}
+
       {/* Sélecteur de période + résumé */}
+      {modeGlobal === 'periode' && (<>
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4 flex-wrap">
           <div>
@@ -876,6 +1065,7 @@ export default function AdminView({
           Contacte un admin pour modifier le statut des paies.
         </p>
       )}
+      </>)}
 
       {entreeEnEdition && (
         <ModalEditionPaye

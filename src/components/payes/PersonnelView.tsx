@@ -43,12 +43,17 @@ interface Props {
   periodeDefaut:   string
 }
 
-type GroupMode = 'mois' | 'trimestre' | 'annee'
+type GroupMode = 'mois' | 'trimestre' | 'annee' | 'perso'
 
 function groupKey(e: PayeEntry, mode: GroupMode): string {
-  if (mode === 'mois')      return `${MOIS_FR[e.month - 1]} ${e.year}`
+  if (mode === 'annee')     return `${e.year}`
   if (mode === 'trimestre') return `T${Math.ceil(e.month / 3)} ${e.year}`
-  return `${e.year}`
+  return `${MOIS_FR[e.month - 1]} ${e.year}`
+}
+
+function dateToYM(dateStr: string): number {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.getFullYear() * 100 + (d.getMonth() + 1)
 }
 
 // ── Group accordion ────────────────────────────────────────────────────
@@ -132,9 +137,11 @@ export default function PersonnelView({
   const isCloser = role === 'closer'
   const bonusMois = myBonus ? (isCloser ? myBonus.closer : myBonus.setter) : null
 
-  const [vue, setVue]                 = useState<'periode' | 'historique'>('periode')
-  const [periodeSelect, setPeriode]   = useState<string>(periodeDefaut)
-  const [groupMode, setGroupMode]     = useState<GroupMode>('mois')
+  const [vue, setVue]               = useState<'periode' | 'historique'>('periode')
+  const [periodeSelect, setPeriode] = useState<string>(periodeDefaut)
+  const [groupMode, setGroupMode]   = useState<GroupMode>('mois')
+  const [dateDebut, setDateDebut]   = useState('')
+  const [dateFin, setDateFin]       = useState('')
 
   // Périodes ayant au moins une entrée
   const periodesAvecEntrees = useMemo(() => {
@@ -146,30 +153,48 @@ export default function PersonnelView({
     return found
   }, [entrees, periodesCourant, periodeDefaut])
 
-  // Entrées filtrées pour la période sélectionnée
+  // Entrées filtrées pour la période sélectionnée (bi-weekly)
   const filtrees = useMemo(
     () => entrees.filter(e => e.period_label === periodeSelect),
     [entrees, periodeSelect],
   )
 
-  // KPIs période
+  // Entrées filtrées pour l'historique (date range si perso)
+  const entreesHist = useMemo(() => {
+    if (groupMode !== 'perso') return entrees
+    const startNum = dateDebut ? dateToYM(dateDebut) : 0
+    const endNum   = dateFin   ? dateToYM(dateFin)   : 999999
+    return entrees.filter(e => {
+      const eNum = e.year * 100 + e.month
+      return eNum >= startNum && eNum <= endNum
+    })
+  }, [entrees, groupMode, dateDebut, dateFin])
+
+  // KPIs période bi-weekly
   const periodeKpis = useMemo(() => {
-    const total   = filtrees.reduce((s, e) => s + (isCloser ? e.commission : e.commission_setter), 0)
-    const paye    = filtrees.filter(e => e.statut === 'Payé').reduce((s, e) => s + (isCloser ? e.commission : e.commission_setter), 0)
+    const total = filtrees.reduce((s, e) => s + (isCloser ? e.commission : e.commission_setter), 0)
+    const paye  = filtrees.filter(e => e.statut === 'Payé').reduce((s, e) => s + (isCloser ? e.commission : e.commission_setter), 0)
     return { total, paye, attente: total - paye, count: filtrees.length }
   }, [filtrees, isCloser])
 
-  // KPIs globaux
+  // KPIs globaux (all-time)
   const globalKpis = useMemo(() => {
     const total = entrees.reduce((s, e) => s + (isCloser ? e.commission : e.commission_setter), 0)
     const paye  = entrees.filter(e => e.statut === 'Payé').reduce((s, e) => s + (isCloser ? e.commission : e.commission_setter), 0)
     return { total, paye, attente: total - paye }
   }, [entrees, isCloser])
 
+  // KPIs pour la plage filtrée (historique)
+  const histKpis = useMemo(() => {
+    const total = entreesHist.reduce((s, e) => s + (isCloser ? e.commission : e.commission_setter), 0)
+    const paye  = entreesHist.filter(e => e.statut === 'Payé').reduce((s, e) => s + (isCloser ? e.commission : e.commission_setter), 0)
+    return { total, paye, attente: total - paye }
+  }, [entreesHist, isCloser])
+
   // Groupement pour l'historique
   const grouped = useMemo(() => {
     const map = new Map<string, { key: string; entries: PayeEntry[]; total: number; paye: number }>()
-    for (const e of entrees) {
+    for (const e of entreesHist) {
       const key  = groupKey(e, groupMode)
       if (!map.has(key)) map.set(key, { key, entries: [], total: 0, paye: 0 })
       const g    = map.get(key)!
@@ -179,7 +204,14 @@ export default function PersonnelView({
       if (e.statut === 'Payé') g.paye += comm
     }
     return Array.from(map.values())
-  }, [entrees, groupMode, isCloser])
+  }, [entreesHist, groupMode, isCloser])
+
+  const GROUP_LABELS: Record<GroupMode, string> = {
+    mois:      'Mois',
+    trimestre: 'Trimestre',
+    annee:     'Année',
+    perso:     'Personnalisé',
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -342,11 +374,11 @@ export default function PersonnelView({
       {vue === 'historique' && (
         <div className="space-y-4">
 
-          {/* Sélecteur de regroupement + KPIs globaux */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2">
+          {/* Sélecteur de regroupement + KPIs */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-medium text-gray-500">Regrouper par :</span>
-              {(['mois', 'trimestre', 'annee'] as const).map(m => (
+              {(['mois', 'trimestre', 'annee', 'perso'] as const).map(m => (
                 <button
                   key={m}
                   onClick={() => setGroupMode(m)}
@@ -355,24 +387,48 @@ export default function PersonnelView({
                     groupMode === m ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100',
                   )}
                 >
-                  {m === 'mois' ? 'Mois' : m === 'trimestre' ? 'Trimestre' : 'Année'}
+                  {GROUP_LABELS[m]}
                 </button>
               ))}
             </div>
 
-            <div className="ml-auto flex items-center gap-6">
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Total all-time</p>
-                <p className="text-base font-bold tabular-nums text-gray-900">{dollar(globalKpis.total)}</p>
+            {/* Date inputs pour le mode personnalisé */}
+            {groupMode === 'perso' && (
+              <div className="flex items-center gap-3 flex-wrap pt-1">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Du</label>
+                  <input
+                    type="date"
+                    value={dateDebut}
+                    onChange={e => setDateDebut(e.target.value)}
+                    className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Au</label>
+                  <input
+                    type="date"
+                    value={dateFin}
+                    onChange={e => setDateFin(e.target.value)}
+                    className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  />
+                </div>
               </div>
-              <div className="text-right">
+            )}
+
+            <div className="flex items-center gap-6 pt-1 border-t border-gray-50">
+              <div>
+                <p className="text-xs text-gray-400">{groupMode === 'perso' ? 'Total plage' : 'Total all-time'}</p>
+                <p className="text-base font-bold tabular-nums text-gray-900">{dollar(histKpis.total)}</p>
+              </div>
+              <div>
                 <p className="text-xs text-green-500">Payé</p>
-                <p className="text-base font-bold tabular-nums text-green-600">{dollar(globalKpis.paye)}</p>
+                <p className="text-base font-bold tabular-nums text-green-600">{dollar(histKpis.paye)}</p>
               </div>
-              {globalKpis.attente > 0 && (
-                <div className="text-right">
+              {histKpis.attente > 0 && (
+                <div>
                   <p className="text-xs text-amber-500">En attente</p>
-                  <p className="text-base font-bold tabular-nums text-amber-600">{dollar(globalKpis.attente)}</p>
+                  <p className="text-base font-bold tabular-nums text-amber-600">{dollar(histKpis.attente)}</p>
                 </div>
               )}
             </div>
@@ -380,7 +436,11 @@ export default function PersonnelView({
 
           {grouped.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-12 text-center">
-              <p className="text-sm text-gray-400">Aucune commission enregistrée</p>
+              <p className="text-sm text-gray-400">
+                {groupMode === 'perso' && (!dateDebut || !dateFin)
+                  ? 'Sélectionne une plage de dates pour filtrer'
+                  : 'Aucune commission enregistrée'}
+              </p>
             </div>
           ) : (
             grouped.map(g => (
