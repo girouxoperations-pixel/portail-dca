@@ -99,6 +99,7 @@ export async function creerDealCloser(formData: FormData) {
   const closeType      = (formData.get('close_type') as string)          || null
   const notes          = (formData.get('notes') as string)               || null
   const setBy          = (formData.get('set_by') as string)              || null
+  const sourceType     = (formData.get('source_type') as string)         || null
   const planPaiement   = (formData.get('plan_paiement') as string)       || 'pif'
   const prochainV      = (formData.get('prochain_versement') as string)  || null
   const montantMensuel = Number(formData.get('montant_mensuel'))         || 0
@@ -116,6 +117,7 @@ export async function creerDealCloser(formData: FormData) {
       close_type:      closeType,
       closed_by:       userId,
       set_by:          setBy,
+      source_type:     sourceType,
       year,
       month,
       notes,

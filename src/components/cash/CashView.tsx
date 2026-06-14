@@ -4,9 +4,15 @@ import { useState, useTransition, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown,
   Zap, Clock, ChevronDown, ChevronRight, RefreshCw, BarChart3,
+  Monitor, Film, Globe,
 } from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend,
+} from 'recharts'
 import { cn } from '@/lib/utils'
 import { creerCash, modifierCash, supprimerCash } from '@/app/(portal)/cash/actions'
+import WeeklyPerfSection, { type WeeklyPerf } from '@/components/cash/WeeklyPerfSection'
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -24,6 +30,7 @@ interface CashEntry {
   month: number | null
   year: number | null
   notes: string | null
+  source_type: 'webi' | 'vsl' | null
 }
 
 interface Profil {
@@ -39,6 +46,7 @@ interface Props {
   allProfiles:      Profil[]
   isAdmin:          boolean
   recurringCashIds: string[]
+  perfs:            WeeklyPerf[]
 }
 
 type SourceType = 'deal' | 'recurrent'
@@ -49,6 +57,8 @@ const MOIS_FR = [
   'Janvier','Février','Mars','Avril','Mai','Juin',
   'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
 ]
+
+const MOIS_COURT = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc']
 
 const METHODES = ['Virement', 'Stripe', 'Interac', 'Chèque', 'Espèces', 'Autre']
 
@@ -68,6 +78,25 @@ function getSourceType(e: CashEntry, recurringIds: Set<string>): SourceType {
   if (recurringIds.has(e.id)) return 'recurrent'
   if (e.notes?.startsWith('Récurrent')) return 'recurrent'
   return 'deal'
+}
+
+function pct(a: number, b: number) {
+  return b > 0 ? Math.round((a / b) * 100) : 0
+}
+
+function addMonths(dateStr: string, n: number): string {
+  const d = new Date(dateStr)
+  d.setMonth(d.getMonth() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+// ── Source badge ──────────────────────────────────────────────────
+
+function SourceBadge({ source }: { source: 'webi' | 'vsl' | null }) {
+  if (!source) return null
+  return source === 'webi'
+    ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 whitespace-nowrap"><Monitor size={8} />Webi</span>
+    : <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 whitespace-nowrap"><Film size={8} />VSL</span>
 }
 
 // ── Type badge ────────────────────────────────────────────────────
@@ -109,7 +138,7 @@ function KpiCard({
   title: string
   value: string
   subtitle?: string
-  color: 'green' | 'blue' | 'red' | 'violet'
+  color: 'green' | 'blue' | 'red' | 'violet' | 'orange' | 'sky'
   icon: React.ComponentType<{ size?: number; className?: string }>
 }) {
   const c = {
@@ -117,6 +146,8 @@ function KpiCard({
     blue:   { bg: 'bg-blue-100',   text: 'text-blue-600'   },
     red:    { bg: 'bg-red-100',    text: 'text-red-600'    },
     violet: { bg: 'bg-violet-100', text: 'text-violet-600' },
+    orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
+    sky:    { bg: 'bg-sky-100',    text: 'text-sky-600'    },
   }[color]
 
   return (
@@ -160,11 +191,13 @@ function ModalForm({
   onClose: () => void
 }) {
   const [pending, startTransition] = useTransition()
+  const [sourceType, setSourceType] = useState<'webi' | 'vsl' | ''>(entry?.source_type ?? '')
   const isEdit = entry !== null
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
+    if (sourceType) fd.set('source_type', sourceType)
     startTransition(async () => {
       if (isEdit) await modifierCash(entry.id, fd)
       else await creerCash(fd)
@@ -224,6 +257,30 @@ function ModalForm({
               <input name="collected" type="number" min="0" step="0.01" defaultValue={entry?.collected ?? 0} className={INPUT_CLS} />
             </Champ>
           </div>
+
+          {/* Source du deal */}
+          <Champ label="Source">
+            <div className="grid grid-cols-3 rounded-lg border border-gray-200 overflow-hidden text-sm">
+              {([['', 'Non précisé'], ['webi', 'Webi'], ['vsl', 'VSL']] as const).map(([val, label], i) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setSourceType(val as typeof sourceType)}
+                  className={cn(
+                    'py-2.5 font-medium transition-colors text-sm',
+                    i > 0 ? 'border-l border-gray-200' : '',
+                    sourceType === val
+                      ? val === 'webi' ? 'bg-orange-500 text-white'
+                        : val === 'vsl' ? 'bg-sky-500 text-white'
+                        : 'bg-gray-600 text-white'
+                      : 'text-gray-500 hover:bg-gray-50',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </Champ>
 
           <Champ label="Type de close">
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
@@ -351,6 +408,7 @@ function MonthSection({
                   <th className="px-4 py-2.5 text-left">Closer</th>
                   <th className="px-4 py-2.5 text-left">Setter</th>
                   <th className="px-4 py-2.5 text-left">Type</th>
+                  <th className="px-4 py-2.5 text-left">Source</th>
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Montant</th>
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Collecté</th>
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">À collecter</th>
@@ -366,7 +424,7 @@ function MonthSection({
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
                         {formatDate(e.entry_date)}
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-800 max-w-[150px] truncate">
+                      <td className="px-4 py-3 font-medium text-gray-800 max-w-[130px] truncate">
                         {e.client_name ?? '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
@@ -377,6 +435,9 @@ function MonthSection({
                       </td>
                       <td className="px-4 py-3">
                         <TypeBadge type={type} closeType={e.close_type} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <SourceBadge source={e.source_type} />
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">
                         {dollar(e.montant_courant)}
@@ -420,7 +481,7 @@ function MonthSection({
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700 text-xs">
-                  <td colSpan={5} className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
+                  <td colSpan={6} className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
                   <td className="px-4 py-3 text-right tabular-nums">{dollar(totaux.montant)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totaux.collected)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-red-600">
@@ -438,13 +499,100 @@ function MonthSection({
   )
 }
 
+// ── Stats block (Global / Webi / VSL) ─────────────────────────────
+
+function StatsBlock({
+  title, color, icon: Icon, stats,
+}: {
+  title: string
+  color: 'violet' | 'orange' | 'sky'
+  icon: React.ComponentType<{ size?: number; className?: string }>
+  stats: {
+    count: number; revenue: number; collected: number
+    aCollecter: number; spot: number; fu: number
+  }
+}) {
+  const tauxCollecte = pct(stats.collected, stats.revenue)
+
+  const borderCls = {
+    violet: 'border-t-violet-500',
+    orange: 'border-t-orange-500',
+    sky:    'border-t-sky-500',
+  }[color]
+
+  const iconCls = {
+    violet: { bg: 'bg-violet-100', text: 'text-violet-600' },
+    orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
+    sky:    { bg: 'bg-sky-100',    text: 'text-sky-600'    },
+  }[color]
+
+  return (
+    <div className={cn('bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden border-t-2', borderCls)}>
+      <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+        <div className={cn('p-2 rounded-lg', iconCls.bg)}>
+          <Icon size={16} className={iconCls.text} />
+        </div>
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+      </div>
+      <div className="p-5 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs text-gray-400">Deals signés</p>
+            <p className="text-xl font-bold text-gray-900 tabular-nums">{stats.count}</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              <span className="text-amber-600">⚡ {stats.spot}</span> · <span className="text-blue-600">🔄 {stats.fu}</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Revenue total</p>
+            <p className="text-xl font-bold text-gray-900 tabular-nums">{dollar(stats.revenue)}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-50">
+          <div>
+            <p className="text-xs text-gray-400">Cash collecté</p>
+            <p className="text-lg font-bold text-blue-700 tabular-nums">{dollar(stats.collected)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">À collecter</p>
+            <p className={cn('text-lg font-bold tabular-nums', stats.aCollecter > 0 ? 'text-red-600' : 'text-gray-300')}>
+              {dollar(stats.aCollecter)}
+            </p>
+          </div>
+        </div>
+        {stats.revenue > 0 && (
+          <div className="pt-2">
+            <div className="flex justify-between text-xs text-gray-400 mb-1">
+              <span>Taux de collecte</span>
+              <span className="font-semibold text-gray-700">{tauxCollecte} %</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={cn('h-full rounded-full', color === 'orange' ? 'bg-orange-500' : color === 'sky' ? 'bg-sky-500' : 'bg-violet-600')}
+                style={{ width: `${Math.min(tauxCollecte, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Composant principal ───────────────────────────────────────────
 
 export default function CashView({
-  entrees, closers, setters, allProfiles, isAdmin, recurringCashIds,
+  entrees, closers, setters, allProfiles, isAdmin, recurringCashIds, perfs,
 }: Props) {
-  const [modalEntry, setModalEntry] = useState<CashEntry | null | 'new'>(null)
-  const [pending, startTransition]  = useTransition()
+  const today     = new Date().toISOString().slice(0, 10)
+  const yearNow   = new Date().getFullYear()
+  const monthNow  = new Date().getMonth()
+
+  const [tab, setTab]               = useState<'entrees' | 'stats' | 'hebdo'>('entrees')
+  const [filterStart, setFilterStart] = useState(`${yearNow}-01-01`)
+  const [filterEnd, setFilterEnd]     = useState(today)
+  const [modalEntry, setModalEntry]   = useState<CashEntry | null | 'new'>(null)
+  const [pending, startTransition]    = useTransition()
 
   const recurringIds = useMemo(() => new Set(recurringCashIds), [recurringCashIds])
 
@@ -453,30 +601,46 @@ export default function CashView({
     [allProfiles],
   )
 
-  // Annual KPIs
-  const totauxAnnuels = useMemo(() => ({
-    montant:    entrees.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
-    collected:  entrees.reduce((s, e) => s + (e.collected       ?? 0), 0),
-    aCollecter: entrees.reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
-  }), [entrees])
+  // ── Period filter presets ─────────────────────────────────────
+  const firstOfMonth = `${yearNow}-${String(monthNow + 1).padStart(2, '0')}-01`
+  const PRESETS = [
+    { label: 'Ce mois',     start: firstOfMonth,                    end: today },
+    { label: '3 mois',      start: addMonths(today, -3).slice(0,7) + '-01', end: today },
+    { label: 'Cette année', start: `${yearNow}-01-01`,              end: today },
+    { label: 'An dernier',  start: `${yearNow - 1}-01-01`,          end: `${yearNow - 1}-12-31` },
+    { label: 'Tout',        start: '2020-01-01',                    end: today },
+  ]
+
+  // ── Filtered entries ──────────────────────────────────────────
+  const filtrees = useMemo(
+    () => entrees.filter(e => e.entry_date >= filterStart && e.entry_date <= filterEnd),
+    [entrees, filterStart, filterEnd],
+  )
+
+  // ── KPIs on filtered data ─────────────────────────────────────
+  const totaux = useMemo(() => ({
+    montant:    filtrees.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
+    collected:  filtrees.reduce((s, e) => s + (e.collected       ?? 0), 0),
+    aCollecter: filtrees.reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
+  }), [filtrees])
 
   const nDealsTotal = useMemo(
-    () => entrees.filter(e => getSourceType(e, recurringIds) === 'deal').length,
-    [entrees, recurringIds],
+    () => filtrees.filter(e => getSourceType(e, recurringIds) === 'deal').length,
+    [filtrees, recurringIds],
   )
   const nRecTotal = useMemo(
-    () => entrees.filter(e => getSourceType(e, recurringIds) === 'recurrent').length,
-    [entrees, recurringIds],
+    () => filtrees.filter(e => getSourceType(e, recurringIds) === 'recurrent').length,
+    [filtrees, recurringIds],
   )
 
-  const pctCollecte = totauxAnnuels.montant > 0
-    ? Math.round((totauxAnnuels.collected / totauxAnnuels.montant) * 100)
+  const pctCollecte = totaux.montant > 0
+    ? Math.round((totaux.collected / totaux.montant) * 100)
     : 0
 
-  // Group by month, newest first
+  // ── Grouped by month for entrees tab ─────────────────────────
   const grouped = useMemo(() => {
     const map = new Map<string, CashEntry[]>()
-    for (const e of entrees) {
+    for (const e of filtrees) {
       const key = e.month && e.year
         ? `${e.year}-${String(e.month).padStart(2, '0')}`
         : 'autre'
@@ -484,14 +648,77 @@ export default function CashView({
       map.get(key)!.push(e)
     }
     return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]))
-  }, [entrees])
+  }, [filtrees])
+
+  // ── Stats by source ───────────────────────────────────────────
+  const statsBySource = useMemo(() => {
+    function compute(rows: CashEntry[]) {
+      const deals = rows.filter(e => getSourceType(e, recurringIds) === 'deal')
+      return {
+        count:      deals.length,
+        revenue:    deals.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
+        collected:  deals.reduce((s, e) => s + (e.collected       ?? 0), 0),
+        aCollecter: deals.reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
+        spot:       deals.filter(e => e.close_type === 'on_the_spot').length,
+        fu:         deals.filter(e => e.close_type === 'follow_up').length,
+      }
+    }
+    return {
+      global: compute(filtrees),
+      webi:   compute(filtrees.filter(e => e.source_type === 'webi')),
+      vsl:    compute(filtrees.filter(e => e.source_type === 'vsl')),
+    }
+  }, [filtrees, recurringIds])
+
+  // ── Monthly trend for stats tab chart ────────────────────────
+  const trendData = useMemo(() => {
+    const map = new Map<string, { webi: number; vsl: number; autre: number }>()
+    for (const e of filtrees) {
+      if (getSourceType(e, recurringIds) !== 'deal') continue
+      const [y, m] = e.entry_date.split('-').map(Number)
+      const key = `${y}-${String(m).padStart(2, '0')}`
+      const cur = map.get(key) ?? { webi: 0, vsl: 0, autre: 0 }
+      if (e.source_type === 'webi')      cur.webi  += e.collected ?? 0
+      else if (e.source_type === 'vsl')  cur.vsl   += e.collected ?? 0
+      else                               cur.autre += e.collected ?? 0
+      map.set(key, cur)
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, v]) => {
+        const mIdx = parseInt(key.split('-')[1]) - 1
+        const yr   = key.split('-')[0]
+        return { mois: `${MOIS_COURT[mIdx]} ${yr.slice(2)}`, ...v }
+      })
+  }, [filtrees, recurringIds])
+
+  // ── Closer breakdown for stats tab ───────────────────────────
+  const closerStats = useMemo(() => {
+    const map = new Map<string, { name: string; webi: number; vsl: number; autre: number; total: number }>()
+    for (const e of filtrees) {
+      if (getSourceType(e, recurringIds) !== 'deal') continue
+      if (!e.closed_by) continue
+      const name = profileMap.get(e.closed_by) ?? 'Inconnu'
+      const cur = map.get(e.closed_by) ?? { name, webi: 0, vsl: 0, autre: 0, total: 0 }
+      const v = e.collected ?? 0
+      if (e.source_type === 'webi')     cur.webi  += v
+      else if (e.source_type === 'vsl') cur.vsl   += v
+      else                              cur.autre += v
+      cur.total += v
+      map.set(e.closed_by, cur)
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total)
+  }, [filtrees, recurringIds, profileMap])
 
   function handleDelete(id: string) {
     if (!confirm('Supprimer cette entrée cash ?')) return
     startTransition(async () => { await supprimerCash(id) })
   }
 
-  const annee = new Date().getFullYear()
+  const tabCls = (t: typeof tab) => cn(
+    'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+    tab === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
+  )
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -499,8 +726,8 @@ export default function CashView({
       {/* En-tête */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Cash</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Suivi des encaissements {annee}</p>
+          <h1 className="text-2xl font-bold text-gray-900">Cash / Stats</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Suivi des encaissements et statistiques business</p>
         </div>
         <button
           onClick={() => setModalEntry('new')}
@@ -511,25 +738,67 @@ export default function CashView({
         </button>
       </div>
 
+      {/* Tabs */}
+      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button className={tabCls('entrees')} onClick={() => setTab('entrees')}>Entrées</button>
+        <button className={tabCls('stats')}   onClick={() => setTab('stats')}>Stats</button>
+        <button className={tabCls('hebdo')}   onClick={() => setTab('hebdo')}>Perf hebdo</button>
+      </div>
+
+      {/* Period filter + KPIs — entrées + stats tabs only */}
+      {tab !== 'hebdo' && <><div className="flex items-center gap-2 flex-wrap">
+        {PRESETS.map(p => {
+          const active = filterStart === p.start && filterEnd === p.end
+          return (
+            <button
+              key={p.label}
+              onClick={() => { setFilterStart(p.start); setFilterEnd(p.end) }}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                active ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+              )}
+            >
+              {p.label}
+            </button>
+          )
+        })}
+        <div className="flex items-center gap-1.5 ml-1">
+          <input
+            type="date" value={filterStart}
+            onChange={e => setFilterStart(e.target.value)}
+            className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          />
+          <span className="text-gray-400 text-xs">→</span>
+          <input
+            type="date" value={filterEnd}
+            onChange={e => setFilterEnd(e.target.value)}
+            className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          />
+        </div>
+        {filtrees.length !== entrees.length && (
+          <span className="text-xs text-gray-400 ml-1">{filtrees.length} / {entrees.length} entrées</span>
+        )}
+      </div>
+
       {/* KPI annuels */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <KpiCard
           title="Montant total"
-          value={dollar(totauxAnnuels.montant)}
+          value={dollar(totaux.montant)}
           icon={DollarSign}
           color="green"
-          subtitle={`${entrees.length} transactions`}
+          subtitle={`${filtrees.length} transactions`}
         />
         <KpiCard
           title="Cash collecté"
-          value={dollar(totauxAnnuels.collected)}
+          value={dollar(totaux.collected)}
           icon={Wallet}
           color="blue"
           subtitle={`${pctCollecte} % encaissé`}
         />
         <KpiCard
           title="À collecter"
-          value={dollar(totauxAnnuels.aCollecter)}
+          value={dollar(totaux.aCollecter)}
           icon={TrendingDown}
           color="red"
           subtitle="Solde en attente"
@@ -541,31 +810,128 @@ export default function CashView({
           color="violet"
           subtitle={`${nDealsTotal} deals · ${nRecTotal} récurrents`}
         />
-      </div>
+      </div></>}
 
-      {/* Sections par mois */}
-      {grouped.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-12 text-center">
-          <p className="text-sm text-gray-400">Aucune entrée pour {annee}</p>
-          <p className="text-xs text-gray-300 mt-1">Ajoutez votre première entrée avec le bouton ci-dessus.</p>
+      {/* ── Tab Entrées ─────────────────────────────────────────── */}
+      {tab === 'entrees' && (
+        grouped.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-12 text-center">
+            <p className="text-sm text-gray-400">Aucune entrée sur cette période</p>
+            <p className="text-xs text-gray-300 mt-1">Ajustez la période ou ajoutez une entrée.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {grouped.map(([key, entries], idx) => (
+              <MonthSection
+                key={key}
+                monthKey={key}
+                entries={entries}
+                profileMap={profileMap}
+                recurringIds={recurringIds}
+                isAdmin={isAdmin}
+                onEdit={setModalEntry}
+                onDelete={handleDelete}
+                pending={pending}
+                defaultOpen={idx === 0}
+              />
+            ))}
+          </div>
+        )
+      )}
+
+      {/* ── Tab Stats ───────────────────────────────────────────── */}
+      {tab === 'stats' && (
+        <div className="space-y-6">
+
+          {/* Source breakdown cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <StatsBlock title="Global"  color="violet" icon={Globe}   stats={statsBySource.global} />
+            <StatsBlock title="Webi"    color="orange" icon={Monitor} stats={statsBySource.webi}   />
+            <StatsBlock title="VSL"     color="sky"    icon={Film}    stats={statsBySource.vsl}    />
+          </div>
+
+          {/* Monthly trend chart */}
+          {trendData.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-50">
+                <h3 className="text-sm font-semibold text-gray-900">Tendance — Cash collecté par source</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Deals uniquement (hors récurrents)</p>
+              </div>
+              <div className="px-4 py-5">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={trendData} barGap={2} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis dataKey="mois" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      formatter={(v) => typeof v === 'number' ? dollar(v) : String(v ?? '')}
+                      contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', fontSize: 12 }}
+                      cursor={{ fill: '#f9fafb' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={v => <span className="text-gray-500">{v}</span>} />
+                    <Bar dataKey="webi"  name="Webi"  stackId="a" fill="#f97316" radius={[0,0,0,0]} maxBarSize={48} />
+                    <Bar dataKey="vsl"   name="VSL"   stackId="a" fill="#0ea5e9" radius={[0,0,0,0]} maxBarSize={48} />
+                    <Bar dataKey="autre" name="Autre" stackId="a" fill="#d1d5db" radius={[4,4,0,0]} maxBarSize={48} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Closer breakdown */}
+          {closerStats.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-50">
+                <h3 className="text-sm font-semibold text-gray-900">Par closer — Cash collecté</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs font-medium text-gray-400 border-b border-gray-50">
+                      <th className="px-5 py-2.5 text-left">Closer</th>
+                      <th className="px-5 py-2.5 text-right">
+                        <span className="inline-flex items-center gap-1"><Monitor size={10} className="text-orange-500" />Webi</span>
+                      </th>
+                      <th className="px-5 py-2.5 text-right">
+                        <span className="inline-flex items-center gap-1"><Film size={10} className="text-sky-500" />VSL</span>
+                      </th>
+                      <th className="px-5 py-2.5 text-right">Autre</th>
+                      <th className="px-5 py-2.5 text-right font-semibold text-gray-500">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {closerStats.map(c => (
+                      <tr key={c.name} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-5 py-3 font-medium text-gray-800">{c.name}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-orange-600">{c.webi > 0 ? dollar(c.webi) : <span className="text-gray-200">—</span>}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-sky-600">{c.vsl > 0 ? dollar(c.vsl) : <span className="text-gray-200">—</span>}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-gray-500">{c.autre > 0 ? dollar(c.autre) : <span className="text-gray-200">—</span>}</td>
+                        <td className="px-5 py-3 text-right tabular-nums font-semibold text-gray-900">{dollar(c.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-gray-100 bg-gray-50/50 text-xs font-semibold text-gray-700">
+                      <td className="px-5 py-3 text-gray-400 uppercase tracking-wide">Total</td>
+                      <td className="px-5 py-3 text-right tabular-nums text-orange-600">{dollar(statsBySource.webi.collected)}</td>
+                      <td className="px-5 py-3 text-right tabular-nums text-sky-600">{dollar(statsBySource.vsl.collected)}</td>
+                      <td className="px-5 py-3 text-right tabular-nums text-gray-500">
+                        {dollar(statsBySource.global.collected - statsBySource.webi.collected - statsBySource.vsl.collected)}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-gray-900">{dollar(statsBySource.global.collected)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
         </div>
-      ) : (
-        <div className="space-y-3">
-          {grouped.map(([key, entries], idx) => (
-            <MonthSection
-              key={key}
-              monthKey={key}
-              entries={entries}
-              profileMap={profileMap}
-              recurringIds={recurringIds}
-              isAdmin={isAdmin}
-              onEdit={setModalEntry}
-              onDelete={handleDelete}
-              pending={pending}
-              defaultOpen={idx === 0}
-            />
-          ))}
-        </div>
+      )}
+
+      {/* ── Tab Perf hebdo ─────────────────────────────────────── */}
+      {tab === 'hebdo' && (
+        <WeeklyPerfSection perfs={perfs} isAdmin={isAdmin} />
       )}
 
       {/* Modal */}

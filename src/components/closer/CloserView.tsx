@@ -10,6 +10,9 @@ import MetricCard   from '@/components/ui/MetricCard'
 import PeriodFilter, { usePeriodFilter, computePrevRange } from '@/components/ui/PeriodFilter'
 import Modal        from '@/components/ui/Modal'
 import PageHeader   from '@/components/layout/PageHeader'
+import FunnelCard   from '@/components/dashboard/FunnelCard'
+import TrendChart   from '@/components/dashboard/TrendChart'
+import type { TrendPoint } from '@/components/dashboard/TrendChart'
 import { cn }      from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -292,6 +295,7 @@ function ModalDeal({
   const [pending, startTransition] = useTransition()
   const [error, setError]         = useState<string | null>(null)
   const [plan, setPlan]           = useState<PlanPaiement>('pif')
+  const [sourceType, setSourceType] = useState<'webi' | 'vsl' | ''>('')
   const today = new Date().toISOString().slice(0, 10)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -299,6 +303,7 @@ function ModalDeal({
     setError(null)
     const fd = new FormData(e.currentTarget)
     fd.set('plan_paiement', plan)
+    if (sourceType) fd.set('source_type', sourceType)
     startTransition(async () => {
       try {
         await creerDealCloser(fd)
@@ -400,6 +405,31 @@ function ModalDeal({
             </div>
           </>
         )}
+
+        {/* Source */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-gray-600">Source</label>
+          <div className="grid grid-cols-3 rounded-lg border border-gray-300 overflow-hidden text-sm">
+            {([['', 'Non précisé'], ['webi', 'Webi'], ['vsl', 'VSL']] as const).map(([val, label], i) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setSourceType(val as typeof sourceType)}
+                className={cn(
+                  'py-2.5 font-medium transition-colors',
+                  i > 0 ? 'border-l border-gray-300' : '',
+                  sourceType === val
+                    ? val === 'webi' ? 'bg-orange-500 text-white'
+                      : val === 'vsl' ? 'bg-sky-500 text-white'
+                      : 'bg-gray-500 text-white'
+                    : 'text-gray-500 hover:bg-gray-50',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Type de close */}
         <div className="flex flex-col gap-1.5">
@@ -514,15 +544,83 @@ function RecuOccRow({ occ }: { occ: RecurringOcc & { client_name: string } }) {
   )
 }
 
+// ── Projection fin de mois ────────────────────────────────────────────
+
+function ProjectionCard({ cashCollected, targetCash, dayOfMonth, daysInMonth }: {
+  cashCollected: number
+  targetCash:    number
+  dayOfMonth:    number
+  daysInMonth:   number
+}) {
+  const daysRemaining = daysInMonth - dayOfMonth
+  const dailyRate     = dayOfMonth > 0 ? cashCollected / dayOfMonth : 0
+  const projected     = Math.round(cashCollected + dailyRate * daysRemaining)
+  const monthPct      = Math.round((dayOfMonth / daysInMonth) * 100)
+  const onTrack       = targetCash > 0 ? projected >= targetCash : null
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Projection fin de mois</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1 tabular-nums">{dollar(projected)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {dollar(Math.round(dailyRate))}/jour · {daysRemaining} jour{daysRemaining !== 1 ? 's' : ''} restant{daysRemaining !== 1 ? 's' : ''}
+          </p>
+        </div>
+        {onTrack !== null && (
+          <span className={cn(
+            'shrink-0 flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full',
+            onTrack
+              ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
+              : 'bg-red-50 text-red-600 ring-1 ring-red-200',
+          )}>
+            {onTrack ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
+            {onTrack ? 'En bonne voie' : "Sous l'objectif"}
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-1.5 mb-3">
+        <div className="flex justify-between text-xs text-gray-400">
+          <span>Avancement du mois</span>
+          <span>{monthPct} % ({dayOfMonth}/{daysInMonth} jours)</span>
+        </div>
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full bg-gray-300 rounded-full" style={{ width: `${monthPct}%` }} />
+        </div>
+      </div>
+
+      {targetCash > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-xs text-gray-400">
+            <span>Cash collecté</span>
+            <span className="tabular-nums">{dollar(cashCollected)} / {dollar(targetCash)}</span>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
+            <div className="absolute h-full bg-violet-100 rounded-full" style={{ width: `${Math.min((projected / targetCash) * 100, 100)}%` }} />
+            <div className="absolute h-full bg-violet-600 rounded-full" style={{ width: `${Math.min((cashCollected / targetCash) * 100, 100)}%` }} />
+          </div>
+          <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded-sm bg-violet-600 inline-block" />Collecté</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded-sm bg-violet-100 inline-block" />Projeté</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Composant principal ───────────────────────────────────────────────
 
-export default function CloserView({ entrees, deals, setters, recurrents, userId, prenom }: {
+export default function CloserView({ entrees, deals, setters, recurrents, userId, prenom, targetCash = 0 }: {
   entrees:    CloserEntry[]
   deals:      Deal[]
   setters:    { id: string; full_name: string | null }[]
   recurrents: RecurringDeal[]
   userId:     string
   prenom:     string
+  targetCash?: number
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [tab, setTab]           = useState<'activite' | 'deals' | 'recurrents'>('activite')
@@ -565,6 +663,36 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
     { name: 'Pitches',   current: kpis.pitches,    prev: kpisPrev.pitches    },
     { name: 'Closes',    current: kpis.closes,     prev: kpisPrev.closes     },
   ], [kpis, kpisPrev])
+
+  // ── Projection / Funnel / Tendance ────────────────────────────────
+  const now          = new Date()
+  const dayOfMonth   = now.getDate()
+  const daysInMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const isMoisCourant = periode === 'mois' && offset === 0
+
+  const trendData = useMemo((): TrendPoint[] => {
+    const map = new Map<string, { cash: number; closes: number; revenue: number }>()
+    for (const e of entrees) {
+      const [y, m] = e.entry_date.split('-').map(Number)
+      const key = `${y}-${String(m).padStart(2, '0')}`
+      const cur = map.get(key) ?? { cash: 0, closes: 0, revenue: 0 }
+      map.set(key, { cash: cur.cash + e.cash_collected, closes: cur.closes + e.closes, revenue: cur.revenue + e.revenue })
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([key, v]) => {
+        const mIdx = parseInt(key.split('-')[1])
+        return { mois: MOIS_COURT[mIdx - 1], ...v }
+      })
+  }, [entrees])
+
+  const funnelSteps = [
+    { label: 'Schedulés', value: kpis.scheduled, pct: 100,                                  convRate: 100 },
+    { label: 'Shows',     value: kpis.shows,     pct: pct(kpis.shows,   kpis.scheduled),    convRate: pct(kpis.shows,   kpis.scheduled) },
+    { label: 'Pitches',   value: kpis.pitches,   pct: pct(kpis.pitches, kpis.scheduled),    convRate: pct(kpis.pitches, kpis.shows) },
+    { label: 'Closes',    value: kpis.closes,    pct: pct(kpis.closes,  kpis.scheduled),    convRate: pct(kpis.closes,  kpis.pitches) },
+  ]
 
   // ── Deals ─────────────────────────────────────────────────────────
   const filteredDeals = useMemo(
@@ -679,6 +807,25 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
                 <DeltaBadge current={kpis.revenue} prev={kpisPrev.revenue} />
               </div>
             </div>
+          </div>
+
+          {/* ── Projection fin de mois (mois courant uniquement) ── */}
+          {isMoisCourant && (
+            <ProjectionCard
+              cashCollected={kpis.cash_collected}
+              targetCash={targetCash}
+              dayOfMonth={dayOfMonth}
+              daysInMonth={daysInMonth}
+            />
+          )}
+
+          {/* ── Funnel + Tendance ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Funnel de conversion</p>
+              <FunnelCard steps={funnelSteps} />
+            </div>
+            {trendData.length > 0 && <TrendChart data={trendData} />}
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

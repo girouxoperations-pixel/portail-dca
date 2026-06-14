@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from 'react'
 import { Plus, Pencil, Phone, TrendingUp, CalendarCheck, XCircle, UserX, Ban, ArrowUp, ArrowDown, Minus } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { cn } from '@/lib/utils'
 import { ajouterEntreeSetter, modifierEntreeSetter } from '@/app/(portal)/setter/actions'
 import { MOIS_COURT, formatDate } from '@/lib/constants'
@@ -10,6 +10,7 @@ import MetricCard   from '@/components/ui/MetricCard'
 import PeriodFilter, { usePeriodFilter, computePrevRange } from '@/components/ui/PeriodFilter'
 import Modal        from '@/components/ui/Modal'
 import PageHeader   from '@/components/layout/PageHeader'
+import FunnelCard   from '@/components/dashboard/FunnelCard'
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -219,6 +220,30 @@ export default function SetterView({ entrees, userId, prenom }: {
     { name: 'Présentés',  current: kpis.showed,   prev: kpisPrev.showed   },
   ], [kpis, kpisPrev])
 
+  const trendData = useMemo(() => {
+    const map = new Map<string, { contacts: number; rdv: number; showed: number }>()
+    for (const e of entrees) {
+      const [y, m] = e.entry_date.split('-').map(Number)
+      const key = `${y}-${String(m).padStart(2, '0')}`
+      const cur = map.get(key) ?? { contacts: 0, rdv: 0, showed: 0 }
+      map.set(key, { contacts: cur.contacts + e.contacts, rdv: cur.rdv + e.rdv_booked, showed: cur.showed + e.showed })
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([key, v]) => {
+        const mIdx = parseInt(key.split('-')[1])
+        return { mois: MOIS_COURT[mIdx - 1], ...v }
+      })
+  }, [entrees])
+
+  const funnelSteps = [
+    { label: 'Tentatives', value: kpis.attempts, pct: 100,                                     convRate: 100 },
+    { label: 'Contacts',   value: kpis.contacts, pct: pct(kpis.contacts, kpis.attempts),       convRate: pct(kpis.contacts, kpis.attempts) },
+    { label: 'RDV',        value: kpis.rdv,       pct: pct(kpis.rdv,      kpis.attempts),       convRate: pct(kpis.rdv,      kpis.contacts) },
+    { label: 'Présentés',  value: kpis.showed,   pct: pct(kpis.showed,   kpis.attempts),       convRate: pct(kpis.showed,   kpis.rdv) },
+  ]
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
 
@@ -281,6 +306,36 @@ export default function SetterView({ entrees, userId, prenom }: {
             <DeltaBadge current={kpis.cancelled} prev={kpisPrev.cancelled} />
           </div>
         </div>
+      </div>
+
+      {/* ── Funnel + Tendance ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Funnel de conversion</p>
+          <FunnelCard steps={funnelSteps} />
+        </div>
+        {trendData.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-50">
+              <h3 className="text-sm font-semibold text-gray-900">Tendance</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Contacts, RDV et présentés par mois</p>
+            </div>
+            <div className="px-4 py-5">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={trendData} barGap={2} barCategoryGap="30%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                  <XAxis dataKey="mois" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', fontSize: 12 }} cursor={{ fill: '#f9fafb' }} />
+                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={(v) => <span className="text-gray-500">{v}</span>} />
+                  <Bar dataKey="contacts" name="Contacts"  fill="#7c3aed" radius={[4,4,0,0]} maxBarSize={32} />
+                  <Bar dataKey="rdv"      name="RDV"       fill="#3b82f6" radius={[4,4,0,0]} maxBarSize={32} />
+                  <Bar dataKey="showed"   name="Présentés" fill="#10b981" radius={[4,4,0,0]} maxBarSize={32} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Graphique comparatif */}
