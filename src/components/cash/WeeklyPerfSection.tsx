@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Trash2, Monitor, Film } from 'lucide-react'
+import { Plus, Pencil, Trash2, Monitor, Film, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   ajouterWeeklyPerf,
@@ -181,15 +181,17 @@ function ModalForm({
 
 // ── Summary panel (left side) ────────────────────────────────────
 
+type PanelTotals = {
+  budget: number; leads: number; webinar_att: number
+  booked: number; showed: number; closed: number
+  revenue: number; cash_collect: number
+}
+
 function SummaryPanel({
   totals, source, quarter, year,
 }: {
-  totals: {
-    budget: number; leads: number; webinar_att: number
-    booked: number; showed: number; closed: number
-    revenue: number; cash_collect: number
-  }
-  source: 'webi' | 'vsl'
+  totals: PanelTotals
+  source: 'webi' | 'vsl' | 'total'
   quarter: number
   year: number
 }) {
@@ -204,17 +206,21 @@ function SummaryPanel({
 
   const sourceCls = source === 'webi'
     ? 'border-t-orange-500 bg-orange-50/30'
-    : 'border-t-sky-500 bg-sky-50/30'
+    : source === 'vsl'
+      ? 'border-t-sky-500 bg-sky-50/30'
+      : 'border-t-violet-500 bg-violet-50/30'
 
   return (
     <div className={cn('bg-white rounded-xl border border-gray-100 shadow-sm p-4 w-full lg:w-52 shrink-0 border-t-2', sourceCls)}>
       <div className="flex items-center gap-2 mb-3">
         {source === 'webi'
           ? <Monitor size={14} className="text-orange-500" />
-          : <Film size={14} className="text-sky-500" />
+          : source === 'vsl'
+            ? <Film size={14} className="text-sky-500" />
+            : <Layers size={14} className="text-violet-500" />
         }
         <p className="text-xs font-semibold text-gray-600">
-          {source === 'webi' ? 'Webi' : 'VSL'} — Q{quarter} {year}
+          {source === 'webi' ? 'Webi' : source === 'vsl' ? 'VSL' : 'Total'} — Q{quarter} {year}
         </p>
       </div>
 
@@ -288,18 +294,26 @@ export default function WeeklyPerfSection({
     [perfs, source, year, quarter],
   )
 
+  const allFiltered = useMemo(
+    () => perfs.filter(p => p.year === year && p.quarter === quarter),
+    [perfs, year, quarter],
+  )
+
   const existingWeeks = useMemo(() => filtered.map(p => p.week_number), [filtered])
 
-  const totals = useMemo(() => ({
-    budget:      filtered.reduce((s, p) => s + (p.budget       ?? 0), 0),
-    leads:       filtered.reduce((s, p) => s + (p.leads        ?? 0), 0),
-    webinar_att: filtered.reduce((s, p) => s + (p.webinar_att  ?? 0), 0),
-    booked:      filtered.reduce((s, p) => s + (p.booked       ?? 0), 0),
-    showed:      filtered.reduce((s, p) => s + (p.showed       ?? 0), 0),
-    closed:      filtered.reduce((s, p) => s + (p.closed       ?? 0), 0),
-    revenue:     filtered.reduce((s, p) => s + (p.revenue      ?? 0), 0),
-    cash_collect:filtered.reduce((s, p) => s + (p.cash_collect ?? 0), 0),
-  }), [filtered])
+  const sumRows = (rows: WeeklyPerf[]) => ({
+    budget:       rows.reduce((s, p) => s + (p.budget       ?? 0), 0),
+    leads:        rows.reduce((s, p) => s + (p.leads        ?? 0), 0),
+    webinar_att:  rows.reduce((s, p) => s + (p.webinar_att  ?? 0), 0),
+    booked:       rows.reduce((s, p) => s + (p.booked       ?? 0), 0),
+    showed:       rows.reduce((s, p) => s + (p.showed       ?? 0), 0),
+    closed:       rows.reduce((s, p) => s + (p.closed       ?? 0), 0),
+    revenue:      rows.reduce((s, p) => s + (p.revenue      ?? 0), 0),
+    cash_collect: rows.reduce((s, p) => s + (p.cash_collect ?? 0), 0),
+  })
+
+  const totals = useMemo(() => sumRows(filtered), [filtered])
+  const combinedTotals = useMemo(() => sumRows(allFiltered), [allFiltered])
 
   function handleDelete(id: string) {
     if (!confirm('Supprimer cette semaine ?')) return
@@ -374,9 +388,14 @@ export default function WeeklyPerfSection({
       {/* Summary + Table side by side */}
       <div className="flex gap-4 items-start flex-col xl:flex-row">
 
-        {/* Summary panel — always visible once there's data */}
+        {/* Source panel */}
         {filtered.length > 0 && (
           <SummaryPanel totals={totals} source={source} quarter={quarter} year={year} />
+        )}
+
+        {/* Combined Webi + VSL panel — shown when both sources have data */}
+        {allFiltered.length > 0 && allFiltered.some(p => p.source_type === 'webi') && allFiltered.some(p => p.source_type === 'vsl') && (
+          <SummaryPanel totals={combinedTotals} source="total" quarter={quarter} year={year} />
         )}
 
         {/* Table */}
@@ -426,10 +445,10 @@ export default function WeeklyPerfSection({
                       <td className={cn(td, 'text-gray-700')}>{p.webinar_att || '—'}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.booked}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.showed}</td>
-                      <td className={td}>{fmtPct(p.showed, p.booked)}</td>
+                      <td className={cn(td, 'text-gray-700')}>{fmtPct(p.showed, p.booked)}</td>
                       <td className={cn(td, 'font-bold text-gray-900')}>{p.closed}</td>
-                      <td className={td}>{fmtPct(p.closed, p.showed)}</td>
-                      <td className={td}>{fmtPct(p.closed, p.booked)}</td>
+                      <td className={cn(td, 'text-gray-700')}>{fmtPct(p.closed, p.showed)}</td>
+                      <td className={cn(td, 'text-gray-700')}>{fmtPct(p.closed, p.booked)}</td>
                       <td className={cn(td, 'text-gray-700')}>{dollar(p.revenue)}</td>
                       <td className={cn(td, 'text-blue-700 font-semibold')}>{dollar(p.cash_collect)}</td>
                       <td className={cn(td, 'text-green-700 font-semibold')}>{fmtROAS(p.cash_collect, p.budget)}</td>
@@ -451,10 +470,10 @@ export default function WeeklyPerfSection({
                     <td className={cn(td)}>{totals.webinar_att || '—'}</td>
                     <td className={cn(td)}>{totals.booked}</td>
                     <td className={cn(td)}>{totals.showed}</td>
-                    <td className={cn(td, 'font-normal')}>{fmtPct(totals.showed, totals.booked)}</td>
+                    <td className={cn(td, 'font-normal text-gray-700')}>{fmtPct(totals.showed, totals.booked)}</td>
                     <td className={cn(td)}>{totals.closed}</td>
-                    <td className={cn(td, 'font-normal')}>{fmtPct(totals.closed, totals.showed)}</td>
-                    <td className={cn(td, 'font-normal')}>{fmtPct(totals.closed, totals.booked)}</td>
+                    <td className={cn(td, 'font-normal text-gray-700')}>{fmtPct(totals.closed, totals.showed)}</td>
+                    <td className={cn(td, 'font-normal text-gray-700')}>{fmtPct(totals.closed, totals.booked)}</td>
                     <td className={cn(td, 'text-gray-700')}>{dollar(totals.revenue)}</td>
                     <td className={cn(td, 'text-blue-700')}>{dollar(totals.cash_collect)}</td>
                     <td className={cn(td, 'text-green-700')}>{fmtROAS(totals.cash_collect, totals.budget)}</td>
