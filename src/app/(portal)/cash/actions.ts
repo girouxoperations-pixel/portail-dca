@@ -85,9 +85,23 @@ export async function supprimerCash(id: string) {
   await requireRole(['admin'])
   const db = createAdminClient()
 
+  // If this cash entry is linked to a recurring occurrence, delete the whole recurring deal
+  const { data: occ } = await db
+    .from('recurring_occurrences')
+    .select('id, recurring_deal_id')
+    .eq('cash_entry_id', id)
+    .maybeSingle()
+
+  if (occ?.recurring_deal_id) {
+    // Delete occurrences first (no cascade assumed), then the deal
+    await db.from('recurring_occurrences').delete().eq('recurring_deal_id', occ.recurring_deal_id)
+    await db.from('recurring_deals').delete().eq('id', occ.recurring_deal_id)
+  }
+
   const { error } = await db.from('cash_entries').delete().eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath('/cash')
+  revalidatePath('/recurrents')
 }
 
 // ── Weekly performance (Webi / VSL) ──────────────────────────────
