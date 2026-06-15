@@ -77,6 +77,7 @@ function formatDate(dateStr: string) {
 
 function getSourceType(e: CashEntry, recurringIds: Set<string>): SourceType {
   if (recurringIds.has(e.id)) return 'recurrent'
+  if (e.close_type === 'recurring') return 'recurrent'
   if (e.notes?.startsWith('Récurrent')) return 'recurrent'
   return 'deal'
 }

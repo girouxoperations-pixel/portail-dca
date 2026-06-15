@@ -230,6 +230,126 @@ export async function importerCashEntries(rows: CashImportRow[]) {
   return { count: entries.length }
 }
 
+export interface RecurringDealRow {
+  originalDate: string  // YYYY-MM-DD — used for day-of-month in occurrences
+  client: string
+  montant: string       // monthly installment amount
+  collecte: string      // amount actually collected in the import month
+  methode: string
+  closer: string
+  setter: string
+  notes: string
+}
+
+export async function importerRecurringDeals(rows: RecurringDealRow[]) {
+  const { userId } = await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { data: profiles } = await db.from('profiles').select('id, full_name')
+  const nameToId = new Map((profiles ?? []).map(p => [p.full_name?.toLowerCase().trim(), p.id]))
+  const firstNameToId = new Map((profiles ?? []).map(p => [p.full_name?.split(' ')[0]?.toLowerCase().trim(), p.id]))
+  const resolveId = (name: string) => {
+    if (!name) return null
+    const key = name.toLowerCase().trim()
+    return nameToId.get(key) ?? firstNameToId.get(key) ?? null
+  }
+
+  // Determine the import month from the first row with a date
+  const firstDate = rows.find(r => r.originalDate)?.originalDate ?? '2026-06-01'
+  const importYear  = Number(firstDate.split('-')[0])
+  const importMonth = Number(firstDate.split('-')[1])
+  // Override to the current collect month (June 2026 in this case)
+  // We derive it from the cash_entries' forced date (YYYY-06-01)
+  // Actually use the most common month in collecte > 0 rows, defaulting to current
+  const collectMonth = importMonth  // same as file month
+  const collectYear  = importYear
+
+  let count = 0
+
+  for (const r of rows) {
+    if (!r.client) continue
+    const montant  = Number(r.montant)  || 0
+    const collecte = Number(r.collecte) || 0
+
+    // date_debut = same month as the import but keep the original day-of-month
+    const originalDay = Number(r.originalDate.split('-')[2] ?? '1')
+    const lastDay = new Date(collectYear, collectMonth, 0).getDate()
+    const day = String(Math.min(originalDay, lastDay)).padStart(2, '0')
+    const dateDebut = `${collectYear}-${String(collectMonth).padStart(2, '0')}-${day}`
+
+    const { data: deal, error } = await db
+      .from('recurring_deals')
+      .insert({
+        client_name:     r.client,
+        closer_id:       resolveId(r.closer),
+        setter_id:       resolveId(r.setter),
+        montant_mensuel: montant,
+        date_debut:      dateDebut,
+        notes:           r.notes || null,
+        created_by:      userId,
+      })
+      .select('id')
+      .single()
+
+    if (error || !deal) continue
+
+    // Generate 24 monthly occurrences starting from dateDebut
+    const start = new Date(dateDebut + 'T00:00:00')
+    const baseDay = start.getDate()
+    const occs = Array.from({ length: 24 }, (_, i) => {
+      const d = new Date(start)
+      d.setDate(1)
+      d.setMonth(d.getMonth() + i)
+      const ld = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+      d.setDate(Math.min(baseDay, ld))
+      return {
+        recurring_deal_id: deal.id,
+        mois:              d.getMonth() + 1,
+        annee:             d.getFullYear(),
+        date_attendue:     d.toISOString().split('T')[0],
+        montant_attendu:   montant,
+      }
+    })
+
+    const { error: occErr } = await db.from('recurring_occurrences').insert(occs)
+    if (occErr) continue
+
+    // Mark this month's occurrence as received if it was collected — link to existing cash_entry
+    if (collecte > 0) {
+      const { data: occ } = await db
+        .from('recurring_occurrences')
+        .select('id')
+        .eq('recurring_deal_id', deal.id)
+        .eq('mois', collectMonth)
+        .eq('annee', collectYear)
+        .maybeSingle()
+
+      if (occ) {
+        const { data: cashEntry } = await db
+          .from('cash_entries')
+          .select('id')
+          .ilike('client_name', r.client)
+          .eq('year', collectYear)
+          .eq('month', collectMonth)
+          .maybeSingle()
+
+        await db.from('recurring_occurrences').update({
+          recu:          true,
+          date_recue:    dateDebut,
+          montant_recu:  collecte,
+          cash_entry_id: cashEntry?.id ?? null,
+        }).eq('id', occ.id)
+      }
+    }
+
+    count++
+  }
+
+  revalidatePath('/recurrents')
+  revalidatePath('/cash')
+  return { count }
+}
+
 export async function importerWeeklyPerfs(rows: PerfImportRow[]) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()

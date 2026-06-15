@@ -7,8 +7,10 @@ import { cn } from '@/lib/utils'
 import {
   importerCashEntries,
   importerWeeklyPerfs,
+  importerRecurringDeals,
   type CashImportRow,
   type PerfImportRow,
+  type RecurringDealRow,
 } from '@/app/(portal)/cash/actions'
 
 // ── Templates ─────────────────────────────────────────────────────
@@ -86,18 +88,24 @@ function normalizeSource(s: string): string {
   return ''
 }
 
-function parseDcaNative(rawRows: string[][]): CashImportRow[] | null {
+interface ParsedDca {
+  cashRows:        CashImportRow[]
+  recurringRows:   RecurringDealRow[]
+}
+
+function parseDcaNative(rawRows: string[][]): ParsedDca | null {
   if (rawRows.length < 4) return null
   // Row index 2 should be the actual header row: Date, Nom, Montant courant, ...
   const header = rawRows[2]
   if (header[0]?.toLowerCase() !== 'date' || !header[2]?.toLowerCase().includes('montant')) return null
 
-  const result: CashImportRow[] = []
-  let isRec = false
+  const cashRows:      CashImportRow[]    = []
+  const recurringRows: RecurringDealRow[] = []
+  let isRec     = false
   let fileMonth = '' // e.g. "2026-06", detected from first parseable date
 
   for (let i = 3; i < rawRows.length; i++) {
-    const row = rawRows[i]
+    const row  = rawRows[i]
     const col0 = (row[0] || '').trim()
 
     if (col0.toLowerCase().startsWith('récurrent')) { isRec = true; continue }
@@ -115,26 +123,39 @@ function parseDcaNative(rawRows: string[][]): CashImportRow[] | null {
       ? ((row[3] || '').trim().toUpperCase() === 'TRUE' ? montant : 0)
       : (parseFloat(row[3] || '0') || 0)
 
-    // Recurring entries from prior months should count in the file's month
+    // Recurring entries from prior months count in the file's month
     const entryDate = (isRec && fileMonth && !parsedDate.startsWith(fileMonth))
       ? fileMonth + '-01'
       : parsedDate
 
-    result.push({
+    cashRows.push({
       date:       entryDate,
       client:     (row[1] || '').trim(),
-      montant:    String(montant),
+      montant:    isRec ? '0' : String(montant),  // recurring = no new revenue
       collecte:   String(collecte),
       methode:    (row[4] || '').trim(),
-      type_close: isRec ? 'follow_up' : 'on_the_spot',
+      type_close: isRec ? 'recurring' : 'on_the_spot',
       closer:     (row[6] || '').trim(),
       setter:     (row[5] || '').trim(),
       source:     normalizeSource(row[10]),
       notes:      (row[7] || '').trim(),
     })
+
+    if (isRec) {
+      recurringRows.push({
+        originalDate: parsedDate,  // real original date (for day-of-month)
+        client:       (row[1] || '').trim(),
+        montant:      String(montant),
+        collecte:     String(collecte),
+        methode:      (row[4] || '').trim(),
+        closer:       (row[6] || '').trim(),
+        setter:       (row[5] || '').trim(),
+        notes:        (row[7] || '').trim(),
+      })
+    }
   }
 
-  return result.length > 0 ? result : null
+  return cashRows.length > 0 ? { cashRows, recurringRows } : null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -154,6 +175,7 @@ function downloadCsv(content: string, filename: string) {
 export default function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'deals' | 'perfs'>('deals')
   const [rows, setRows] = useState<Record<string, string>[]>([])
+  const [recurringRows, setRecurringRows] = useState<RecurringDealRow[]>([])
   const [fileName, setFileName] = useState('')
   const [isDcaNative, setIsDcaNative] = useState(false)
   const [error, setError] = useState('')
@@ -182,6 +204,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
 
   function handleFile(file: File) {
     setRows([])
+    setRecurringRows([])
     setError('')
     setSuccess('')
     setFileName(file.name)
@@ -194,9 +217,10 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
         skipEmptyLines: false,
         complete: (result) => {
           const rawRows = result.data as string[][]
-          const nativeRows = parseDcaNative(rawRows)
-          if (nativeRows) {
-            setRows(nativeRows as unknown as Record<string, string>[])
+          const parsed = parseDcaNative(rawRows)
+          if (parsed) {
+            setRows(parsed.cashRows as unknown as Record<string, string>[])
+            setRecurringRows(parsed.recurringRows)
             setIsDcaNative(true)
           } else {
             parseStandardDeals(file)
@@ -235,12 +259,18 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
       try {
         if (tab === 'deals') {
           const result = await importerCashEntries(rows as unknown as CashImportRow[])
-          setSuccess(`${result.count} deal${result.count > 1 ? 's' : ''} importée${result.count > 1 ? 's' : ''} avec succès.`)
+          let msg = `${result.count} deal${result.count > 1 ? 's' : ''} importée${result.count > 1 ? 's' : ''} avec succès.`
+          if (recurringRows.length > 0) {
+            const recResult = await importerRecurringDeals(recurringRows)
+            msg += ` ${recResult.count} deal${recResult.count > 1 ? 's' : ''} récurrent${recResult.count > 1 ? 's' : ''} créé${recResult.count > 1 ? 's' : ''} dans la page Récurrents.`
+          }
+          setSuccess(msg)
         } else {
           const result = await importerWeeklyPerfs(rows as unknown as PerfImportRow[])
           setSuccess(`${result.count} semaine${result.count > 1 ? 's' : ''} importée${result.count > 1 ? 's' : ''} avec succès.`)
         }
         setRows([])
+        setRecurringRows([])
         setFileName('')
         setIsDcaNative(false)
       } catch (e) {
@@ -269,7 +299,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
             {(['deals', 'perfs'] as const).map((t, i) => (
               <button
                 key={t}
-                onClick={() => { setTab(t); setRows([]); setFileName(''); setError(''); setSuccess(''); setIsDcaNative(false) }}
+                onClick={() => { setTab(t); setRows([]); setRecurringRows([]); setFileName(''); setError(''); setSuccess(''); setIsDcaNative(false) }}
                 className={cn(
                   'px-4 py-2 font-medium transition-colors',
                   i > 0 ? 'border-l border-gray-200' : '',
@@ -349,11 +379,16 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
 
           {/* DCA native format badge */}
           {isDcaNative && (
-            <div className="flex items-center gap-2 bg-violet-50 border border-violet-100 rounded-lg px-4 py-3">
-              <Sparkles size={14} className="text-violet-500 shrink-0" />
-              <p className="text-sm text-violet-700">
-                Format DCA détecté — les dates, montants et noms ont été convertis automatiquement.
-              </p>
+            <div className="flex items-start gap-2 bg-violet-50 border border-violet-100 rounded-lg px-4 py-3">
+              <Sparkles size={14} className="text-violet-500 shrink-0 mt-0.5" />
+              <div className="text-sm text-violet-700">
+                <p>Format DCA détecté — dates, montants et noms convertis automatiquement.</p>
+                {recurringRows.length > 0 && (
+                  <p className="mt-0.5 text-violet-600">
+                    {recurringRows.length} deal{recurringRows.length > 1 ? 's' : ''} récurrent{recurringRows.length > 1 ? 's' : ''} détecté{recurringRows.length > 1 ? 's' : ''} — ils seront créés dans la page Récurrents.
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
