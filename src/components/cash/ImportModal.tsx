@@ -2,7 +2,7 @@
 
 import { useState, useRef, useTransition } from 'react'
 import Papa from 'papaparse'
-import { Upload, Download, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { Upload, Download, CheckCircle2, AlertCircle, Loader2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   importerCashEntries,
@@ -56,6 +56,87 @@ const PERF_COLS = [
   { name: 'notes',          req: false, hint: 'Notes' },
 ]
 
+// ── DCA native format parser ──────────────────────────────────────
+// Handles the DCA "Collect - PLATEFORME" Excel export format directly.
+// Row layout: [0] Taxes meta, [1] Staff names, [2] Headers, [3+] Data
+// Recurring section starts when col[0] begins with "Récurrent"
+
+const MOIS_FR: Record<string, string> = {
+  janvier: '01', février: '02', mars: '03', avril: '04',
+  mai: '05', juin: '06', juillet: '07', août: '08',
+  septembre: '09', octobre: '10', novembre: '11', décembre: '12',
+}
+
+function parseFrenchDate(s: string): string | null {
+  const m = s.trim().match(/^(\d{1,2})\s+(\S+)\s+(\d{4})$/)
+  if (!m) return null
+  const month = MOIS_FR[m[2].toLowerCase()]
+  if (!month) return null
+  return `${m[3]}-${month}-${m[1].padStart(2, '0')}`
+}
+
+function parseCaAmount(s: string): number {
+  return parseFloat((s || '').replace(/[^0-9.]/g, '')) || 0
+}
+
+function normalizeSource(s: string): string {
+  const low = (s || '').toLowerCase().trim()
+  if (low.startsWith('webi')) return 'webi'
+  if (low.startsWith('vsl')) return 'vsl'
+  return ''
+}
+
+function parseDcaNative(rawRows: string[][]): CashImportRow[] | null {
+  if (rawRows.length < 4) return null
+  // Row index 2 should be the actual header row: Date, Nom, Montant courant, ...
+  const header = rawRows[2]
+  if (header[0]?.toLowerCase() !== 'date' || !header[2]?.toLowerCase().includes('montant')) return null
+
+  const result: CashImportRow[] = []
+  let isRec = false
+  let fileMonth = '' // e.g. "2026-06", detected from first parseable date
+
+  for (let i = 3; i < rawRows.length; i++) {
+    const row = rawRows[i]
+    const col0 = (row[0] || '').trim()
+
+    if (col0.toLowerCase().startsWith('récurrent')) { isRec = true; continue }
+    if (!col0 || col0.toLowerCase().startsWith('total')) continue
+
+    const parsedDate = parseFrenchDate(col0)
+    if (!parsedDate) continue
+    if (!fileMonth) fileMonth = parsedDate.slice(0, 7)
+
+    const montant = parseCaAmount(row[2])
+
+    // Current deals: col[3] is numeric collected amount
+    // Recurring: col[3] is "TRUE"/"FALSE" — TRUE means full montant collected
+    const collecte = isRec
+      ? ((row[3] || '').trim().toUpperCase() === 'TRUE' ? montant : 0)
+      : (parseFloat(row[3] || '0') || 0)
+
+    // Recurring entries from prior months should count in the file's month
+    const entryDate = (isRec && fileMonth && !parsedDate.startsWith(fileMonth))
+      ? fileMonth + '-01'
+      : parsedDate
+
+    result.push({
+      date:       entryDate,
+      client:     (row[1] || '').trim(),
+      montant:    String(montant),
+      collecte:   String(collecte),
+      methode:    (row[4] || '').trim(),
+      type_close: isRec ? 'follow_up' : 'on_the_spot',
+      closer:     (row[6] || '').trim(),
+      setter:     (row[5] || '').trim(),
+      source:     normalizeSource(row[10]),
+      notes:      (row[7] || '').trim(),
+    })
+  }
+
+  return result.length > 0 ? result : null
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 function downloadCsv(content: string, filename: string) {
@@ -74,6 +155,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'deals' | 'perfs'>('deals')
   const [rows, setRows] = useState<Record<string, string>[]>([])
   const [fileName, setFileName] = useState('')
+  const [isDcaNative, setIsDcaNative] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [pending, startTransition] = useTransition()
@@ -81,33 +163,63 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
 
   const cols = tab === 'deals' ? DEAL_COLS : PERF_COLS
 
-  function handleFile(file: File) {
-    setRows([])
-    setError('')
-    setSuccess('')
-    setFileName(file.name)
-
+  function parseStandardDeals(file: File) {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       transformHeader: h => h.trim().toLowerCase(),
       complete: (result) => {
         const data = result.data as Record<string, string>[]
-        if (data.length === 0) {
-          setError('Fichier vide ou format invalide.')
-          return
-        }
-        // Check required columns
-        const required = cols.filter(c => c.req).map(c => c.name)
+        if (data.length === 0) { setError('Fichier vide ou format invalide.'); return }
+        const required = DEAL_COLS.filter(c => c.req).map(c => c.name)
         const missing = required.filter(r => !Object.keys(data[0]).includes(r))
-        if (missing.length > 0) {
-          setError(`Colonnes manquantes : ${missing.join(', ')}`)
-          return
-        }
+        if (missing.length > 0) { setError(`Colonnes manquantes : ${missing.join(', ')}`); return }
         setRows(data)
       },
       error: (err) => setError(err.message),
     })
+  }
+
+  function handleFile(file: File) {
+    setRows([])
+    setError('')
+    setSuccess('')
+    setFileName(file.name)
+    setIsDcaNative(false)
+
+    if (tab === 'deals') {
+      // Parse raw first to detect DCA native format
+      Papa.parse(file, {
+        header: false,
+        skipEmptyLines: false,
+        complete: (result) => {
+          const rawRows = result.data as string[][]
+          const nativeRows = parseDcaNative(rawRows)
+          if (nativeRows) {
+            setRows(nativeRows as unknown as Record<string, string>[])
+            setIsDcaNative(true)
+          } else {
+            parseStandardDeals(file)
+          }
+        },
+        error: (err) => setError(err.message),
+      })
+    } else {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: h => h.trim().toLowerCase(),
+        complete: (result) => {
+          const data = result.data as Record<string, string>[]
+          if (data.length === 0) { setError('Fichier vide ou format invalide.'); return }
+          const required = PERF_COLS.filter(c => c.req).map(c => c.name)
+          const missing = required.filter(r => !Object.keys(data[0]).includes(r))
+          if (missing.length > 0) { setError(`Colonnes manquantes : ${missing.join(', ')}`); return }
+          setRows(data)
+        },
+        error: (err) => setError(err.message),
+      })
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -130,6 +242,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
         }
         setRows([])
         setFileName('')
+        setIsDcaNative(false)
       } catch (e) {
         setError((e as Error).message)
       }
@@ -156,7 +269,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
             {(['deals', 'perfs'] as const).map((t, i) => (
               <button
                 key={t}
-                onClick={() => { setTab(t); setRows([]); setFileName(''); setError(''); setSuccess('') }}
+                onClick={() => { setTab(t); setRows([]); setFileName(''); setError(''); setSuccess(''); setIsDcaNative(false) }}
                 className={cn(
                   'px-4 py-2 font-medium transition-colors',
                   i > 0 ? 'border-l border-gray-200' : '',
@@ -172,7 +285,11 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
           <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
             <div>
               <p className="text-sm font-medium text-gray-700">Télécharger le template</p>
-              <p className="text-xs text-gray-400 mt-0.5">Remplis ce fichier dans Excel, puis exporte en CSV (UTF-8)</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {tab === 'deals'
+                  ? 'Remplis ce fichier dans Excel, ou glisse directement ton fichier "Collect - PLATEFORME"'
+                  : 'Remplis ce fichier dans Excel, puis exporte en CSV (UTF-8)'}
+              </p>
             </div>
             <button
               onClick={() => downloadCsv(
@@ -186,23 +303,25 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
-          {/* Column reference */}
-          <details className="group">
-            <summary className="cursor-pointer text-xs font-semibold text-gray-400 uppercase tracking-wide select-none">
-              Colonnes attendues ▾
-            </summary>
-            <div className="mt-2 grid grid-cols-1 gap-1">
-              {cols.map(c => (
-                <div key={c.name} className="flex items-start gap-2 text-xs">
-                  <code className={cn('px-1.5 py-0.5 rounded font-mono shrink-0', c.req ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-600')}>
-                    {c.name}
-                  </code>
-                  <span className="text-gray-500">{c.hint}</span>
-                  {c.req && <span className="text-red-400 shrink-0">*</span>}
-                </div>
-              ))}
-            </div>
-          </details>
+          {/* Column reference — only show for standard format / perf */}
+          {(!isDcaNative || tab === 'perfs') && (
+            <details className="group">
+              <summary className="cursor-pointer text-xs font-semibold text-gray-400 uppercase tracking-wide select-none">
+                Colonnes attendues ▾
+              </summary>
+              <div className="mt-2 grid grid-cols-1 gap-1">
+                {cols.map(c => (
+                  <div key={c.name} className="flex items-start gap-2 text-xs">
+                    <code className={cn('px-1.5 py-0.5 rounded font-mono shrink-0', c.req ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-600')}>
+                      {c.name}
+                    </code>
+                    <span className="text-gray-500">{c.hint}</span>
+                    {c.req && <span className="text-red-400 shrink-0">*</span>}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
 
           {/* Drop zone */}
           <div
@@ -227,6 +346,16 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
               onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]) }}
             />
           </div>
+
+          {/* DCA native format badge */}
+          {isDcaNative && (
+            <div className="flex items-center gap-2 bg-violet-50 border border-violet-100 rounded-lg px-4 py-3">
+              <Sparkles size={14} className="text-violet-500 shrink-0" />
+              <p className="text-sm text-violet-700">
+                Format DCA détecté — les dates, montants et noms ont été convertis automatiquement.
+              </p>
+            </div>
+          )}
 
           {/* Error */}
           {error && (

@@ -186,6 +186,15 @@ export async function importerCashEntries(rows: CashImportRow[]) {
   const nameToId = new Map(
     (profiles ?? []).map(p => [p.full_name?.toLowerCase().trim(), p.id])
   )
+  // First-name fallback so "Shanny" matches "Shanny Leduc" etc.
+  const firstNameToId = new Map(
+    (profiles ?? []).map(p => [p.full_name?.split(' ')[0]?.toLowerCase().trim(), p.id])
+  )
+  const resolveId = (name: string) => {
+    if (!name) return null
+    const key = name.toLowerCase().trim()
+    return nameToId.get(key) ?? firstNameToId.get(key) ?? null
+  }
 
   const entries = rows
     .filter(r => r.date && r.montant)
@@ -198,8 +207,8 @@ export async function importerCashEntries(rows: CashImportRow[]) {
         collected:       Number(r.collecte) || 0,
         methode:         r.methode  || null,
         close_type:      r.type_close || null,
-        closed_by:       r.closer ? (nameToId.get(r.closer.toLowerCase().trim()) ?? null) : null,
-        set_by:          r.setter ? (nameToId.get(r.setter.toLowerCase().trim()) ?? null) : null,
+        closed_by:       resolveId(r.closer ?? ''),
+        set_by:          resolveId(r.setter ?? ''),
         source_type:     (['webi', 'vsl'].includes(r.source?.toLowerCase())
                            ? r.source.toLowerCase() : null) as 'webi' | 'vsl' | null,
         notes:           r.notes || null,
