@@ -881,6 +881,8 @@ export default async function DashboardPage({
   const role      = profil?.role ?? ''
   const prenom    = profil?.full_name?.split(' ')[0] ?? 'vous'
 
+  const hasData = cashCollected > 0 || cashRevenu > 0 || scheduled > 0 || closes > 0
+
   // ── Full business view (all roles) ───────────────────────────────
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -904,6 +906,16 @@ export default async function DashboardPage({
           customEnd={customEnd}
         />
       </div>
+
+      {!hasData && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-16 text-center">
+          <p className="text-4xl mb-4">📊</p>
+          <p className="text-base font-semibold text-gray-700">Aucune donnée pour cette période</p>
+          <p className="text-sm text-gray-400 mt-1">Importe tes données via Cash / Stats → Importer CSV</p>
+        </div>
+      )}
+
+      {hasData && <>
 
       {/* KPI cards + Projection */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1018,6 +1030,8 @@ export default async function DashboardPage({
         closers={closerProfiles.map(p => ({ id: p.id, full_name: p.full_name, role: p.role }))}
         setters={setterProfiles.map(p => ({ id: p.id, full_name: p.full_name, role: p.role }))}
       />
+
+      </>}
 
     </div>
   )
