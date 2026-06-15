@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown,
   Zap, Clock, ChevronDown, ChevronRight, RefreshCw, BarChart3,
-  Monitor, Film, Globe,
+  Monitor, Film, Globe, Upload,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { creerCash, modifierCash, supprimerCash } from '@/app/(portal)/cash/actions'
 import WeeklyPerfSection, { type WeeklyPerf } from '@/components/cash/WeeklyPerfSection'
+import ImportModal from '@/components/cash/ImportModal'
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -592,6 +593,7 @@ export default function CashView({
   const [filterStart, setFilterStart] = useState(`${yearNow}-01-01`)
   const [filterEnd, setFilterEnd]     = useState(today)
   const [modalEntry, setModalEntry]   = useState<CashEntry | null | 'new'>(null)
+  const [showImport, setShowImport]   = useState(false)
   const [pending, startTransition]    = useTransition()
 
   const recurringIds = useMemo(() => new Set(recurringCashIds), [recurringCashIds])
@@ -729,13 +731,22 @@ export default function CashView({
           <h1 className="text-2xl font-bold text-gray-900">Cash / Stats</h1>
           <p className="text-sm text-gray-500 mt-0.5">Suivi des encaissements et statistiques business</p>
         </div>
-        <button
-          onClick={() => setModalEntry('new')}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          <Plus size={15} />
-          Ajouter
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            <Upload size={14} />
+            Importer CSV
+          </button>
+          <button
+            onClick={() => setModalEntry('new')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <Plus size={15} />
+            Ajouter
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -934,7 +945,7 @@ export default function CashView({
         <WeeklyPerfSection perfs={perfs} isAdmin={isAdmin} />
       )}
 
-      {/* Modal */}
+      {/* Modal entrée */}
       {modalEntry !== null && (
         <ModalForm
           entry={modalEntry === 'new' ? null : modalEntry}
@@ -943,6 +954,9 @@ export default function CashView({
           onClose={() => setModalEntry(null)}
         />
       )}
+
+      {/* Modal import */}
+      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
 
     </div>
   )

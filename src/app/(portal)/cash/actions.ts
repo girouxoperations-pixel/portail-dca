@@ -146,3 +146,111 @@ export async function supprimerWeeklyPerf(id: string) {
   if (error) throw new Error(error.message)
   revalidatePath('/cash')
 }
+
+// ── Bulk import ───────────────────────────────────────────────────
+
+export interface CashImportRow {
+  date: string
+  client: string
+  montant: string
+  collecte: string
+  methode: string
+  type_close: string
+  closer: string
+  setter: string
+  source: string
+  notes: string
+}
+
+export interface PerfImportRow {
+  annee: string
+  trimestre: string
+  semaine: string
+  source: string
+  budget: string
+  leads: string
+  presentes_webi: string
+  bookes: string
+  shows: string
+  closes: string
+  revenue: string
+  cash_collect: string
+  notes: string
+}
+
+export async function importerCashEntries(rows: CashImportRow[]) {
+  const { userId } = await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { data: profiles } = await db.from('profiles').select('id, full_name')
+  const nameToId = new Map(
+    (profiles ?? []).map(p => [p.full_name?.toLowerCase().trim(), p.id])
+  )
+
+  const entries = rows
+    .filter(r => r.date && r.montant)
+    .map(r => {
+      const { year, month } = parseYearMonth(r.date)
+      return {
+        entry_date:      r.date,
+        client_name:     r.client   || null,
+        montant_courant: Number(r.montant) || 0,
+        collected:       Number(r.collecte) || 0,
+        methode:         r.methode  || null,
+        close_type:      r.type_close || null,
+        closed_by:       r.closer ? (nameToId.get(r.closer.toLowerCase().trim()) ?? null) : null,
+        set_by:          r.setter ? (nameToId.get(r.setter.toLowerCase().trim()) ?? null) : null,
+        source_type:     (['webi', 'vsl'].includes(r.source?.toLowerCase())
+                           ? r.source.toLowerCase() : null) as 'webi' | 'vsl' | null,
+        notes:           r.notes || null,
+        month,
+        year,
+        created_by:      userId,
+      }
+    })
+
+  if (entries.length === 0) throw new Error('Aucune ligne valide trouvée')
+
+  const CHUNK = 100
+  for (let i = 0; i < entries.length; i += CHUNK) {
+    const { error } = await db.from('cash_entries').insert(entries.slice(i, i + CHUNK))
+    if (error) throw new Error(error.message)
+  }
+
+  revalidatePath('/cash')
+  return { count: entries.length }
+}
+
+export async function importerWeeklyPerfs(rows: PerfImportRow[]) {
+  const { userId } = await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const perfs = rows
+    .filter(r => r.annee && r.trimestre && r.semaine && r.source)
+    .map(r => ({
+      year:         Number(r.annee),
+      quarter:      Number(r.trimestre),
+      week_number:  Number(r.semaine),
+      source_type:  r.source.toLowerCase() as 'webi' | 'vsl',
+      budget:       Number(r.budget)        || 0,
+      leads:        Number(r.leads)         || 0,
+      webinar_att:  Number(r.presentes_webi)|| 0,
+      booked:       Number(r.bookes)        || 0,
+      showed:       Number(r.shows)         || 0,
+      closed:       Number(r.closes)        || 0,
+      revenue:      Number(r.revenue)       || 0,
+      cash_collect: Number(r.cash_collect)  || 0,
+      notes:        r.notes || null,
+      created_by:   userId,
+    }))
+
+  if (perfs.length === 0) throw new Error('Aucune ligne valide trouvée')
+
+  const { error } = await db
+    .from('weekly_perf')
+    .upsert(perfs, { onConflict: 'year,quarter,week_number,source_type' })
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/cash')
+  return { count: perfs.length }
+}
