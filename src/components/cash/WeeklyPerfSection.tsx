@@ -188,12 +188,11 @@ type PanelTotals = {
 }
 
 function SummaryPanel({
-  totals, source, quarter, year,
+  totals, source, periodLabel,
 }: {
   totals: PanelTotals
   source: 'webi' | 'vsl' | 'total'
-  quarter: number
-  year: number
+  periodLabel: string
 }) {
   const row = (label: string, value: string, bold = false, color?: string) => (
     <div className="flex items-center justify-between gap-2 py-1">
@@ -220,7 +219,7 @@ function SummaryPanel({
             : <Layers size={14} className="text-violet-500" />
         }
         <p className="text-xs font-semibold text-gray-600">
-          {source === 'webi' ? 'Webi' : source === 'vsl' ? 'VSL' : 'Total'} — Q{quarter} {year}
+          {source === 'webi' ? 'Webi' : source === 'vsl' ? 'VSL' : 'Total'} — {periodLabel}
         </p>
       </div>
 
@@ -272,6 +271,21 @@ function SummaryPanel({
   )
 }
 
+// ── Helpers ───────────────────────────────────────────────────────
+
+// Approximate mapping of (quarter, week_number) → calendar month (1–12)
+// Splits 13 weeks per quarter into 3 months: w1-4, w5-9, w10-13
+function weekToMonth(q: number, w: number): number {
+  const first = (q - 1) * 3 + 1
+  if (w <= 4) return first
+  if (w <= 9) return first + 1
+  return first + 2
+}
+
+const MOIS_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+
+type Period = 'year' | 1 | 2 | 3 | 4 | 'month'
+
 // ── Main component ────────────────────────────────────────────────
 
 export default function WeeklyPerfSection({
@@ -281,25 +295,47 @@ export default function WeeklyPerfSection({
   isAdmin: boolean
 }) {
   const now = new Date()
-  const [source, setSource]   = useState<'webi' | 'vsl'>('webi')
-  const [year, setYear]       = useState(now.getFullYear())
-  const [quarter, setQuarter] = useState(Math.floor(now.getMonth() / 3) + 1)
-  const [modal, setModal]     = useState<WeeklyPerf | null | 'new'>(null)
-  const [pending, startTransition] = useTransition()
+  const [source, setSource]         = useState<'webi' | 'vsl'>('webi')
+  const [year, setYear]             = useState(now.getFullYear())
+  const [period, setPeriod]         = useState<Period>((Math.floor(now.getMonth() / 3) + 1) as 1|2|3|4)
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
+  const [modal, setModal]           = useState<WeeklyPerf | null | 'new'>(null)
+  const [pending, startTransition]  = useTransition()
+
+  // Quarter to use in the modal (for adding/editing entries)
+  const activeQuarter: number =
+    typeof period === 'number' ? period
+    : period === 'month' ? Math.ceil(selectedMonth / 3)
+    : Math.floor(now.getMonth() / 3) + 1
+
+  const matchesPeriod = (p: WeeklyPerf): boolean => {
+    if (p.year !== year) return false
+    if (period === 'year') return true
+    if (period === 'month') return weekToMonth(p.quarter, p.week_number) === selectedMonth
+    return p.quarter === period
+  }
 
   const filtered = useMemo(
     () => perfs
-      .filter(p => p.source_type === source && p.year === year && p.quarter === quarter)
-      .sort((a, b) => a.week_number - b.week_number),
-    [perfs, source, year, quarter],
+      .filter(p => p.source_type === source && matchesPeriod(p))
+      .sort((a, b) => a.quarter !== b.quarter ? a.quarter - b.quarter : a.week_number - b.week_number),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [perfs, source, year, period, selectedMonth],
   )
 
   const allFiltered = useMemo(
-    () => perfs.filter(p => p.year === year && p.quarter === quarter),
-    [perfs, year, quarter],
+    () => perfs.filter(p => matchesPeriod(p)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [perfs, year, period, selectedMonth],
   )
 
-  const existingWeeks = useMemo(() => filtered.map(p => p.week_number), [filtered])
+  // existingWeeks only applies within the activeQuarter (for modal validation)
+  const existingWeeks = useMemo(
+    () => perfs
+      .filter(p => p.source_type === source && p.year === year && p.quarter === activeQuarter)
+      .map(p => p.week_number),
+    [perfs, source, year, activeQuarter],
+  )
 
   const sumRows = (rows: WeeklyPerf[]) => ({
     budget:       rows.reduce((s, p) => s + (p.budget       ?? 0), 0),
@@ -330,9 +366,18 @@ export default function WeeklyPerfSection({
       : 'text-gray-500 hover:bg-gray-50',
   )
 
+  const periodBtn = (p: Period, label: string, border = true) => cn(
+    'px-3 py-2 text-sm font-medium transition-colors',
+    border ? 'border-l border-gray-200' : '',
+    period === p ? 'bg-violet-600 text-white' : 'text-gray-500 hover:bg-gray-50',
+  )
+
   // shared cell classes
   const th = 'px-3 py-2.5 text-right whitespace-nowrap'
   const td = 'px-3 py-2.5 text-right tabular-nums'
+
+  // Can only add entries when a specific quarter is active
+  const canAdd = period !== 'year' && existingWeeks.length < 13
 
   return (
     <div className="space-y-5">
@@ -358,26 +403,32 @@ export default function WeeklyPerfSection({
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
 
-        {/* Quarter */}
+        {/* Period: Année + Q1-Q4 + Mois */}
         <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-          {[1, 2, 3, 4].map((q, i) => (
-            <button
-              key={q}
-              onClick={() => setQuarter(q)}
-              className={cn(
-                'px-3 py-2 font-medium transition-colors',
-                i > 0 ? 'border-l border-gray-200' : '',
-                quarter === q ? 'bg-violet-600 text-white' : 'text-gray-500 hover:bg-gray-50',
-              )}
-            >
-              Q{q}
-            </button>
+          <button className={periodBtn('year', 'Année', false)} onClick={() => setPeriod('year')}>Année</button>
+          {([1, 2, 3, 4] as const).map(q => (
+            <button key={q} className={periodBtn(q, `Q${q}`)} onClick={() => setPeriod(q)}>Q{q}</button>
           ))}
+          <button className={periodBtn('month', 'Mois')} onClick={() => setPeriod('month')}>Mois</button>
         </div>
+
+        {/* Month picker — visible only when period === 'month' */}
+        {period === 'month' && (
+          <select
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(Number(e.target.value))}
+            className="px-3 py-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          >
+            {MOIS_COURT.map((m, i) => (
+              <option key={i + 1} value={i + 1}>{m}</option>
+            ))}
+          </select>
+        )}
 
         <button
           onClick={() => setModal('new')}
-          disabled={existingWeeks.length >= 13}
+          disabled={!canAdd}
+          title={period === 'year' ? 'Sélectionner un trimestre pour saisir' : undefined}
           className="ml-auto flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
         >
           <Plus size={14} />
@@ -390,19 +441,28 @@ export default function WeeklyPerfSection({
 
         {/* Source panel */}
         {filtered.length > 0 && (
-          <SummaryPanel totals={totals} source={source} quarter={quarter} year={year} />
+          <SummaryPanel totals={totals} source={source} periodLabel={
+            period === 'year' ? String(year)
+            : period === 'month' ? `${MOIS_COURT[selectedMonth - 1]} ${year}`
+            : `Q${period} ${year}`
+          } />
         )}
 
-        {/* Combined Webi + VSL panel — shown when both sources have data */}
-        {allFiltered.length > 0 && allFiltered.some(p => p.source_type === 'webi') && allFiltered.some(p => p.source_type === 'vsl') && (
-          <SummaryPanel totals={combinedTotals} source="total" quarter={quarter} year={year} />
+        {/* Combined Webi + VSL panel */}
+        {allFiltered.length > 0 && (
+          <SummaryPanel totals={combinedTotals} source="total" periodLabel={
+            period === 'year' ? String(year)
+            : period === 'month' ? `${MOIS_COURT[selectedMonth - 1]} ${year}`
+            : `Q${period} ${year}`
+          } />
         )}
 
         {/* Table */}
         {filtered.length === 0 ? (
           <div className="flex-1 bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-12 text-center">
             <p className="text-sm text-gray-400">
-              Aucune donnée — {source === 'webi' ? 'Webi' : 'VSL'} Q{quarter} {year}
+              Aucune donnée — {source === 'webi' ? 'Webi' : 'VSL'}{' '}
+              {period === 'year' ? year : period === 'month' ? `${MOIS_COURT[selectedMonth - 1]} ${year}` : `Q${period} ${year}`}
             </p>
             <button
               onClick={() => setModal('new')}
@@ -439,7 +499,9 @@ export default function WeeklyPerfSection({
                 <tbody className="divide-y divide-gray-50">
                   {filtered.map(p => (
                     <tr key={p.id} className="hover:bg-orange-50/20 transition-colors">
-                      <td className="px-3 py-2.5 font-bold text-gray-700 sticky left-0 bg-white">W{p.week_number}</td>
+                      <td className="px-3 py-2.5 font-bold text-gray-700 sticky left-0 bg-white whitespace-nowrap">
+                        {(period === 'year' || period === 'month') ? `Q${p.quarter}W${p.week_number}` : `W${p.week_number}`}
+                      </td>
                       <td className={cn(td, 'text-gray-600')}>{dollar(p.budget)}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.leads}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.webinar_att || '—'}</td>
@@ -511,7 +573,9 @@ export default function WeeklyPerfSection({
                 <tbody className="divide-y divide-gray-50">
                   {filtered.map(p => (
                     <tr key={p.id} className="hover:bg-sky-50/20 transition-colors">
-                      <td className="px-3 py-2.5 font-bold text-gray-700 sticky left-0 bg-white">W{p.week_number}</td>
+                      <td className="px-3 py-2.5 font-bold text-gray-700 sticky left-0 bg-white whitespace-nowrap">
+                        {(period === 'year' || period === 'month') ? `Q${p.quarter}W${p.week_number}` : `W${p.week_number}`}
+                      </td>
                       <td className={cn(td, 'text-gray-600')}>{dollar(p.budget)}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.leads}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.booked}</td>
@@ -561,7 +625,7 @@ export default function WeeklyPerfSection({
           entry={modal === 'new' ? null : modal}
           source={source}
           year={year}
-          quarter={quarter}
+          quarter={activeQuarter}
           existingWeeks={existingWeeks}
           onClose={() => setModal(null)}
         />
