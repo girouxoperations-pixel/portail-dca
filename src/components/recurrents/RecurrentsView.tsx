@@ -44,6 +44,7 @@ interface Deal {
   setter_id:             string | null
   montant_mensuel:       number
   date_debut:            string
+  versements_total:      number | null
   actif:                 boolean
   notes:                 string | null
   recurring_occurrences: Occurrence[]
@@ -78,19 +79,20 @@ function ModalNouveauDeal({ profiles, onClose }: {
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
       await creerRecurringDeal({
-        client_name:     fd.get('client_name') as string,
-        closer_id:       (fd.get('closer_id') as string) || null,
-        setter_id:       (fd.get('setter_id') as string) || null,
-        montant_mensuel: Number(fd.get('montant_mensuel')),
-        date_debut:      fd.get('date_debut') as string,
-        notes:           (fd.get('notes') as string) || null,
+        client_name:      fd.get('client_name') as string,
+        closer_id:        (fd.get('closer_id') as string) || null,
+        setter_id:        (fd.get('setter_id') as string) || null,
+        montant_mensuel:  Number(fd.get('montant_mensuel')),
+        date_debut:       fd.get('date_debut') as string,
+        versements_total: Number(fd.get('versements_total') ?? 3),
+        notes:            (fd.get('notes') as string) || null,
       })
       onClose()
     })
   }
 
   return (
-    <Modal titre="Nouveau deal récurrent" onClose={onClose} maxWidth="max-w-md">
+    <Modal titre="Nouvelle entente de paiement" onClose={onClose} maxWidth="max-w-md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Nom du client</label>
@@ -120,16 +122,24 @@ function ModalNouveauDeal({ profiles, onClose }: {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Montant mensuel ($)</label>
+            <label className="text-sm font-medium text-gray-700">Montant/versement ($)</label>
             <input
               name="montant_mensuel" type="number" min="0" step="0.01"
               required className={INPUT} placeholder="1333.33"
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Premier paiement</label>
-            <input name="date_debut" type="date" required className={INPUT} />
+            <label className="text-sm font-medium text-gray-700">Nb de versements</label>
+            <select name="versements_total" defaultValue="3" className={INPUT}>
+              <option value="2">2 versements</option>
+              <option value="3">3 versements</option>
+            </select>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Date du 1er versement</label>
+          <input name="date_debut" type="date" required className={INPUT} />
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -288,8 +298,10 @@ function DealCard({ deal, profileMap, isAdmin }: {
   const closerNom = deal.closer_id ? (profileMap.get(deal.closer_id) ?? '—') : null
   const setterNom = deal.setter_id ? (profileMap.get(deal.setter_id) ?? '—') : null
 
-  const reçues  = deal.recurring_occurrences.filter(o => o.recu)
-  const total   = reçues.reduce((s, o) => s + (o.montant_recu ?? 0), 0)
+  const reçues       = deal.recurring_occurrences.filter(o => o.recu)
+  const total        = reçues.reduce((s, o) => s + (o.montant_recu ?? 0), 0)
+  const nTotal       = deal.versements_total ?? deal.recurring_occurrences.length
+  const versProgress = `${reçues.length}/${nTotal} versement${nTotal > 1 ? 's' : ''}`
 
   function handleToggleActif() {
     startTransition(async () => {
@@ -321,12 +333,14 @@ function DealCard({ deal, profileMap, isAdmin }: {
             )}
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
-            {dollar(deal.montant_mensuel)}/mois
+            {dollar(deal.montant_mensuel)}/versement
             {closerNom && ` · ${closerNom}`}
             {setterNom && ` + ${setterNom}`}
             {' · '}
-            <span className="text-green-600 font-medium">{reçues.length} paiements reçus</span>
-            {reçues.length > 0 && ` · ${dollar(total)} total`}
+            <span className={reçues.length === nTotal ? 'text-green-600 font-medium' : 'text-violet-600 font-medium'}>
+              {versProgress} reçu{reçues.length > 1 ? 's' : ''}
+            </span>
+            {reçues.length > 0 && ` · ${dollar(total)} collecté`}
           </p>
         </div>
 
@@ -358,18 +372,18 @@ function DealCard({ deal, profileMap, isAdmin }: {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-gray-50/80 text-gray-400 font-medium border-b border-gray-100">
-                <th className="px-5 py-2 text-left">Mois</th>
-                <th className="px-4 py-2 text-right">Montant attendu</th>
+                <th className="px-5 py-2 text-left">Versement</th>
+                <th className="px-4 py-2 text-right">Attendu</th>
                 <th className="px-4 py-2 text-right">Reçu</th>
                 <th className="px-4 py-2 text-left">Date reçu</th>
                 <th className="px-4 py-2 text-left">Statut</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {deal.recurring_occurrences.map(o => (
+              {deal.recurring_occurrences.map((o, idx) => (
                 <tr key={o.id} className={cn('hover:bg-gray-50/50', o.recu && 'bg-green-50/30')}>
                   <td className="px-5 py-2 font-medium text-gray-700">
-                    {MOIS_FR[o.mois - 1]} {o.annee}
+                    #{idx + 1} <span className="text-gray-400 font-normal text-[11px]">({MOIS_FR[o.mois - 1]} {o.annee})</span>
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-gray-600">
                     {dollar(o.montant_attendu)}
@@ -501,8 +515,8 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
     <div className="p-6 max-w-5xl mx-auto space-y-6">
 
       <PageHeader
-        titre="Récurrents"
-        subtitle="Suivi des paiements mensuels récurrents"
+        titre="Versements"
+        subtitle="Suivi des ententes de paiement (2 ou 3 versements)"
         action={
           <button
             onClick={() => setModalOuvert(true)}
@@ -510,7 +524,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
           >
             <Plus size={15} />
 
-            Nouveau deal
+            Nouvelle entente
           </button>
         }
       />

@@ -19,12 +19,13 @@ async function requireRole(roles: string[]) {
 }
 
 export async function creerRecurringDeal(data: {
-  client_name:     string
-  closer_id:       string | null
-  setter_id:       string | null
-  montant_mensuel: number
-  date_debut:      string
-  notes:           string | null
+  client_name:      string
+  closer_id:        string | null
+  setter_id:        string | null
+  montant_mensuel:  number
+  date_debut:       string
+  versements_total: number
+  notes:            string | null
 }) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()
@@ -37,10 +38,10 @@ export async function creerRecurringDeal(data: {
 
   if (error) throw new Error(error.message)
 
-  // Generate 24 monthly occurrences — même jour du mois que date_debut
+  const count = data.versements_total ?? 3
   const start   = new Date(data.date_debut + 'T00:00:00')
   const baseDay = start.getDate()
-  const occs = Array.from({ length: 24 }, (_, i) => {
+  const occs = Array.from({ length: count }, (_, i) => {
     const d = new Date(start)
     d.setDate(1)
     d.setMonth(d.getMonth() + i)

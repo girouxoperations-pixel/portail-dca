@@ -24,7 +24,7 @@ export default async function RecurrentsPage({
   const [{ data: deals }, { data: profiles }] = await Promise.all([
     db.from('recurring_deals')
       .select('*, recurring_occurrences(*)')
-      .order('created_at', { ascending: false }),
+      .order('client_name', { ascending: true }),
     db.from('profiles').select('id, full_name, role'),
   ])
 
