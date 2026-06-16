@@ -245,7 +245,7 @@ export async function marquerRecuAvecSolde(
 }
 
 export async function annulerRecu(occurrenceId: string) {
-  await requireRole(['admin'])
+  await requireRole(['admin', 'csm'])
   const db = createAdminClient()
 
   const { data: occ } = await db

@@ -45,7 +45,7 @@ export default async function RecurrentsPage({
     <RecurrentsView
       deals={dealsNorm}
       profiles={profiles ?? []}
-      isAdmin={role === 'admin'}
+      isAdmin={role === 'admin' || role === 'csm'}
       initialFiltre={filtre ?? 'retard'}
     />
   )
