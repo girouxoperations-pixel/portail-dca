@@ -22,12 +22,19 @@ interface CashEntry {
   montant_courant: number
   collected: number
   a_collecter: number
+  close_type: string | null
   methode: string | null
   set_by: string | null
   closed_by: string | null
   month: number | null
   year: number | null
   notes: string | null
+}
+
+const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
+  on_the_spot: { label: 'On the Spot', cls: 'bg-amber-50 text-amber-700'   },
+  follow_up:   { label: 'Follow Up',   cls: 'bg-blue-50 text-blue-700'     },
+  recurring:   { label: 'Récurrent',   cls: 'bg-violet-50 text-violet-700' },
 }
 
 interface Profil {
@@ -396,6 +403,49 @@ function ModalModifier({ entry, closers, setters, onClose }: { entry: CashEntry;
   )
 }
 
+// ── DealRow ───────────────────────────────────────────────────────────
+
+function DealRow({ e, profileMap, pending, isAdmin, onEdit, onDelete }: {
+  e: CashEntry
+  profileMap: Map<string, string>
+  pending: boolean
+  isAdmin: boolean
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  return (
+    <tr className="hover:bg-gray-50/50 transition-colors">
+      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(e.entry_date, MOIS_COURT)}</td>
+      <td className="px-4 py-3 font-medium text-gray-800 max-w-[140px] truncate">{e.client_name ?? '—'}</td>
+      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">{dollar(e.montant_courant)}</td>
+      <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(e.collected)}</td>
+      <td className="px-4 py-3 text-right tabular-nums">
+        <span className={cn('font-medium', (e.a_collecter ?? 0) > 0 ? 'text-red-600' : 'text-gray-400')}>
+          {dollar(e.a_collecter ?? 0)}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{e.methode ?? '—'}</td>
+      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.set_by    ? (profileMap.get(e.set_by)    ?? '—') : '—'}</td>
+      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}</td>
+      <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-2">
+          <button onClick={onEdit} disabled={pending} title="Modifier"
+            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 rounded transition-colors disabled:opacity-40">
+            <Pencil size={10} />Modifier
+          </button>
+          {isAdmin && (
+            <button onClick={onDelete} disabled={pending} title="Supprimer"
+              className="p-1.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40">
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 // ── Composant principal ───────────────────────────────────────────────
 
 type ModalState = { type: 'add' } | { type: 'edit'; entry: CashEntry } | null
@@ -415,6 +465,7 @@ export default function CashCollectView({
 }) {
   const [moisSelect, setMoisSelect] = useState(currentMonthKey)
   const [modal,      setModal]      = useState<ModalState>(null)
+  const [sortBy,     setSortBy]     = useState<'date' | 'type'>('date')
   const [pending, startTransition]  = useTransition()
 
   const recurringIds = useMemo(() => new Set(recurringCashIds), [recurringCashIds])
@@ -474,6 +525,22 @@ export default function CashCollectView({
   }), [recurrents])
 
   const totalCollecte = totauxDeals.collected + totauxRec.collected
+
+  const dealsParType = useMemo(() => {
+    const ORDER = ['on_the_spot', 'follow_up', 'recurring'] as const
+    const groups = new Map<string, CashEntry[]>(ORDER.map(k => [k, []]))
+    for (const e of deals) {
+      const key = e.close_type ?? 'on_the_spot'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(e)
+    }
+    return ORDER.map(key => ({
+      key,
+      label:   TYPE_CONFIG[key]?.label ?? key,
+      cls:     TYPE_CONFIG[key]?.cls   ?? 'bg-gray-50 text-gray-600',
+      entries: groups.get(key) ?? [],
+    })).filter(g => g.entries.length > 0)
+  }, [deals])
 
   function handleDelete(id: string) {
     if (!confirm('Supprimer ce deal ?')) return
@@ -547,7 +614,13 @@ export default function CashCollectView({
             {deals.length} deal{deals.length !== 1 ? 's' : ''}
           </span>
           {deals.length > 0 && (
-            <div className="ml-auto flex items-center gap-4 text-xs">
+            <div className="ml-auto flex items-center gap-3 text-xs">
+              <button
+                onClick={() => setSortBy(s => s === 'type' ? 'date' : 'type')}
+                className={cn('px-2.5 py-1 rounded-lg font-medium transition-colors border', sortBy === 'type' ? 'bg-violet-100 text-violet-700 border-violet-200' : 'text-gray-400 border-gray-200 hover:bg-gray-50')}
+              >
+                Par type
+              </button>
               <span className="text-gray-400">Collecté <span className="font-semibold text-blue-600 tabular-nums">{dollar(totauxDeals.collected)}</span></span>
               {totauxDeals.aCollecter > 0 && (
                 <span className="text-gray-400">Reste <span className="font-semibold text-red-600 tabular-nums">{dollar(totauxDeals.aCollecter)}</span></span>
@@ -578,70 +651,60 @@ export default function CashCollectView({
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                {deals.map(e => (
-                  <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                      {formatDate(e.entry_date, MOIS_COURT)}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-gray-800 max-w-[140px] truncate">
-                      {e.client_name ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">
-                      {dollar(e.montant_courant)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-blue-700">
-                      {dollar(e.collected)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      <span className={cn('font-medium', (e.a_collecter ?? 0) > 0 ? 'text-red-600' : 'text-gray-400')}>
-                        {dollar(e.a_collecter ?? 0)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{e.methode ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                      {e.set_by    ? (profileMap.get(e.set_by)    ?? '—') : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                      {e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => setModal({ type: 'edit', entry: e })}
-                          disabled={pending}
-                          title="Modifier"
-                          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 rounded transition-colors disabled:opacity-40"
-                        >
-                          <Pencil size={10} />Modifier
-                        </button>
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDelete(e.id)}
-                            disabled={pending}
-                            title="Supprimer"
-                            className="p-1.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700">
-                  <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide" colSpan={2}>Total</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{dollar(totauxDeals.montant)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totauxDeals.collected)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-red-600">
-                    {totauxDeals.aCollecter > 0 ? dollar(totauxDeals.aCollecter) : '—'}
-                  </td>
-                  <td colSpan={5} />
-                </tr>
-              </tfoot>
+              {sortBy === 'date' ? (
+                <>
+                  <tbody className="divide-y divide-gray-50">
+                    {deals.map(e => <DealRow key={e.id} e={e} profileMap={profileMap} pending={pending} isAdmin={isAdmin} onEdit={() => setModal({ type: 'edit', entry: e })} onDelete={() => handleDelete(e.id)} />)}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700">
+                      <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide" colSpan={2}>Total</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{dollar(totauxDeals.montant)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totauxDeals.collected)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-red-600">{totauxDeals.aCollecter > 0 ? dollar(totauxDeals.aCollecter) : '—'}</td>
+                      <td colSpan={5} />
+                    </tr>
+                  </tfoot>
+                </>
+              ) : (
+                <>
+                  {dealsParType.map(group => {
+                    const sub = {
+                      montant:    group.entries.reduce((s, e) => s + e.montant_courant, 0),
+                      collected:  group.entries.reduce((s, e) => s + e.collected, 0),
+                      aCollecter: group.entries.reduce((s, e) => s + (e.a_collecter ?? 0), 0),
+                    }
+                    return (
+                      <tbody key={group.key} className="divide-y divide-gray-50">
+                        <tr>
+                          <td colSpan={10} className="px-4 py-2">
+                            <span className={cn('text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wide', group.cls)}>
+                              {group.label} — {group.entries.length}
+                            </span>
+                          </td>
+                        </tr>
+                        {group.entries.map(e => <DealRow key={e.id} e={e} profileMap={profileMap} pending={pending} isAdmin={isAdmin} onEdit={() => setModal({ type: 'edit', entry: e })} onDelete={() => handleDelete(e.id)} />)}
+                        <tr className="bg-gray-50/60 text-xs font-semibold text-gray-500">
+                          <td className="px-4 py-2" colSpan={2}>Sous-total</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-gray-700">{dollar(sub.montant)}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-blue-600">{dollar(sub.collected)}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-red-500">{sub.aCollecter > 0 ? dollar(sub.aCollecter) : '—'}</td>
+                          <td colSpan={5} />
+                        </tr>
+                      </tbody>
+                    )
+                  })}
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 bg-gray-50/50 font-semibold text-gray-700">
+                      <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide" colSpan={2}>Total</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{dollar(totauxDeals.montant)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totauxDeals.collected)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-red-600">{totauxDeals.aCollecter > 0 ? dollar(totauxDeals.aCollecter) : '—'}</td>
+                      <td colSpan={5} />
+                    </tr>
+                  </tfoot>
+                </>
+              )}
             </table>
           </div>
         )}
