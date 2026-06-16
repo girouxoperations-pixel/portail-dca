@@ -84,6 +84,16 @@ export async function updateTheory(clientId: string, pct: number) {
   revalidatePath(`/csm/${clientId}`)
 }
 
+// ── Missed meeting flag ─────────────────────────────────────────────
+export async function updateMissed(clientId: string, num: 1 | 2 | 3 | 4, missed: boolean) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_clients').update({ [`m${num}_missed`]: missed }).eq('id', clientId)
+  if (error) throw error
+  revalidatePath('/csm')
+  revalidatePath(`/csm/${clientId}`)
+}
+
 // ── Status ──────────────────────────────────────────────────────────
 export async function updateStatus(clientId: string, status: string) {
   await verifyAdminOrCsm()

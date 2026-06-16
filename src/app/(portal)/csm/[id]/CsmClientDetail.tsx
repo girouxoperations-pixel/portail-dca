@@ -319,11 +319,6 @@ export default function CsmClientDetail({ client: c, cashEntry, followup, closer
             </div>
           </TimelineItem>
 
-          {/* J+21 check-in */}
-          <TimelineItem label="Suivi J+21" date={c.text_j21_date} dueDate={due.j21} done={c.text_j21_done} today={todayStr}>
-            <TextToggle clientId={c.id} field="j21" done={c.text_j21_done} />
-          </TimelineItem>
-
           {/* M2 */}
           <TimelineItem label="M2 — Réunion groupe" date={c.m2_date} today={todayStr}>
             <DateInput label="Date" value={c.m2_date} onSave={d => updateMeeting(c.id, 2, { date: d })} color={mDateColor(c.m2_date)} />
@@ -364,11 +359,6 @@ export default function CsmClientDetail({ client: c, cashEntry, followup, closer
             <MeetingNotes clientId={c.id} num={4} notes={c.m4_notes} />
           </TimelineItem>
 
-          {/* M5 optional */}
-          <TimelineItem label="M5 — Post-closing (optionnel)" date={c.m5_date} today={todayStr}>
-            <DateInput label="Date" value={c.m5_date} onSave={d => updateMeeting(c.id, 5, { date: d })} color={mDateColor(c.m5_date)} />
-            <MeetingNotes clientId={c.id} num={5} notes={c.m5_notes} />
-          </TimelineItem>
         </div>
       </div>
 

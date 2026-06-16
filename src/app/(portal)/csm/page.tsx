@@ -20,7 +20,7 @@ export default async function CsmPage() {
   const { data: clients } = await db
     .from('csm_clients')
     .select('*')
-    .order('enrollment_date', { ascending: false })
+    .order('enrollment_date', { ascending: true })
 
   return <CsmClientList clients={clients ?? []} />
 }

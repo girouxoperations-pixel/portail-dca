@@ -7,18 +7,18 @@ export interface CsmClient {
   onboarding_notes:    string | null
   m1_date:             string | null
   m1_notes:            string | null
+  m1_missed:           boolean
   m2_date:             string | null
   m2_notes:            string | null
+  m2_missed:           boolean
   m3_date:             string | null
   m3_notes:            string | null
+  m3_missed:           boolean
   m4_date:             string | null
   m4_notes:            string | null
-  m5_date:             string | null
-  m5_notes:            string | null
+  m4_missed:           boolean
   text_j7_done:        boolean
   text_j7_date:        string | null
-  text_j21_done:       boolean
-  text_j21_date:       string | null
   text_j49_done:       boolean
   text_j49_date:       string | null
   text_j63_done:       boolean
@@ -44,7 +44,6 @@ export interface CsmClient {
 // Weekday-adjusted due dates computed from enrollment_date
 export interface CsmDueDates {
   j7:  string
-  j21: string
   j49: string
   j63: string
   j77: string
@@ -60,7 +59,7 @@ export function computeDueDates(enrollmentDate: string): CsmDueDates {
     if (dow === 6) d.setDate(d.getDate() + 2) // Sat -> Mon
     return d.toISOString().split('T')[0]
   }
-  return { j7: wd(7), j21: wd(21), j49: wd(49), j63: wd(63), j77: wd(77), j90: wd(90) }
+  return { j7: wd(7), j49: wd(49), j63: wd(63), j77: wd(77), j90: wd(90) }
 }
 
 // Color for a date cell: red = today, green = past, yellow = future, null = no date
