@@ -23,9 +23,17 @@ export default async function SuiviClientPage() {
   const db = createAdminClient()
 
   if (role === 'closer') {
+    // Fetch recurring cash entry IDs to exclude their followups
+    const { data: recurringCashIds } = await db
+      .from('cash_entries')
+      .select('id')
+      .or("close_type.eq.recurring,notes.ilike.Récurrent%,notes.ilike.Versement%")
+
+    const recurringSet = new Set((recurringCashIds ?? []).map(r => r.id))
+
     const [{ data: followupsRaw }, { data: prospects }] = await Promise.all([
       db.from('client_followups')
-        .select('*, cash_entries(close_type, notes)')
+        .select('*')
         .eq('closer_id', user.id)
         .order('close_date', { ascending: false }),
       db.from('prospect_followups')
@@ -44,22 +52,24 @@ export default async function SuiviClientPage() {
       doneDate:     p.done_date,
     }))
 
-    const followups = (followupsRaw ?? []).filter(f => {
-      const ce = f.cash_entries as { close_type: string | null; notes: string | null } | null
-      if (!ce) return true
-      if (ce.close_type === 'recurring') return false
-      if (ce.notes?.startsWith('Récurrent')) return false
-      if (ce.notes?.startsWith('Versement')) return false
-      return true
-    })
+    const followups = (followupsRaw ?? []).filter(f =>
+      !f.cash_entry_id || !recurringSet.has(f.cash_entry_id),
+    )
 
     return <CloserFollowupView followups={followups} prospects={prospectItems} />
   }
 
-  // admin / csm
+  // admin / csm — fetch recurring cash IDs to exclude
+  const { data: recurringCashIds } = await db
+    .from('cash_entries')
+    .select('id')
+    .or("close_type.eq.recurring,notes.ilike.Récurrent%,notes.ilike.Versement%")
+
+  const recurringSet = new Set((recurringCashIds ?? []).map(r => r.id))
+
   const [{ data: followupsRaw }, { data: profiles }, { data: allProspects }] = await Promise.all([
     db.from('client_followups')
-      .select('*, cash_entries(close_type, notes)')
+      .select('*')
       .order('close_date', { ascending: false }),
     db.from('profiles')
       .select('id, full_name')
@@ -79,14 +89,9 @@ export default async function SuiviClientPage() {
     doneDate:     p.done_date,
   }))
 
-  const followups = (followupsRaw ?? []).filter(f => {
-    const ce = f.cash_entries as { close_type: string | null; notes: string | null } | null
-    if (!ce) return true
-    if (ce.close_type === 'recurring') return false
-    if (ce.notes?.startsWith('Récurrent')) return false
-    if (ce.notes?.startsWith('Versement')) return false
-    return true
-  })
+  const followups = (followupsRaw ?? []).filter(f =>
+    !f.cash_entry_id || !recurringSet.has(f.cash_entry_id),
+  )
 
   return (
     <AdminFollowupView
