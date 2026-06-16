@@ -11,7 +11,7 @@ import Badge           from '@/components/ui/Badge'
 import Modal           from '@/components/ui/Modal'
 import PageHeader      from '@/components/layout/PageHeader'
 import {
-  creerRecurringDeal, marquerRecu, annulerRecu,
+  creerRecurringDeal, marquerRecu, marquerRecuAvecSolde, annulerRecu,
   desactiverDeal, reactiverDeal, encaisserProchainVersement,
   modifierRecurringDeal,
 } from '@/app/(portal)/recurrents/actions'
@@ -177,8 +177,12 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   isAdmin:    boolean
 }) {
   const [amount, setAmount]        = useState(String(occ.montant_attendu))
+  const [dateSolde, setDateSolde]  = useState('')
   const [editOpen, setEditOpen]    = useState(false)
   const [pending, startTransition] = useTransition()
+
+  const montantSolde = Math.max(0, occ.montant_attendu - Number(amount))
+  const isPartial    = !occ.recu && Number(amount) > 0 && Number(amount) < occ.montant_attendu
 
   const closers = profiles.filter(p => p.role === 'closer')
   const setters = profiles.filter(p => p.role === 'setter')
@@ -224,7 +228,13 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   function handleMarquer() {
     const val = Number(amount)
     if (isNaN(val) || val <= 0) return
-    startTransition(async () => { await marquerRecu(occ.id, val) })
+    startTransition(async () => {
+      if (isPartial && dateSolde) {
+        await marquerRecuAvecSolde(occ.id, val, montantSolde, dateSolde)
+      } else {
+        await marquerRecu(occ.id, val)
+      }
+    })
   }
 
   function handleAnnuler() {
@@ -277,14 +287,29 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
                 min="0" step="0.01"
                 className="w-28 px-2 py-1 rounded border border-gray-200 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
+              {isPartial && (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <span className="text-[10px] text-amber-600 font-medium whitespace-nowrap">
+                    Solde {dollar(montantSolde)} dû le
+                  </span>
+                  <input
+                    type="date"
+                    value={dateSolde}
+                    onChange={e => setDateSolde(e.target.value)}
+                    className="px-1.5 py-0.5 rounded border border-amber-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50 text-amber-800"
+                  />
+                </div>
+              )}
             </td>
             <td className="px-4 py-3 text-right">
               <button
-                onClick={handleMarquer} disabled={pending}
+                onClick={handleMarquer}
+                disabled={pending || (isPartial && !dateSolde)}
+                title={isPartial && !dateSolde ? 'Entrez une date pour le solde restant' : undefined}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 ml-auto"
               >
                 <CheckCircle2 size={12} />
-                {pending ? 'Enregistrement…' : 'Marquer reçu'}
+                {pending ? 'Enregistrement…' : isPartial ? 'Partiel + solde' : 'Marquer reçu'}
               </button>
             </td>
           </>
