@@ -306,11 +306,14 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
     startTransition(async () => {
       try {
         if (tab === 'deals') {
-          const result = await importerCashEntries(rows as unknown as CashImportRow[])
-          let msg = `${result.count} deal${result.count > 1 ? 's' : ''} importée${result.count > 1 ? 's' : ''} avec succès.`
+          let msg = ''
+          if (rows.length > 0) {
+            const result = await importerCashEntries(rows as unknown as CashImportRow[])
+            msg += `${result.count} deal${result.count > 1 ? 's' : ''} importée${result.count > 1 ? 's' : ''} avec succès.`
+          }
           if (recurringRows.length > 0) {
             const recResult = await importerRecurringDeals(recurringRows, fileCollectYear, fileCollectMonth)
-            msg += ` ${recResult.count} deal${recResult.count > 1 ? 's' : ''} récurrent${recResult.count > 1 ? 's' : ''} créé${recResult.count > 1 ? 's' : ''} dans la page Récurrents.`
+            msg += `${msg ? ' ' : ''}${recResult.count} deal${recResult.count > 1 ? 's' : ''} récurrent${recResult.count > 1 ? 's' : ''} créé${recResult.count > 1 ? 's' : ''} dans la page Récurrents.`
           }
           setSuccess(msg)
         } else {
