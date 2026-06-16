@@ -495,12 +495,12 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
           </button>
           <button
             onClick={handleImport}
-            disabled={rows.length === 0 || pending}
+            disabled={(rows.length === 0 && recurringRows.length === 0) || pending}
             className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
           >
             {pending
               ? <><Loader2 size={14} className="animate-spin" />Import en cours…</>
-              : <><Upload size={14} />Importer {rows.length > 0 ? `${rows.length} ligne${rows.length > 1 ? 's' : ''}` : ''}</>
+              : <><Upload size={14} />Importer {rows.length > 0 ? `${rows.length} ligne${rows.length > 1 ? 's' : ''}` : recurringRows.length > 0 ? `${recurringRows.length} récurrent${recurringRows.length > 1 ? 's' : ''}` : ''}</>
             }
           </button>
         </div>
