@@ -291,7 +291,11 @@ export interface RecurringDealRow {
   notes: string
 }
 
-export async function importerRecurringDeals(rows: RecurringDealRow[]) {
+export async function importerRecurringDeals(
+  rows: RecurringDealRow[],
+  collectYear: number,
+  collectMonth: number,
+) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()
 
@@ -304,11 +308,10 @@ export async function importerRecurringDeals(rows: RecurringDealRow[]) {
     return nameToId.get(key) ?? firstNameToId.get(key) ?? null
   }
 
-  // The "collect month" is the month we're importing for (June 2026).
-  // Cash entries with close_type='recurring' were all forced to this month.
+  // Fall back to current month if caller didn't provide valid values
   const now = new Date()
-  const collectYear  = now.getFullYear()
-  const collectMonth = now.getMonth() + 1
+  const cy = collectYear  || now.getFullYear()
+  const cm = collectMonth || now.getMonth() + 1
 
   let count = 0
 
@@ -317,7 +320,62 @@ export async function importerRecurringDeals(rows: RecurringDealRow[]) {
     const montant  = Number(r.montant)  || 0
     const collecte = Number(r.collecte) || 0
 
-    // Infer number of versements from installment amount (standard $4,000 deal)
+    // Check if a deal for this client already exists (e.g. from a prior month's import)
+    const { data: existingDeal } = await db
+      .from('recurring_deals')
+      .select('id, versements_total')
+      .ilike('client_name', r.client)
+      .maybeSingle()
+
+    if (existingDeal) {
+      // Deal exists — add the collect-month occurrence if not already there
+      const { data: existingOcc } = await db
+        .from('recurring_occurrences')
+        .select('id')
+        .eq('recurring_deal_id', existingDeal.id)
+        .eq('mois', cm)
+        .eq('annee', cy)
+        .maybeSingle()
+
+      if (!existingOcc) {
+        const { data: cashEntry } = await db
+          .from('cash_entries')
+          .select('id')
+          .ilike('client_name', r.client)
+          .eq('year', cy)
+          .eq('month', cm)
+          .limit(1)
+          .maybeSingle()
+
+        await db.from('recurring_occurrences').insert({
+          recurring_deal_id: existingDeal.id,
+          mois:              cm,
+          annee:             cy,
+          date_attendue:     r.originalDate,
+          montant_attendu:   montant,
+          recu:              collecte > 0,
+          montant_recu:      collecte > 0 ? collecte : null,
+          date_recue:        collecte > 0 ? r.originalDate : null,
+          cash_entry_id:     cashEntry?.id ?? null,
+        })
+
+        // Auto-deactivate if all versements now received
+        if (existingDeal.versements_total) {
+          const { data: allOccs } = await db
+            .from('recurring_occurrences')
+            .select('recu')
+            .eq('recurring_deal_id', existingDeal.id)
+          if (allOccs && allOccs.length >= existingDeal.versements_total && allOccs.every(o => o.recu)) {
+            await db.from('recurring_deals').update({ actif: false }).eq('id', existingDeal.id)
+          }
+        }
+      }
+
+      count++
+      continue
+    }
+
+    // No existing deal — first import for this client, create deal + occurrences
     const inferred = montant > 0 ? Math.round(4000 / montant) : 2
     const versementsTotal = (inferred === 2 || inferred === 3) ? inferred : 2
 
@@ -338,7 +396,7 @@ export async function importerRecurringDeals(rows: RecurringDealRow[]) {
 
     if (error || !deal) continue
 
-    // Generate exactly versementsTotal occurrences starting from originalDate
+    // Generate occurrences up to and including the collect month
     const start = new Date(r.originalDate + 'T00:00:00')
     const baseDay = start.getDate()
     const occs: object[] = []
@@ -355,12 +413,10 @@ export async function importerRecurringDeals(rows: RecurringDealRow[]) {
       const occAnnee = d.getFullYear()
       const dateAttendue = d.toISOString().split('T')[0]
 
-      const isBeforeCollect = occAnnee < collectYear || (occAnnee === collectYear && occMois < collectMonth)
-      const isCollectMonth  = occAnnee === collectYear && occMois === collectMonth
+      const isBeforeCollect = occAnnee < cy || (occAnnee === cy && occMois < cm)
+      const isCollectMonth  = occAnnee === cy && occMois === cm
 
-      // Skip future occurrences — user adds them manually when they come in
       if (!isBeforeCollect && !isCollectMonth) continue
-
       if (isCollectMonth) collectMonthDateAttendue = dateAttendue
 
       occs.push({
@@ -384,8 +440,8 @@ export async function importerRecurringDeals(rows: RecurringDealRow[]) {
         .from('cash_entries')
         .select('id')
         .ilike('client_name', r.client)
-        .eq('year', collectYear)
-        .eq('month', collectMonth)
+        .eq('year', cy)
+        .eq('month', cm)
         .limit(1)
         .maybeSingle()
 
@@ -393,8 +449,8 @@ export async function importerRecurringDeals(rows: RecurringDealRow[]) {
         await db.from('recurring_occurrences')
           .update({ cash_entry_id: cashEntry.id })
           .eq('recurring_deal_id', deal.id)
-          .eq('mois', collectMonth)
-          .eq('annee', collectYear)
+          .eq('mois', cm)
+          .eq('annee', cy)
       }
     }
 

@@ -91,71 +91,115 @@ function normalizeSource(s: string): string {
 interface ParsedDca {
   cashRows:        CashImportRow[]
   recurringRows:   RecurringDealRow[]
+  fileYear:        number
+  fileMonth:       number
 }
 
 function parseDcaNative(rawRows: string[][]): ParsedDca | null {
   if (rawRows.length < 4) return null
-  // Row index 2 should be the actual header row: Date, Nom, Montant courant, ...
-  const header = rawRows[2]
-  if (header[0]?.toLowerCase() !== 'date' || !header[2]?.toLowerCase().includes('montant')) return null
 
   const cashRows:      CashImportRow[]    = []
   const recurringRows: RecurringDealRow[] = []
-  let isRec     = false
-  let fileMonth = '' // e.g. "2026-06", detected from first parseable date
+  let fileMonth = ''
 
-  for (let i = 3; i < rawRows.length; i++) {
+  // ── Format 1: Collect - PLATEFORME ──────────────────────────────────
+  // Row 2 is a header row with "date" in col[0] and "montant" in col[2]
+  const row2 = rawRows[2]
+  if (row2[0]?.toLowerCase() === 'date' && row2[2]?.toLowerCase().includes('montant')) {
+    let isRec = false
+
+    for (let i = 3; i < rawRows.length; i++) {
+      const row  = rawRows[i]
+      const col0 = (row[0] || '').trim()
+
+      if (col0.toLowerCase().startsWith('récurrent')) { isRec = true; continue }
+      if (!col0 || col0.toLowerCase().startsWith('total')) continue
+
+      const parsedDate = parseFrenchDate(col0)
+      if (!parsedDate) continue
+      if (!fileMonth) fileMonth = parsedDate.slice(0, 7)
+
+      const montant  = parseCaAmount(row[2])
+      const collecte = isRec
+        ? ((row[3] || '').trim().toUpperCase() === 'TRUE' ? montant : 0)
+        : (parseFloat(row[3] || '0') || 0)
+
+      const entryDate = (isRec && fileMonth && !parsedDate.startsWith(fileMonth))
+        ? fileMonth + '-01'
+        : parsedDate
+
+      if (!isRec || collecte > 0) {
+        cashRows.push({
+          date:       entryDate,
+          client:     (row[1] || '').trim(),
+          montant:    isRec ? '0' : String(montant),
+          collecte:   String(collecte),
+          methode:    (row[4] || '').trim(),
+          type_close: isRec ? 'recurring' : 'on_the_spot',
+          closer:     (row[6] || '').trim(),
+          setter:     (row[5] || '').trim(),
+          source:     normalizeSource(row[10]),
+          notes:      (row[7] || '').trim(),
+        })
+      }
+
+      if (isRec) {
+        recurringRows.push({
+          originalDate: parsedDate,
+          client:       (row[1] || '').trim(),
+          montant:      String(montant),
+          collecte:     String(collecte),
+          methode:      (row[4] || '').trim(),
+          closer:       (row[6] || '').trim(),
+          setter:       (row[5] || '').trim(),
+          notes:        (row[7] || '').trim(),
+        })
+      }
+    }
+
+    const [fy, fm] = fileMonth ? fileMonth.split('-').map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1]
+    return (cashRows.length > 0 || recurringRows.length > 0) ? { cashRows, recurringRows, fileYear: fy, fileMonth: fm } : null
+  }
+
+  // ── Format 2: RECCURING - PLATEFORME (recurring-only export) ────────
+  // Has a row starting with "Récurrent à collecter en [month]" as the header,
+  // followed directly by data rows. col[5]=closer, col[6]=setter (reversed vs Format 1).
+  let dataStartIdx = -1
+  for (let i = 0; i < rawRows.length; i++) {
+    if ((rawRows[i][0] || '').trim().toLowerCase().startsWith('récurrent')) {
+      dataStartIdx = i + 1
+      break
+    }
+  }
+
+  if (dataStartIdx === -1) return null
+
+  for (let i = dataStartIdx; i < rawRows.length; i++) {
     const row  = rawRows[i]
     const col0 = (row[0] || '').trim()
-
-    if (col0.toLowerCase().startsWith('récurrent')) { isRec = true; continue }
-    if (!col0 || col0.toLowerCase().startsWith('total')) continue
+    if (!col0) continue
 
     const parsedDate = parseFrenchDate(col0)
     if (!parsedDate) continue
     if (!fileMonth) fileMonth = parsedDate.slice(0, 7)
 
-    const montant = parseCaAmount(row[2])
+    const montant  = parseCaAmount(row[2])
+    const collecte = (row[3] || '').trim().toUpperCase() === 'TRUE' ? montant : 0
 
-    // Current deals: col[3] is numeric collected amount
-    // Recurring: col[3] is "TRUE"/"FALSE" — TRUE means full montant collected
-    const collecte = isRec
-      ? ((row[3] || '').trim().toUpperCase() === 'TRUE' ? montant : 0)
-      : (parseFloat(row[3] || '0') || 0)
-
-    // Recurring entries from prior months count in the file's month
-    const entryDate = (isRec && fileMonth && !parsedDate.startsWith(fileMonth))
-      ? fileMonth + '-01'
-      : parsedDate
-
-    cashRows.push({
-      date:       entryDate,
-      client:     (row[1] || '').trim(),
-      montant:    isRec ? '0' : String(montant),  // recurring = no new revenue
-      collecte:   String(collecte),
-      methode:    (row[4] || '').trim(),
-      type_close: isRec ? 'recurring' : 'on_the_spot',
-      closer:     (row[6] || '').trim(),
-      setter:     (row[5] || '').trim(),
-      source:     normalizeSource(row[10]),
-      notes:      (row[7] || '').trim(),
+    recurringRows.push({
+      originalDate: parsedDate,
+      client:       (row[1] || '').trim(),
+      montant:      String(montant),
+      collecte:     String(collecte),
+      methode:      (row[4] || '').trim(),
+      closer:       (row[5] || '').trim(),
+      setter:       (row[6] || '').trim(),
+      notes:        (row[7] || '').trim(),
     })
-
-    if (isRec) {
-      recurringRows.push({
-        originalDate: parsedDate,  // real original date (for day-of-month)
-        client:       (row[1] || '').trim(),
-        montant:      String(montant),
-        collecte:     String(collecte),
-        methode:      (row[4] || '').trim(),
-        closer:       (row[6] || '').trim(),
-        setter:       (row[5] || '').trim(),
-        notes:        (row[7] || '').trim(),
-      })
-    }
   }
 
-  return cashRows.length > 0 ? { cashRows, recurringRows } : null
+  const [fy, fm] = fileMonth ? fileMonth.split('-').map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1]
+  return (cashRows.length > 0 || recurringRows.length > 0) ? { cashRows, recurringRows, fileYear: fy, fileMonth: fm } : null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -176,6 +220,8 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'deals' | 'perfs'>('deals')
   const [rows, setRows] = useState<Record<string, string>[]>([])
   const [recurringRows, setRecurringRows] = useState<RecurringDealRow[]>([])
+  const [fileCollectYear, setFileCollectYear] = useState(0)
+  const [fileCollectMonth, setFileCollectMonth] = useState(0)
   const [fileName, setFileName] = useState('')
   const [isDcaNative, setIsDcaNative] = useState(false)
   const [error, setError] = useState('')
@@ -221,6 +267,8 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
           if (parsed) {
             setRows(parsed.cashRows as unknown as Record<string, string>[])
             setRecurringRows(parsed.recurringRows)
+            setFileCollectYear(parsed.fileYear)
+            setFileCollectMonth(parsed.fileMonth)
             setIsDcaNative(true)
           } else {
             parseStandardDeals(file)
@@ -261,7 +309,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
           const result = await importerCashEntries(rows as unknown as CashImportRow[])
           let msg = `${result.count} deal${result.count > 1 ? 's' : ''} importée${result.count > 1 ? 's' : ''} avec succès.`
           if (recurringRows.length > 0) {
-            const recResult = await importerRecurringDeals(recurringRows)
+            const recResult = await importerRecurringDeals(recurringRows, fileCollectYear, fileCollectMonth)
             msg += ` ${recResult.count} deal${recResult.count > 1 ? 's' : ''} récurrent${recResult.count > 1 ? 's' : ''} créé${recResult.count > 1 ? 's' : ''} dans la page Récurrents.`
           }
           setSuccess(msg)
@@ -299,7 +347,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
             {(['deals', 'perfs'] as const).map((t, i) => (
               <button
                 key={t}
-                onClick={() => { setTab(t); setRows([]); setRecurringRows([]); setFileName(''); setError(''); setSuccess(''); setIsDcaNative(false) }}
+                onClick={() => { setTab(t); setRows([]); setRecurringRows([]); setFileCollectYear(0); setFileCollectMonth(0); setFileName(''); setError(''); setSuccess(''); setIsDcaNative(false) }}
                 className={cn(
                   'px-4 py-2 font-medium transition-colors',
                   i > 0 ? 'border-l border-gray-200' : '',
