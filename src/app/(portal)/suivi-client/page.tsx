@@ -23,9 +23,9 @@ export default async function SuiviClientPage() {
   const db = createAdminClient()
 
   if (role === 'closer') {
-    const [{ data: followups }, { data: prospects }] = await Promise.all([
+    const [{ data: followupsRaw }, { data: prospects }] = await Promise.all([
       db.from('client_followups')
-        .select('*')
+        .select('*, cash_entries(close_type, notes)')
         .eq('closer_id', user.id)
         .order('close_date', { ascending: false }),
       db.from('prospect_followups')
@@ -44,13 +44,22 @@ export default async function SuiviClientPage() {
       doneDate:     p.done_date,
     }))
 
-    return <CloserFollowupView followups={followups ?? []} prospects={prospectItems} />
+    const followups = (followupsRaw ?? []).filter(f => {
+      const ce = f.cash_entries as { close_type: string | null; notes: string | null } | null
+      if (!ce) return true
+      if (ce.close_type === 'recurring') return false
+      if (ce.notes?.startsWith('Récurrent')) return false
+      if (ce.notes?.startsWith('Versement')) return false
+      return true
+    })
+
+    return <CloserFollowupView followups={followups} prospects={prospectItems} />
   }
 
   // admin / csm
-  const [{ data: followups }, { data: profiles }, { data: allProspects }] = await Promise.all([
+  const [{ data: followupsRaw }, { data: profiles }, { data: allProspects }] = await Promise.all([
     db.from('client_followups')
-      .select('*')
+      .select('*, cash_entries(close_type, notes)')
       .order('close_date', { ascending: false }),
     db.from('profiles')
       .select('id, full_name')
@@ -70,9 +79,18 @@ export default async function SuiviClientPage() {
     doneDate:     p.done_date,
   }))
 
+  const followups = (followupsRaw ?? []).filter(f => {
+    const ce = f.cash_entries as { close_type: string | null; notes: string | null } | null
+    if (!ce) return true
+    if (ce.close_type === 'recurring') return false
+    if (ce.notes?.startsWith('Récurrent')) return false
+    if (ce.notes?.startsWith('Versement')) return false
+    return true
+  })
+
   return (
     <AdminFollowupView
-      followups={followups ?? []}
+      followups={followups}
       profiles={profiles ?? []}
       prospects={adminProspects}
     />
