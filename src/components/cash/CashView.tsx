@@ -795,17 +795,17 @@ export default function CashView({
       {/* KPI annuels */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <KpiCard
-          title="Montant total"
-          value={dollar(totaux.montant)}
-          icon={DollarSign}
-          color="green"
-          subtitle={`${filtrees.length} transactions`}
-        />
-        <KpiCard
           title="Cash collecté"
           value={dollar(totaux.collected)}
           icon={Wallet}
           color="blue"
+          subtitle={`${filtrees.length} transactions`}
+        />
+        <KpiCard
+          title="Revenue total"
+          value={dollar(totaux.montant)}
+          icon={DollarSign}
+          color="green"
           subtitle={`${pctCollecte} % encaissé`}
         />
         <KpiCard
