@@ -12,7 +12,7 @@ import Modal           from '@/components/ui/Modal'
 import PageHeader      from '@/components/layout/PageHeader'
 import {
   creerRecurringDeal, marquerRecu, annulerRecu,
-  desactiverDeal, reactiverDeal,
+  desactiverDeal, reactiverDeal, encaisserProchainVersement,
 } from '@/app/(portal)/recurrents/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -298,10 +298,24 @@ function DealCard({ deal, profileMap, isAdmin }: {
   const closerNom = deal.closer_id ? (profileMap.get(deal.closer_id) ?? '—') : null
   const setterNom = deal.setter_id ? (profileMap.get(deal.setter_id) ?? '—') : null
 
-  const reçues       = deal.recurring_occurrences.filter(o => o.recu)
-  const total        = reçues.reduce((s, o) => s + (o.montant_recu ?? 0), 0)
-  const nTotal       = deal.versements_total ?? deal.recurring_occurrences.length
-  const versProgress = `${reçues.length}/${nTotal} versement${nTotal > 1 ? 's' : ''}`
+  const reçues         = deal.recurring_occurrences.filter(o => o.recu)
+  const total          = reçues.reduce((s, o) => s + (o.montant_recu ?? 0), 0)
+  const nTotal         = deal.versements_total ?? deal.recurring_occurrences.length
+  const versProgress   = `${reçues.length}/${nTotal} versement${nTotal > 1 ? 's' : ''}`
+  const hasNextVers    = reçues.length < nTotal
+  const nextVersNum    = reçues.length + 1
+  const [encaisserOpen, setEncaisserOpen]   = useState(false)
+  const [encaisserMontant, setEncaisserMontant] = useState(String(deal.montant_mensuel))
+  const [encaisserPending, startEncaisser]  = useTransition()
+
+  function handleEncaisser() {
+    const val = Number(encaisserMontant)
+    if (!val || val <= 0) return
+    startEncaisser(async () => {
+      await encaisserProchainVersement(deal.id, val)
+      setEncaisserOpen(false)
+    })
+  }
 
   function handleToggleActif() {
     startTransition(async () => {
@@ -345,6 +359,15 @@ function DealCard({ deal, profileMap, isAdmin }: {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {deal.actif && hasNextVers && (
+            <button
+              onClick={() => setEncaisserOpen(v => !v)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors"
+            >
+              <CheckCircle2 size={11} />
+              Versement {nextVersNum}
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={handleToggleActif} disabled={pending}
@@ -366,6 +389,32 @@ function DealCard({ deal, profileMap, isAdmin }: {
           </button>
         </div>
       </div>
+
+      {/* Encaisser prochain versement — inline panel */}
+      {encaisserOpen && (
+        <div className="border-t border-violet-100 bg-violet-50/40 px-5 py-3 flex items-center gap-3">
+          <span className="text-sm text-violet-700 font-medium shrink-0">
+            Versement {nextVersNum}/{nTotal} —
+          </span>
+          <input
+            type="number" value={encaisserMontant}
+            onChange={e => setEncaisserMontant(e.target.value)}
+            min="0" step="0.01"
+            className="w-32 px-2.5 py-1.5 rounded-lg border border-violet-200 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+          />
+          <span className="text-sm text-gray-400">$</span>
+          <button
+            onClick={handleEncaisser} disabled={encaisserPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+          >
+            <CheckCircle2 size={12} />
+            {encaisserPending ? 'Enregistrement…' : 'Encaisser'}
+          </button>
+          <button onClick={() => setEncaisserOpen(false)} className="text-gray-300 hover:text-gray-500 ml-auto">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {ouvert && (
         <div className="border-t border-gray-50 overflow-x-auto">

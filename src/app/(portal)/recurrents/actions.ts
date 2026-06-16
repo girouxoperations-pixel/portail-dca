@@ -174,6 +174,98 @@ export async function annulerRecu(occurrenceId: string) {
   revalidatePath('/payes')
 }
 
+export async function encaisserProchainVersement(dealId: string, montant: number) {
+  const { userId } = await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { data: deal } = await db
+    .from('recurring_deals')
+    .select('*, recurring_occurrences(*)')
+    .eq('id', dealId)
+    .single()
+
+  if (!deal) throw new Error('Deal introuvable')
+
+  const occs = (deal.recurring_occurrences ?? []) as { mois: number; annee: number; date_attendue: string }[]
+  if (occs.length === 0) throw new Error('Aucune occurrence existante')
+
+  // Find the last occurrence to compute the next month
+  const last = occs.sort((a, b) => a.date_attendue.localeCompare(b.date_attendue)).at(-1)!
+  const lastDate = new Date(last.date_attendue + 'T00:00:00')
+  lastDate.setMonth(lastDate.getMonth() + 1)
+  const nextMois  = lastDate.getMonth() + 1
+  const nextAnnee = lastDate.getFullYear()
+  const nextDate  = lastDate.toISOString().split('T')[0]
+  const [year, month] = [nextAnnee, nextMois]
+
+  // Create cash entry
+  const { data: cashEntry, error: cashErr } = await db
+    .from('cash_entries')
+    .insert({
+      entry_date:      nextDate,
+      client_name:     deal.client_name,
+      montant_courant: 0,
+      collected:       montant,
+      closed_by:       deal.closer_id,
+      set_by:          deal.setter_id,
+      close_type:      'recurring',
+      month,
+      year,
+      notes:           `Versement — entente ${deal.client_name}`,
+      created_by:      userId,
+    })
+    .select('id')
+    .single()
+
+  if (cashErr || !cashEntry) throw new Error(cashErr?.message ?? 'Erreur cash entry')
+
+  // Create paye entry
+  await db.from('paye_entries').insert({
+    cash_entry_id:     cashEntry.id,
+    period_label:      periodLabel(nextDate),
+    month,
+    year,
+    client_name:       deal.client_name,
+    closer_id:         deal.closer_id,
+    setter_id:         deal.setter_id,
+    montant:           0,
+    commission:        Math.round(montant * TAUX_CLOSER * 100) / 100,
+    commission_setter: Math.round(montant * TAUX_SETTER * 100) / 100,
+    statut:            'En attente',
+    notes:             'Versement récurrent',
+    created_by:        userId,
+  })
+
+  // Create occurrence and mark as received
+  const { data: occ, error: occErr } = await db
+    .from('recurring_occurrences')
+    .insert({
+      recurring_deal_id: dealId,
+      mois:              nextMois,
+      annee:             nextAnnee,
+      date_attendue:     nextDate,
+      montant_attendu:   deal.montant_mensuel,
+      recu:              true,
+      montant_recu:      montant,
+      date_recue:        nextDate,
+      cash_entry_id:     cashEntry.id,
+    })
+    .select('id')
+    .single()
+
+  if (occErr) throw new Error(occErr.message)
+
+  // Auto-deactivate if versements_total reached
+  const totalRecu = occs.length + 1
+  if (deal.versements_total && totalRecu >= deal.versements_total) {
+    await db.from('recurring_deals').update({ actif: false }).eq('id', dealId)
+  }
+
+  revalidatePath('/recurrents')
+  revalidatePath('/cash')
+  revalidatePath('/payes')
+}
+
 export async function desactiverDeal(id: string) {
   await requireRole(['admin'])
   const db = createAdminClient()

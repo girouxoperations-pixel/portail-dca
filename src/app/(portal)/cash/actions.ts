@@ -358,6 +358,9 @@ export async function importerRecurringDeals(rows: RecurringDealRow[]) {
       const isBeforeCollect = occAnnee < collectYear || (occAnnee === collectYear && occMois < collectMonth)
       const isCollectMonth  = occAnnee === collectYear && occMois === collectMonth
 
+      // Skip future occurrences — user adds them manually when they come in
+      if (!isBeforeCollect && !isCollectMonth) continue
+
       if (isCollectMonth) collectMonthDateAttendue = dateAttendue
 
       occs.push({
@@ -366,8 +369,6 @@ export async function importerRecurringDeals(rows: RecurringDealRow[]) {
         annee:             occAnnee,
         date_attendue:     dateAttendue,
         montant_attendu:   montant,
-        // Prior months: mark as received (they must have paid to still be active)
-        // Current month: mark as received only if collecte > 0
         recu:        isBeforeCollect || (isCollectMonth && collecte > 0),
         montant_recu: isBeforeCollect ? montant : (isCollectMonth && collecte > 0 ? collecte : null),
         date_recue:   isBeforeCollect ? dateAttendue : (isCollectMonth && collecte > 0 ? dateAttendue : null),
