@@ -507,17 +507,17 @@ export default function CashCollectView({
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <MetricCard
+          label="Total cash collecté"
+          value={dollar(totalCollecte)}
+          icon={Wallet}
+          color="blue"
+          sub={`${deals.length} deal${deals.length !== 1 ? 's' : ''} · ${recurrents.length} récurrent${recurrents.length !== 1 ? 's' : ''}`}
+        />
+        <MetricCard
           label="Deals — montant"
           value={dollar(totauxDeals.montant)}
           icon={Zap}
           color="green"
-          sub={`${deals.length} deal${deals.length !== 1 ? 's' : ''}`}
-        />
-        <MetricCard
-          label="Deals — collecté"
-          value={dollar(totauxDeals.collected)}
-          icon={Wallet}
-          color="blue"
           sub={totauxDeals.montant > 0 ? `${Math.round(totauxDeals.collected / totauxDeals.montant * 100)} % encaissé` : '—'}
         />
         <MetricCard
