@@ -545,7 +545,7 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
               <th className="px-4 py-3 text-left min-w-[160px]">Client</th>
               <th className="px-4 py-3 text-right min-w-[100px]">Cash reçu</th>
               {personCols.map(p => (
-                <th key={p.id} className="px-4 py-3 text-right min-w-[100px]">
+                <th key={`${p.id}-${p.role}`} className="px-4 py-3 text-right min-w-[100px]">
                   <span>{p.nom.split(' ')[0]}</span>
                   <span className={cn(
                     'ml-1 text-[9px] font-bold px-1 py-px rounded uppercase',
@@ -570,11 +570,11 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
                   <td className="px-4 py-3 font-medium text-gray-800 max-w-[180px] truncate">{e.client_name}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(collected)}</td>
                   {personCols.map(p => {
-                    const comm = e.closer_id === p.id ? e.commission
-                               : e.setter_id === p.id ? e.commission_setter
+                    const comm = (p.role === 'closer' && e.closer_id === p.id) ? e.commission
+                               : (p.role === 'setter' && e.setter_id === p.id) ? e.commission_setter
                                : null
                     return (
-                      <td key={p.id} className={cn(
+                      <td key={`${p.id}-${p.role}`} className={cn(
                         'px-4 py-3 text-right tabular-nums',
                         comm && comm > 0
                           ? p.role === 'closer' ? 'font-medium text-violet-700' : 'font-medium text-blue-700'
@@ -631,7 +631,7 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
                 {dollar(totaux.totalCollected)}
               </td>
               {personCols.map(p => (
-                <td key={p.id} className={cn(
+                <td key={`${p.id}-${p.role}`} className={cn(
                   'px-4 py-3 text-right tabular-nums',
                   p.role === 'closer' ? 'text-violet-700' : 'text-blue-700',
                 )}>
