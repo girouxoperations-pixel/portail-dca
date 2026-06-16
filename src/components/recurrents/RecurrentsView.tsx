@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import {
   Plus, ChevronLeft, ChevronRight, CheckCircle2,
-  ChevronDown, ChevronUp, RefreshCw, X,
+  ChevronDown, ChevronUp, RefreshCw, X, Pencil,
 } from 'lucide-react'
 import { cn }          from '@/lib/utils'
 import { dollar, MOIS_FR, formatDate } from '@/lib/constants'
@@ -169,17 +169,38 @@ function ModalNouveauDeal({ profiles, onClose }: {
 
 // ── Ligne d'occurrence ────────────────────────────────────────────────
 
-function OccurrenceRow({ occ, deal, profileMap, isAdmin }: {
+function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   occ:        Occurrence
   deal:       Deal
   profileMap: Map<string, string>
+  profiles:   Profile[]
   isAdmin:    boolean
 }) {
   const [amount, setAmount]        = useState(String(occ.montant_attendu))
+  const [editOpen, setEditOpen]    = useState(false)
   const [pending, startTransition] = useTransition()
+
+  const closers = profiles.filter(p => p.role === 'closer')
+  const setters = profiles.filter(p => p.role === 'setter')
 
   const closerNom = deal.closer_id ? (profileMap.get(deal.closer_id) ?? '—') : null
   const setterNom = deal.setter_id ? (profileMap.get(deal.setter_id) ?? '—') : null
+
+  function handleSaveEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    startTransition(async () => {
+      await modifierRecurringDeal(deal.id, {
+        client_name:      fd.get('client_name') as string,
+        closer_id:        (fd.get('closer_id') as string) || null,
+        setter_id:        (fd.get('setter_id') as string) || null,
+        montant_mensuel:  Number(fd.get('montant_mensuel')),
+        versements_total: fd.get('versements_total') ? Number(fd.get('versements_total')) : null,
+        notes:            (fd.get('notes') as string) || null,
+      })
+      setEditOpen(false)
+    })
+  }
 
   // Calcul du délai en jours
   const today    = new Date(); today.setHours(0,0,0,0)
@@ -212,77 +233,141 @@ function OccurrenceRow({ occ, deal, profileMap, isAdmin }: {
   }
 
   return (
-    <tr className={cn(
-      'border-b border-gray-50 transition-colors',
-      urgency === 'overdue' ? 'bg-violet-50/40'
-      : urgency === 'today'   ? 'bg-violet-50/20'
-      : occ.recu              ? 'bg-green-50/40'
-      : 'hover:bg-gray-50/50',
-    )}>
-      <td className="px-4 py-3">
-        <p className="font-medium text-gray-800 text-sm">{deal.client_name}</p>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          {closerNom && <span className="text-[11px] text-violet-700 font-medium">{closerNom}</span>}
-          {closerNom && setterNom && <span className="text-gray-300 text-[10px]">·</span>}
-          {setterNom && <span className="text-[11px] text-blue-600">{setterNom}</span>}
-        </div>
-      </td>
-
-      {/* Date de contact */}
-      <td className="px-4 py-3">
-        {!occ.recu ? (
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-semibold text-gray-800">{formatDate(occ.date_attendue)}</span>
-            {urgencyBadge}
-          </div>
-        ) : (
-          <span className="text-xs text-gray-400">{formatDate(occ.date_attendue)}</span>
-        )}
-      </td>
-
-      {!occ.recu ? (
-        <>
-          <td className="px-4 py-3">
-            <input
-              type="number" value={amount} onChange={e => setAmount(e.target.value)}
-              min="0" step="0.01"
-              className="w-28 px-2 py-1 rounded border border-gray-200 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500"
-            />
-          </td>
-          <td className="px-4 py-3 text-right">
-            <button
-              onClick={handleMarquer} disabled={pending}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 ml-auto"
-            >
-              <CheckCircle2 size={12} />
-              {pending ? 'Enregistrement…' : 'Marquer reçu'}
+    <>
+      <tr className={cn(
+        'border-b border-gray-50 transition-colors',
+        urgency === 'overdue' ? 'bg-violet-50/40'
+        : urgency === 'today'   ? 'bg-violet-50/20'
+        : occ.recu              ? 'bg-green-50/40'
+        : 'hover:bg-gray-50/50',
+      )}>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setEditOpen(v => !v)} className="font-medium text-gray-800 text-sm hover:text-violet-600 transition-colors text-left">
+              {deal.client_name}
             </button>
-          </td>
-        </>
-      ) : (
-        <>
-          <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">
-            {dollar(occ.montant_recu ?? 0)}
-          </td>
-          <td className="px-4 py-3">
-            <div className="flex items-center gap-3 justify-end">
-              <div className="flex items-center gap-1.5 text-green-600 text-xs font-medium">
-                <CheckCircle2 size={13} />
-                {occ.date_recue ? formatDate(occ.date_recue) : 'Reçu'}
-              </div>
-              {isAdmin && (
-                <button
-                  onClick={handleAnnuler} disabled={pending}
-                  className="text-[11px] text-gray-300 hover:text-red-400 transition-colors"
-                >
-                  Annuler
-                </button>
-              )}
+            <button onClick={() => setEditOpen(v => !v)} className="text-gray-300 hover:text-violet-500 transition-colors">
+              <Pencil size={11} />
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {closerNom && <span className="text-[11px] text-violet-700 font-medium">{closerNom}</span>}
+            {closerNom && setterNom && <span className="text-gray-300 text-[10px]">·</span>}
+            {setterNom && <span className="text-[11px] text-blue-600">{setterNom}</span>}
+          </div>
+        </td>
+
+        {/* Date de contact */}
+        <td className="px-4 py-3">
+          {!occ.recu ? (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-gray-800">{formatDate(occ.date_attendue)}</span>
+              {urgencyBadge}
             </div>
+          ) : (
+            <span className="text-xs text-gray-400">{formatDate(occ.date_attendue)}</span>
+          )}
+        </td>
+
+        {!occ.recu ? (
+          <>
+            <td className="px-4 py-3">
+              <input
+                type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                min="0" step="0.01"
+                className="w-28 px-2 py-1 rounded border border-gray-200 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500"
+              />
+            </td>
+            <td className="px-4 py-3 text-right">
+              <button
+                onClick={handleMarquer} disabled={pending}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 ml-auto"
+              >
+                <CheckCircle2 size={12} />
+                {pending ? 'Enregistrement…' : 'Marquer reçu'}
+              </button>
+            </td>
+          </>
+        ) : (
+          <>
+            <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">
+              {dollar(occ.montant_recu ?? 0)}
+            </td>
+            <td className="px-4 py-3">
+              <div className="flex items-center gap-3 justify-end">
+                <div className="flex items-center gap-1.5 text-green-600 text-xs font-medium">
+                  <CheckCircle2 size={13} />
+                  {occ.date_recue ? formatDate(occ.date_recue) : 'Reçu'}
+                </div>
+                {isAdmin && (
+                  <button
+                    onClick={handleAnnuler} disabled={pending}
+                    className="text-[11px] text-gray-300 hover:text-red-400 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                )}
+              </div>
+            </td>
+          </>
+        )}
+      </tr>
+      {editOpen && (
+        <tr>
+          <td colSpan={4} className="px-4 pb-3 pt-0">
+            <form onSubmit={handleSaveEdit} className="bg-blue-50/40 rounded-lg p-3 space-y-3 border border-blue-100">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Modifier l&apos;entente</p>
+                <button type="button" onClick={() => setEditOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={14} /></button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Client</label>
+                  <input name="client_name" defaultValue={deal.client_name} required className={INPUT + ' text-sm'} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Montant / versement ($)</label>
+                  <input name="montant_mensuel" type="number" step="0.01" min="0" defaultValue={deal.montant_mensuel} required className={INPUT + ' text-sm'} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Closer</label>
+                  <select name="closer_id" defaultValue={deal.closer_id ?? ''} className={INPUT + ' text-sm'}>
+                    <option value="">— Aucun —</option>
+                    {closers.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Setter</label>
+                  <select name="setter_id" defaultValue={deal.setter_id ?? ''} className={INPUT + ' text-sm'}>
+                    <option value="">— Aucun —</option>
+                    {setters.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Nb versements</label>
+                  <select name="versements_total" defaultValue={deal.versements_total ?? ''} className={INPUT + ' text-sm'}>
+                    <option value="">—</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Notes</label>
+                  <input name="notes" defaultValue={deal.notes ?? ''} className={INPUT + ' text-sm'} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setEditOpen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Annuler</button>
+                <button type="submit" disabled={pending}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+                  {pending ? 'Enregistrement…' : 'Sauvegarder'}
+                </button>
+              </div>
+            </form>
           </td>
-        </>
+        </tr>
       )}
-    </tr>
+    </>
   )
 }
 
@@ -729,7 +814,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
                 </thead>
                 <tbody>
                   {enRetard.map(({ occ, deal }) => (
-                    <OccurrenceRow key={occ.id} occ={occ} deal={deal} profileMap={profileMap} isAdmin={isAdmin} />
+                    <OccurrenceRow key={occ.id} occ={occ} deal={deal} profileMap={profileMap} profiles={profiles} isAdmin={isAdmin} />
                   ))}
                 </tbody>
               </table>
@@ -766,7 +851,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
                 </thead>
                 <tbody>
                   {occsSemaine.map(({ occ, deal }) => (
-                    <OccurrenceRow key={occ.id} occ={occ} deal={deal} profileMap={profileMap} isAdmin={isAdmin} />
+                    <OccurrenceRow key={occ.id} occ={occ} deal={deal} profileMap={profileMap} profiles={profiles} isAdmin={isAdmin} />
                   ))}
                 </tbody>
               </table>
@@ -803,7 +888,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
                 </thead>
                 <tbody>
                   {curMoisFilter.map(({ occ, deal }) => (
-                    <OccurrenceRow key={occ.id} occ={occ} deal={deal} profileMap={profileMap} isAdmin={isAdmin} />
+                    <OccurrenceRow key={occ.id} occ={occ} deal={deal} profileMap={profileMap} profiles={profiles} isAdmin={isAdmin} />
                   ))}
                 </tbody>
               </table>
@@ -848,6 +933,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
                     occ={occ}
                     deal={deal}
                     profileMap={profileMap}
+                    profiles={profiles}
                     isAdmin={isAdmin}
                   />
                 ))}
@@ -923,6 +1009,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
                     occ={occ}
                     deal={deal}
                     profileMap={profileMap}
+                    profiles={profiles}
                     isAdmin={isAdmin}
                   />
                 ))}
