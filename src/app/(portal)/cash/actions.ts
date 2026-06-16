@@ -3,6 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { periodLabel }       from '@/lib/payroll'
+
+const TAUX_CLOSER = 0.10
+const TAUX_SETTER = 0.05
 
 // ── Auth guard ──────────────────────────────────────────────────────
 
@@ -235,12 +239,44 @@ export async function importerCashEntries(rows: CashImportRow[]) {
   if (entries.length === 0) throw new Error('Aucune ligne valide trouvée')
 
   const CHUNK = 100
+  const insertedEntries: { id: string; entry_date: string; client_name: string | null; montant_courant: number; collected: number; closed_by: string | null; set_by: string | null; month: number | null; year: number | null }[] = []
+
   for (let i = 0; i < entries.length; i += CHUNK) {
-    const { error } = await db.from('cash_entries').insert(entries.slice(i, i + CHUNK))
+    const { data, error } = await db
+      .from('cash_entries')
+      .insert(entries.slice(i, i + CHUNK))
+      .select('id, entry_date, client_name, montant_courant, collected, closed_by, set_by, month, year')
     if (error) throw new Error(error.message)
+    if (data) insertedEntries.push(...data)
+  }
+
+  // Create paye_entries for all inserted deals that have a collected amount
+  const payeRows = insertedEntries
+    .filter(e => e.collected > 0 && (e.closed_by || e.set_by))
+    .map(e => ({
+      cash_entry_id:     e.id,
+      period_label:      periodLabel(e.entry_date),
+      month:             e.month,
+      year:              e.year,
+      client_name:       e.client_name ?? 'Client',
+      closer_id:         e.closed_by,
+      setter_id:         e.set_by,
+      montant:           e.montant_courant,
+      commission:        Math.round(e.collected * TAUX_CLOSER * 100) / 100,
+      commission_setter: Math.round(e.collected * TAUX_SETTER * 100) / 100,
+      statut:            'En attente',
+      created_by:        userId,
+    }))
+
+  if (payeRows.length > 0) {
+    for (let i = 0; i < payeRows.length; i += CHUNK) {
+      const { error } = await db.from('paye_entries').insert(payeRows.slice(i, i + CHUNK))
+      if (error) throw new Error(error.message)
+    }
   }
 
   revalidatePath('/cash')
+  revalidatePath('/payes')
   return { count: entries.length }
 }
 
