@@ -266,6 +266,21 @@ export async function encaisserProchainVersement(dealId: string, montant: number
   revalidatePath('/payes')
 }
 
+export async function modifierRecurringDeal(id: string, data: {
+  client_name:      string
+  closer_id:        string | null
+  setter_id:        string | null
+  montant_mensuel:  number
+  versements_total: number | null
+  notes:            string | null
+}) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+  const { error } = await db.from('recurring_deals').update(data).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/recurrents')
+}
+
 export async function desactiverDeal(id: string) {
   await requireRole(['admin'])
   const db = createAdminClient()
