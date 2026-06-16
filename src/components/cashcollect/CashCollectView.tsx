@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown, Zap, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown, Zap, RefreshCw, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   creerCashCollect, modifierCashEntry, supprimerCashCollect,
@@ -52,12 +52,16 @@ const INPUT_CLS =
 // ── Section bonus ──────────────────────────────────────────────────────
 
 function SectionBonus({
-  closers, setters, filtrees,
+  closers, setters, filtrees, onEditEntry,
 }: {
-  closers:  Profil[]
-  setters:  Profil[]
-  filtrees: CashEntry[]
+  closers:     Profil[]
+  setters:     Profil[]
+  filtrees:    CashEntry[]
+  onEditEntry: (entry: CashEntry) => void
 }) {
+  const [selectedId,   setSelectedId]   = useState<string | null>(null)
+  const [selectedRole, setSelectedRole] = useState<'closer' | 'setter' | null>(null)
+
   const closerCash = useMemo(() => {
     const m = new Map<string, number>()
     for (const e of filtrees) {
@@ -82,6 +86,27 @@ function SectionBonus({
     .map(p => ({ id: p.id, nom: p.full_name ?? 'Inconnu', collected: setterCash.get(p.id) ?? 0, palier: getPalier(setterCash.get(p.id) ?? 0) }))
     .sort((a, b) => b.collected - a.collected)
 
+  function handleSelect(id: string, role: 'closer' | 'setter') {
+    if (selectedId === id && selectedRole === role) {
+      setSelectedId(null); setSelectedRole(null)
+    } else {
+      setSelectedId(id); setSelectedRole(role)
+    }
+  }
+
+  const memberDeals = useMemo(() => {
+    if (!selectedId || !selectedRole) return []
+    return filtrees.filter(e =>
+      selectedRole === 'closer' ? e.closed_by === selectedId : e.set_by === selectedId,
+    ).sort((a, b) => (b.entry_date ?? '').localeCompare(a.entry_date ?? ''))
+  }, [filtrees, selectedId, selectedRole])
+
+  const selectedNom = useMemo(() => {
+    if (!selectedId) return null
+    const list = selectedRole === 'closer' ? closers : setters
+    return list.find(p => p.id === selectedId)?.full_name ?? null
+  }, [selectedId, selectedRole, closers, setters])
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-50">
@@ -97,7 +122,11 @@ function SectionBonus({
           {bonusClosers.length === 0
             ? <p className="text-sm text-gray-400 pb-4">Aucune donnée</p>
             : bonusClosers.map(b => (
-                <BonusCard key={b.id} nom={b.nom} collected={b.collected} palier={b.palier} type="closer" />
+                <BonusCard
+                  key={b.id} nom={b.nom} collected={b.collected} palier={b.palier} type="closer"
+                  onClick={() => handleSelect(b.id, 'closer')}
+                  isSelected={selectedId === b.id && selectedRole === 'closer'}
+                />
               ))
           }
         </div>
@@ -106,11 +135,81 @@ function SectionBonus({
           {bonusSetters.length === 0
             ? <p className="text-sm text-gray-400 pb-4">Aucune donnée</p>
             : bonusSetters.map(b => (
-                <BonusCard key={b.id} nom={b.nom} collected={b.collected} palier={b.palier} type="setter" />
+                <BonusCard
+                  key={b.id} nom={b.nom} collected={b.collected} palier={b.palier} type="setter"
+                  onClick={() => handleSelect(b.id, 'setter')}
+                  isSelected={selectedId === b.id && selectedRole === 'setter'}
+                />
               ))
           }
         </div>
       </div>
+
+      {/* ── Drill-down deals du membre ── */}
+      {selectedId && (
+        <div className="border-t border-violet-100 bg-violet-50/20">
+          <div className="px-5 py-3 flex items-center justify-between border-b border-violet-100">
+            <div>
+              <p className="text-sm font-semibold text-violet-800">
+                {selectedNom} — {selectedRole === 'closer' ? 'Closer' : 'Setter'}
+              </p>
+              <p className="text-xs text-violet-500 mt-0.5">
+                {memberDeals.length} deal{memberDeals.length !== 1 ? 's' : ''}
+                {' · '}
+                <span className="font-semibold">{dollar(memberDeals.reduce((s, e) => s + e.collected, 0))}</span> collecté
+              </p>
+            </div>
+            <button onClick={() => { setSelectedId(null); setSelectedRole(null) }} className="text-gray-300 hover:text-gray-500 transition-colors">
+              <X size={14} />
+            </button>
+          </div>
+          {memberDeals.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-gray-400">Aucun deal pour ce membre cette période</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-violet-50/60 text-xs font-medium text-violet-400 uppercase tracking-wide">
+                    <th className="px-4 py-2.5 text-left whitespace-nowrap">Date</th>
+                    <th className="px-4 py-2.5 text-left">Client</th>
+                    <th className="px-4 py-2.5 text-right whitespace-nowrap">Montant ($)</th>
+                    <th className="px-4 py-2.5 text-right whitespace-nowrap">Collecté ($)</th>
+                    <th className="px-4 py-2.5 text-left">Notes</th>
+                    <th className="px-4 py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-violet-50">
+                  {memberDeals.map(e => (
+                    <tr key={e.id} className="hover:bg-violet-50/40 transition-colors">
+                      <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{formatDate(e.entry_date, MOIS_COURT)}</td>
+                      <td className="px-4 py-2.5 font-medium text-gray-800 max-w-[140px] truncate">{e.client_name ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{dollar(e.montant_courant)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-blue-700">{dollar(e.collected)}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          onClick={() => onEditEntry(e)}
+                          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-600 bg-violet-100 hover:bg-violet-200 rounded transition-colors ml-auto"
+                        >
+                          <Pencil size={10} />Modifier
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-violet-100 bg-violet-50/50 font-semibold text-sm">
+                    <td className="px-4 py-2.5 text-xs text-gray-500 uppercase tracking-wide" colSpan={2}>Total</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{dollar(memberDeals.reduce((s, e) => s + e.montant_courant, 0))}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-blue-700">{dollar(memberDeals.reduce((s, e) => s + e.collected, 0))}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -812,7 +911,12 @@ export default function CashCollectView({
         )}
       </div>
 
-      <SectionBonus closers={closers} setters={setters} filtrees={filtrees} />
+      <SectionBonus
+        closers={closers}
+        setters={setters}
+        filtrees={filtrees}
+        onEditEntry={e => setModal({ type: 'edit', entry: e })}
+      />
 
       {modal?.type === 'add' && (
         <ModalAjout closers={closers} setters={setters} onClose={() => setModal(null)} />

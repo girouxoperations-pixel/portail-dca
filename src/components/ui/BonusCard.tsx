@@ -9,10 +9,12 @@ interface Palier {
 }
 
 interface Props {
-  nom:       string
-  collected: number
-  palier:    Palier | null
-  type:      'closer' | 'setter'
+  nom:        string
+  collected:  number
+  palier:     Palier | null
+  type:       'closer' | 'setter'
+  onClick?:   () => void
+  isSelected?: boolean
 }
 
 function BarreProgression({ collected, palier }: { collected: number; palier: Palier | null }) {
@@ -39,18 +41,18 @@ function BarreProgression({ collected, palier }: { collected: number; palier: Pa
   )
 }
 
-export default function BonusCard({ nom, collected, palier, type }: Props) {
+export default function BonusCard({ nom, collected, palier, type, onClick, isSelected }: Props) {
   const bonus = palier ? (type === 'closer' ? palier.closer : palier.setter) : null
 
-  return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+  const inner = (
+    <>
       {bonus !== null
         ? <Trophy size={13} className="text-amber-400 shrink-0" />
         : <Award  size={13} className="text-gray-200 shrink-0" />
       }
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-gray-800 truncate">{nom}</span>
+          <span className={cn('text-sm font-medium truncate', isSelected ? 'text-violet-700' : 'text-gray-800')}>{nom}</span>
           {bonus !== null && (
             <span className="text-xs font-semibold text-amber-600 shrink-0">
               +{dollar(bonus)}
@@ -65,6 +67,26 @@ export default function BonusCard({ nom, collected, palier, type }: Props) {
         </div>
         <BarreProgression collected={collected} palier={palier} />
       </div>
+    </>
+  )
+
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        className={cn(
+          'w-full flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 text-left rounded-lg px-2 -mx-2 transition-colors',
+          isSelected ? 'bg-violet-50' : 'hover:bg-gray-50',
+        )}
+      >
+        {inner}
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+      {inner}
     </div>
   )
 }
