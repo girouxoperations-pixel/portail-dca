@@ -29,8 +29,10 @@ export async function inviterMembre(formData: FormData) {
   if (!email || !fullName || !role) throw new Error('Tous les champs sont requis')
 
   // Envoie un e-mail d'invitation ; le trigger crée le profil avec le bon rôle
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://portail-dca.vercel.app'
   const { error } = await db.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName, role },
+    redirectTo: `${siteUrl}/reset-password`,
   })
   if (error) throw new Error(error.message)
 

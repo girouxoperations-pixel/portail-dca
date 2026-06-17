@@ -1,9 +1,8 @@
 import { redirect }         from 'next/navigation'
 import { createClient }      from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import CsmClientList         from './CsmClientList'
+import CsmImportClient       from './CsmImportClient'
 
-export default async function CsmPage() {
+export default async function CsmImportPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -16,11 +15,5 @@ export default async function CsmPage() {
 
   if (!profile || !['admin', 'csm'].includes(profile.role)) redirect('/dashboard')
 
-  const db = createAdminClient()
-  const { data: clients } = await db
-    .from('csm_clients')
-    .select('*')
-    .order('enrollment_date', { ascending: false })
-
-  return <CsmClientList clients={clients ?? []} />
+  return <CsmImportClient />
 }

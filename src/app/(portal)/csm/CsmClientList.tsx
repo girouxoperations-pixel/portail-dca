@@ -4,7 +4,7 @@ import { useState, useMemo, useTransition } from 'react'
 import Link from 'next/link'
 import {
   Search, Users, CheckCircle2, AlertCircle, Clock,
-  Shield, Calendar, X, AlertTriangle, ChevronDown,
+  Shield, X, AlertTriangle, ChevronDown, Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ExportCsvButton from '@/components/ui/ExportCsvButton'
@@ -214,20 +214,14 @@ export default function CsmClientList({ clients }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('tous')
   const todayStr = today()
 
-  // Sort by enrollment_date ascending (oldest = most advanced first)
-  const sorted = useMemo(() =>
-    [...clients].sort((a, b) => a.enrollment_date.localeCompare(b.enrollment_date)),
-    [clients],
-  )
-
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
-    return sorted.filter(c => {
+    return clients.filter(c => {
       if (statusFilter !== 'tous' && c.status !== statusFilter) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
     })
-  }, [sorted, search, statusFilter])
+  }, [clients, search, statusFilter])
 
   // KPIs
   const active     = clients.filter(c => c.status === 'active').length
@@ -266,15 +260,7 @@ export default function CsmClientList({ clients }: Props) {
   }))
 
   return (
-    <div
-      className="p-4 sm:p-6 max-w-full mx-auto space-y-5 min-h-screen"
-      style={{
-        backgroundImage:
-          'linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg, #e5e7eb 1px, transparent 1px)',
-        backgroundSize: '24px 24px',
-        backgroundColor: '#f9fafb',
-      }}
-    >
+    <div className="p-4 sm:p-6 max-w-full mx-auto space-y-5 min-h-screen bg-gray-50">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Suivi CSM</h1>
@@ -353,6 +339,12 @@ export default function CsmClientList({ clients }: Props) {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-gray-400">{filtered.length} cliente{filtered.length !== 1 ? 's' : ''}</span>
+          <Link
+            href="/csm/import"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+          >
+            <Upload size={12} /> Import CSV
+          </Link>
           <ExportCsvButton filename="csm-clients" data={csvData} />
         </div>
       </div>
