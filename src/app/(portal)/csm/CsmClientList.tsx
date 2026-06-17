@@ -263,6 +263,14 @@ export default function CsmClientList({ clients }: Props) {
 
   const refundCount = clients.filter(c => c.status === 'refund').length
 
+  // Business stats — over all clients ever created
+  const totalDeals = clients.length
+  const pct = (n: number) => totalDeals > 0 ? Math.round(n / totalDeals * 100) : 0
+  const statPif         = clients.filter(c => c.payment_type === 'pif').length
+  const stat2v          = clients.filter(c => c.payment_type === '2-vers').length
+  const stat3v          = clients.filter(c => c.payment_type === '3-vers').length
+  const statFinancement = clients.filter(c => c.payment_type === 'financement').length
+
   const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     { key: 'tous',      label: 'Toutes'     },
     { key: 'active',    label: 'Actives'    },
@@ -334,6 +342,50 @@ export default function CsmClientList({ clients }: Props) {
           <p className={cn('text-2xl font-bold tabular-nums', overdue > 0 ? 'text-amber-600' : 'text-gray-300')}>
             {overdue > 0 ? overdue : '—'}
           </p>
+        </div>
+      </div>
+
+      {/* Business stats */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          Statistiques — {totalDeals} deals au total
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {/* Refund rate */}
+          <div className={cn(
+            'rounded-lg p-3 text-center',
+            refundCount > 0 ? 'bg-red-50' : 'bg-gray-50',
+          )}>
+            <p className={cn('text-2xl font-bold tabular-nums', refundCount > 0 ? 'text-red-600' : 'text-gray-300')}>
+              {pct(refundCount)}%
+            </p>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">Remboursements</p>
+            <p className="text-[10px] text-gray-400">{refundCount} deal{refundCount !== 1 ? 's' : ''}</p>
+          </div>
+          {/* PIF */}
+          <div className="bg-violet-50 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums text-violet-700">{pct(statPif)}%</p>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">PIF</p>
+            <p className="text-[10px] text-gray-400">{statPif} cliente{statPif !== 1 ? 's' : ''}</p>
+          </div>
+          {/* 2 versements */}
+          <div className="bg-blue-50 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums text-blue-700">{pct(stat2v)}%</p>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">2 Versements</p>
+            <p className="text-[10px] text-gray-400">{stat2v} cliente{stat2v !== 1 ? 's' : ''}</p>
+          </div>
+          {/* 3 versements */}
+          <div className="bg-indigo-50 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums text-indigo-700">{pct(stat3v)}%</p>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">3 Versements</p>
+            <p className="text-[10px] text-gray-400">{stat3v} cliente{stat3v !== 1 ? 's' : ''}</p>
+          </div>
+          {/* Financement */}
+          <div className="bg-emerald-50 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums text-emerald-700">{pct(statFinancement)}%</p>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">Financement</p>
+            <p className="text-[10px] text-gray-400">{statFinancement} cliente{statFinancement !== 1 ? 's' : ''}</p>
+          </div>
         </div>
       </div>
 
