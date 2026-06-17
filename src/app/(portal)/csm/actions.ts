@@ -104,6 +104,35 @@ export async function updateStatus(clientId: string, status: string) {
   revalidatePath(`/csm/${clientId}`)
 }
 
+// ── Remboursement : marque refund + supprime cash entry + paye entry ──
+export async function marquerRemboursement(clientId: string) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+
+  const { data: client } = await db
+    .from('csm_clients')
+    .select('cash_entry_id')
+    .eq('id', clientId)
+    .single()
+
+  const { error } = await db
+    .from('csm_clients')
+    .update({ status: 'refund' })
+    .eq('id', clientId)
+  if (error) throw error
+
+  if (client?.cash_entry_id) {
+    await db.from('paye_entries').delete().eq('cash_entry_id', client.cash_entry_id)
+    await db.from('cash_entries').delete().eq('id', client.cash_entry_id)
+  }
+
+  revalidatePath('/csm')
+  revalidatePath(`/csm/${clientId}`)
+  revalidatePath('/cashcollect')
+  revalidatePath('/dashboard')
+  revalidatePath('/payes')
+}
+
 // ── Notes ───────────────────────────────────────────────────────────
 export async function updateNotes(clientId: string, notes: string) {
   await verifyAdminOrCsm()

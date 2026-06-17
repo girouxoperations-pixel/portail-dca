@@ -11,16 +11,17 @@ import ExportCsvButton from '@/components/ui/ExportCsvButton'
 import type { CsmClient } from './types'
 import { computeDueDates, today, formatDate } from './types'
 import {
-  updateMeeting, updateMissed, toggleText, updateStatus,
+  updateMeeting, updateMissed, toggleText, updateStatus, marquerRemboursement,
 } from './actions'
 
-type StatusFilter = 'tous' | 'active' | 'paused' | 'completed' | 'dropped'
+type StatusFilter = 'tous' | 'active' | 'paused' | 'completed' | 'dropped' | 'refund'
 
-const STATUS_CONFIG = {
-  active:    { label: 'Active',     cls: 'bg-green-100 text-green-700'  },
-  paused:    { label: 'En pause',   cls: 'bg-amber-100 text-amber-700'  },
-  completed: { label: 'Complétée', cls: 'bg-blue-100 text-blue-700'    },
-  dropped:   { label: 'Abandon',   cls: 'bg-gray-100 text-gray-500'    },
+const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }> = {
+  active:    { label: 'Active',       cls: 'bg-green-100 text-green-700'  },
+  paused:    { label: 'En pause',     cls: 'bg-amber-100 text-amber-700'  },
+  completed: { label: 'Complétée',   cls: 'bg-blue-100 text-blue-700'    },
+  dropped:   { label: 'Abandon',     cls: 'bg-gray-100 text-gray-500'    },
+  refund:    { label: 'Remboursée',  cls: 'bg-red-100 text-red-600'      },
 }
 
 function daysBetween(a: string, b: string) {
@@ -164,6 +165,18 @@ function StatusCell({ clientId, status }: { clientId: string; status: CsmClient[
   const [pending, startT]  = useTransition()
   const cfg = STATUS_CONFIG[status]
 
+  function handleSelect(key: CsmClient['status']) {
+    if (key === 'refund') {
+      if (!confirm('Marquer comme remboursée ?\n\nCela va supprimer la deal de la cash collect et annuler la commission associée.')) return
+      startT(async () => { await marquerRemboursement(clientId); setOpen(false) })
+    } else {
+      startT(async () => { await updateStatus(clientId, key); setOpen(false) })
+    }
+  }
+
+  const nonRefund = (Object.entries(STATUS_CONFIG) as [CsmClient['status'], typeof STATUS_CONFIG[keyof typeof STATUS_CONFIG]][]).filter(([k]) => k !== 'refund')
+  const refundEntry = STATUS_CONFIG['refund']
+
   return (
     <td className="px-2 py-2 text-center relative">
       <button
@@ -174,12 +187,12 @@ function StatusCell({ clientId, status }: { clientId: string; status: CsmClient[
         <ChevronDown size={8} />
       </button>
       {open && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-32">
-          {(Object.entries(STATUS_CONFIG) as [CsmClient['status'], typeof STATUS_CONFIG[keyof typeof STATUS_CONFIG]][]).map(([key, c]) => (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-36">
+          {nonRefund.map(([key, c]) => (
             <button
               key={key}
               disabled={pending}
-              onClick={() => startT(async () => { await updateStatus(clientId, key); setOpen(false) })}
+              onClick={() => handleSelect(key)}
               className={cn(
                 'w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50',
                 status === key ? 'font-semibold' : '',
@@ -188,6 +201,15 @@ function StatusCell({ clientId, status }: { clientId: string; status: CsmClient[
               <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', c.cls)}>{c.label}</span>
             </button>
           ))}
+          <div className="border-t border-red-100">
+            <button
+              disabled={pending}
+              onClick={() => handleSelect('refund')}
+              className="w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-red-50"
+            >
+              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', refundEntry.cls)}>{refundEntry.label}</span>
+            </button>
+          </div>
         </div>
       )}
     </td>
@@ -217,6 +239,7 @@ export default function CsmClientList({ clients }: Props) {
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
     return clients.filter(c => {
+      if (statusFilter === 'tous' && c.status === 'refund') return false
       if (statusFilter !== 'tous' && c.status !== statusFilter) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
@@ -238,12 +261,15 @@ export default function CsmClientList({ clients }: Props) {
     ].some(ch => !ch.done && ch.due < todayStr && daysBetween(c.enrollment_date, todayStr) >= 7)
   }).length
 
+  const refundCount = clients.filter(c => c.status === 'refund').length
+
   const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     { key: 'tous',      label: 'Toutes'     },
     { key: 'active',    label: 'Actives'    },
     { key: 'paused',    label: 'En pause'   },
     { key: 'completed', label: 'Complétées' },
     { key: 'dropped',   label: 'Abandons'   },
+    { key: 'refund',    label: `Remboursées${refundCount > 0 ? ` (${refundCount})` : ''}` },
   ]
 
   const csvData = filtered.map(c => ({

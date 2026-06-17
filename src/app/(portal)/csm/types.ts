@@ -36,7 +36,7 @@ export interface CsmClient {
   cert_closer_done:    boolean
   opportunity_closer:  boolean
   circle_last_login:   string | null
-  status:              'active' | 'paused' | 'completed' | 'dropped'
+  status:              'active' | 'paused' | 'completed' | 'dropped' | 'refund'
   notes:               string | null
   created_at:          string
 }
