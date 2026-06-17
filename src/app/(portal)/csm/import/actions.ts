@@ -61,6 +61,16 @@ function parseDate(raw: string | undefined | null): string | null {
   return null
 }
 
+function normalizePaymentType(raw: string | undefined | null): string | null {
+  if (!raw || !raw.trim()) return null
+  const s = raw.trim().toLowerCase().replace(/\s+/g, '-')
+  if (s === 'pif') return 'pif'
+  if (s === '2-vers' || s === '2vers') return '2-vers'
+  if (s === '3-vers' || s === '3vers') return '3-vers'
+  if (s.startsWith('fin')) return 'financement'
+  return s
+}
+
 function parseBool(raw: string | undefined | null): boolean {
   if (!raw) return false
   const s = raw.trim().toLowerCase()
@@ -117,7 +127,7 @@ export async function importCsmClients(rows: Record<string, string>[]) {
       return {
         name,
         enrollment_date,
-        payment_type:     get(r, 'Paiement', 'payment_type')?.trim() || null,
+        payment_type:     normalizePaymentType(get(r, 'Paiement', 'payment_type')),
         invoice_sent:     parseBool(get(r, 'Facture', 'invoice_sent')),
         onboarding_notes: get(r, 'Onboarding', 'onboarding_notes')?.trim() || null,
 

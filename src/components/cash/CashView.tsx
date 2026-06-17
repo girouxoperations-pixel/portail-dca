@@ -703,13 +703,15 @@ export default function CashView({
   }, [filtrees, recurringIds])
 
   // ── CSM business stats (all time, not period-filtered) ────────
-  const csmTotal        = csmClients.length
-  const csmPct          = (n: number) => csmTotal > 0 ? Math.round(n / csmTotal * 100) : 0
-  const csmRefund       = csmClients.filter(c => c.status === 'refund').length
-  const csmPif          = csmClients.filter(c => c.payment_type === 'pif').length
-  const csm2v           = csmClients.filter(c => c.payment_type === '2-vers').length
-  const csm3v           = csmClients.filter(c => c.payment_type === '3-vers').length
-  const csmFinancement  = csmClients.filter(c => c.payment_type === 'financement').length
+  const csmTotal = csmClients.length
+  const csmPct   = (n: number) => csmTotal > 0 ? Math.round(n / csmTotal * 100) : 0
+  // Normalize: lowercase + spaces→hyphens so "3 VERS", "3-VERS", "3-vers" all match
+  const normPay  = (pt: string | null) => pt?.trim().toLowerCase().replace(/\s+/g, '-') ?? ''
+  const csmRefund      = csmClients.filter(c => c.status === 'refund').length
+  const csmPif         = csmClients.filter(c => normPay(c.payment_type) === 'pif').length
+  const csm2v          = csmClients.filter(c => normPay(c.payment_type) === '2-vers').length
+  const csm3v          = csmClients.filter(c => normPay(c.payment_type) === '3-vers').length
+  const csmFinancement = csmClients.filter(c => normPay(c.payment_type).startsWith('fin')).length
 
   // ── Closer breakdown for stats tab ────────────────────────────
   const closerStats = useMemo(() => {
