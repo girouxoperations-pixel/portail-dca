@@ -21,7 +21,7 @@ export default async function CashPage() {
 
   const db = createAdminClient()
 
-  const [{ data: entrees }, { data: allProfiles }, { data: recOccs }, { data: perfs }] = await Promise.all([
+  const [{ data: entrees }, { data: allProfiles }, { data: recOccs }, { data: perfs }, { data: csmClients }] = await Promise.all([
     db.from('cash_entries')
       .select('*')
       .order('entry_date', { ascending: false }),
@@ -36,6 +36,8 @@ export default async function CashPage() {
       .order('year', { ascending: false })
       .order('quarter', { ascending: false })
       .order('week_number', { ascending: true }),
+    db.from('csm_clients')
+      .select('id, status, payment_type'),
   ])
 
   const closers = (allProfiles ?? []).filter(p => p.role === 'closer')
@@ -53,6 +55,7 @@ export default async function CashPage() {
       isAdmin={role === 'admin'}
       recurringCashIds={recurringCashIds}
       perfs={perfs ?? []}
+      csmClients={csmClients ?? []}
     />
   )
 }

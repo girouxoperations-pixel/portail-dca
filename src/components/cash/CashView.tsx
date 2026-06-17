@@ -40,6 +40,12 @@ interface Profil {
   role: string
 }
 
+interface CsmStat {
+  id: string
+  status: string | null
+  payment_type: string | null
+}
+
 interface Props {
   entrees:          CashEntry[]
   closers:          Profil[]
@@ -48,6 +54,7 @@ interface Props {
   isAdmin:          boolean
   recurringCashIds: string[]
   perfs:            WeeklyPerf[]
+  csmClients:       CsmStat[]
 }
 
 type SourceType = 'deal' | 'recurrent'
@@ -584,7 +591,7 @@ function StatsBlock({
 // ── Composant principal ───────────────────────────────────────────
 
 export default function CashView({
-  entrees, closers, setters, allProfiles, isAdmin, recurringCashIds, perfs,
+  entrees, closers, setters, allProfiles, isAdmin, recurringCashIds, perfs, csmClients,
 }: Props) {
   const today     = new Date().toISOString().slice(0, 10)
   const yearNow   = new Date().getFullYear()
@@ -695,7 +702,16 @@ export default function CashView({
       })
   }, [filtrees, recurringIds])
 
-  // ── Closer breakdown for stats tab ───────────────────────────
+  // ── CSM business stats (all time, not period-filtered) ────────
+  const csmTotal        = csmClients.length
+  const csmPct          = (n: number) => csmTotal > 0 ? Math.round(n / csmTotal * 100) : 0
+  const csmRefund       = csmClients.filter(c => c.status === 'refund').length
+  const csmPif          = csmClients.filter(c => c.payment_type === 'pif').length
+  const csm2v           = csmClients.filter(c => c.payment_type === '2-vers').length
+  const csm3v           = csmClients.filter(c => c.payment_type === '3-vers').length
+  const csmFinancement  = csmClients.filter(c => c.payment_type === 'financement').length
+
+  // ── Closer breakdown for stats tab ────────────────────────────
   const closerStats = useMemo(() => {
     const map = new Map<string, { name: string; webi: number; vsl: number; autre: number; total: number }>()
     for (const e of filtrees) {
@@ -886,6 +902,45 @@ export default function CashView({
                     <Bar dataKey="autre" name="Autre" stackId="a" fill="#d1d5db" radius={[4,4,0,0]} maxBarSize={48} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* CSM business stats */}
+          {csmTotal > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-50">
+                <h3 className="text-sm font-semibold text-gray-900">Statistiques entreprise</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{csmTotal} clientes au total (toutes périodes)</p>
+              </div>
+              <div className="p-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className={cn('rounded-lg p-3 text-center', csmRefund > 0 ? 'bg-red-50' : 'bg-gray-50')}>
+                  <p className={cn('text-2xl font-bold tabular-nums', csmRefund > 0 ? 'text-red-600' : 'text-gray-300')}>
+                    {csmPct(csmRefund)}%
+                  </p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">Remboursements</p>
+                  <p className="text-[10px] text-gray-400">{csmRefund} deal{csmRefund !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="bg-violet-50 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold tabular-nums text-violet-700">{csmPct(csmPif)}%</p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">PIF</p>
+                  <p className="text-[10px] text-gray-400">{csmPif} cliente{csmPif !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold tabular-nums text-blue-700">{csmPct(csm2v)}%</p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">2 Versements</p>
+                  <p className="text-[10px] text-gray-400">{csm2v} cliente{csm2v !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="bg-indigo-50 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold tabular-nums text-indigo-700">{csmPct(csm3v)}%</p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">3 Versements</p>
+                  <p className="text-[10px] text-gray-400">{csm3v} cliente{csm3v !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold tabular-nums text-emerald-700">{csmPct(csmFinancement)}%</p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-0.5">Financement</p>
+                  <p className="text-[10px] text-gray-400">{csmFinancement} cliente{csmFinancement !== 1 ? 's' : ''}</p>
+                </div>
               </div>
             </div>
           )}
