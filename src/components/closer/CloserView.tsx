@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Phone, TrendingUp, Target, CheckCircle2, Wallet, DollarSign, ArrowUp, ArrowDown, Minus, Zap, RefreshCw } from 'lucide-react'
+import { useState, useTransition, useMemo, useOptimistic } from 'react'
+import { Plus, Pencil, Phone, TrendingUp, Target, CheckCircle2, Wallet, DollarSign, ArrowUp, ArrowDown, Minus, Zap, RefreshCw, UserSearch, Trash2, AlertCircle, Clock, Circle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { ajouterEntree, modifierEntree, creerDealCloser, marquerRecuCloser } from '@/app/(portal)/closer/actions'
-import { addProspectFollowup } from '@/app/(portal)/todo/actions'
+import { addProspectFollowup, toggleProspectFollowup, deleteProspectFollowup, setProspectStatut, batchAddFollowups } from '@/app/(portal)/todo/actions'
 import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
 import PeriodFilter, { usePeriodFilter, computePrevRange } from '@/components/ui/PeriodFilter'
@@ -112,6 +112,8 @@ function CloseTypeBadge({ type }: { type: string | null }) {
 
 // ── Modal ajout entrée journalière ────────────────────────────────────
 
+type PendingFu = { id: string; name: string; date: string }
+
 function ModalEntree({
   entry, userId, onClose,
 }: {
@@ -120,10 +122,9 @@ function ModalEntree({
   onClose: () => void
 }) {
   const [pending, startTransition] = useTransition()
-  const [fuPending, startFuTransition] = useTransition()
-  const [fuName, setFuName] = useState('')
-  const [fuDate, setFuDate] = useState('')
-  const [fuAdded, setFuAdded] = useState<string[]>([])
+  const [pendingFus, setPendingFus] = useState<PendingFu[]>([])
+  const [newFuName, setNewFuName]   = useState('')
+  const [newFuDate, setNewFuDate]   = useState('')
   const isEdit = entry !== null
   const today  = new Date().toISOString().slice(0, 10)
 
@@ -137,24 +138,19 @@ function ModalEntree({
         fd.set('user_id', userId)
         await ajouterEntree(fd)
       }
+      if (pendingFus.length > 0) {
+        await batchAddFollowups(pendingFus.map(f => ({ closer_id: userId, prospect_name: f.name, followup_date: f.date })))
+      }
       onClose()
     })
   }
 
   function handleAddFu(e: React.FormEvent) {
     e.preventDefault()
-    if (!fuName.trim() || !fuDate) return
-    const name = fuName.trim()
-    const date = fuDate
-    startFuTransition(async () => {
-      const fd = new FormData()
-      fd.set('prospect_name', name)
-      fd.set('followup_date', date)
-      await addProspectFollowup(fd)
-      setFuAdded(prev => [...prev, name])
-      setFuName('')
-      setFuDate('')
-    })
+    if (!newFuName.trim() || !newFuDate) return
+    setPendingFus(prev => [...prev, { id: Math.random().toString(36), name: newFuName.trim(), date: newFuDate }])
+    setNewFuName('')
+    setNewFuDate('')
   }
 
   return (
@@ -221,6 +217,51 @@ function ModalEntree({
           />
         </div>
 
+        {/* Follow ups à ajouter */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Follow ups</p>
+          {pendingFus.length > 0 && (
+            <div className="mb-2 space-y-1.5">
+              {pendingFus.map(f => (
+                <div key={f.id} className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg text-xs">
+                  <span className="flex-1 font-medium text-violet-800 truncate">{f.name}</span>
+                  <span className="text-violet-500 shrink-0">{fmtFuDate(f.date)}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingFus(prev => prev.filter(x => x.id !== f.id))}
+                    className="text-violet-300 hover:text-red-400 transition-colors shrink-0"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={newFuName}
+              onChange={e => setNewFuName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddFu(e as unknown as React.FormEvent) } }}
+              placeholder="Nom du prospect"
+              className={`${INPUT_CLS} flex-1`}
+            />
+            <input
+              type="date"
+              value={newFuDate}
+              onChange={e => setNewFuDate(e.target.value)}
+              className={`${INPUT_CLS} w-36`}
+            />
+            <button
+              type="button"
+              onClick={handleAddFu}
+              disabled={!newFuName.trim() || !newFuDate}
+              className="px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+        </div>
+
         <div className="flex justify-end gap-3 pt-2">
           <button
             type="button" onClick={onClose}
@@ -236,41 +277,6 @@ function ModalEntree({
           </button>
         </div>
       </form>
-
-      {/* Follow ups du jour */}
-      <div className="border-t border-gray-100 px-6 pb-6 pt-5">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Follow ups du jour</p>
-        {fuAdded.length > 0 && (
-          <div className="mb-3 space-y-1">
-            {fuAdded.map((n, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1.5 rounded-lg">
-                <CheckCircle2 size={11} /> {n}
-              </div>
-            ))}
-          </div>
-        )}
-        <form onSubmit={handleAddFu} className="flex gap-2">
-          <input
-            value={fuName}
-            onChange={e => setFuName(e.target.value)}
-            placeholder="Nom du prospect"
-            className={`${INPUT_CLS} flex-1`}
-          />
-          <input
-            type="date"
-            value={fuDate}
-            onChange={e => setFuDate(e.target.value)}
-            className={`${INPUT_CLS} w-36`}
-          />
-          <button
-            type="submit"
-            disabled={fuPending || !fuName.trim() || !fuDate}
-            className="px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-          >
-            <Plus size={14} />
-          </button>
-        </form>
-      </div>
     </Modal>
   )
 }
@@ -544,6 +550,136 @@ function RecuOccRow({ occ }: { occ: RecurringOcc & { client_name: string } }) {
   )
 }
 
+// ── Follow-up prospects ───────────────────────────────────────────────
+
+interface ProspectFollowup {
+  id:            string
+  prospect_name: string
+  followup_date: string
+  notes:         string | null
+  done:          boolean
+  done_date:     string | null
+  statut:        string
+}
+
+function fmtFuDate(d: string) {
+  return new Date(d + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+}
+
+function FuRow({ p }: { p: ProspectFollowup }) {
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [optimisticStatut, setOptimistic] = useOptimistic(p.statut)
+  const [, startTransition] = useTransition()
+
+  function changeStatut(s: 'actif' | 'contacté' | 'closé' | 'perdu') {
+    const next: typeof s = optimisticStatut === s ? 'actif' : s
+    startTransition(async () => {
+      setOptimistic(next)
+      await setProspectStatut(p.id, next)
+    })
+  }
+
+  function del() {
+    startTransition(async () => {
+      await deleteProspectFollowup(p.id)
+    })
+  }
+
+  const isDone  = optimisticStatut === 'closé' || optimisticStatut === 'perdu'
+  const overdue = !isDone && p.followup_date < todayStr
+  const isToday = !isDone && p.followup_date === todayStr
+
+  return (
+    <div className={cn('px-4 py-3 border-b border-gray-50 last:border-0', isDone && 'opacity-60')}>
+      <div className="flex items-center gap-3">
+        <div className="shrink-0">
+          {isDone
+            ? optimisticStatut === 'closé'
+              ? <CheckCircle2 size={16} className="text-green-500" />
+              : <Circle size={16} className="text-gray-300" />
+            : overdue ? <AlertCircle size={16} className="text-red-400" />
+            : isToday ? <Clock size={16} className="text-amber-400" />
+            : <Circle size={16} className="text-gray-200" />
+          }
+        </div>
+        <p className={cn('flex-1 min-w-0 text-sm font-medium truncate', isDone ? 'line-through text-gray-400' : 'text-gray-800')}>
+          {p.prospect_name}
+        </p>
+        <span className={cn(
+          'text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0',
+          overdue ? 'bg-red-50 text-red-600' :
+          isToday ? 'bg-amber-50 text-amber-600' :
+          isDone  ? 'bg-gray-100 text-gray-400' :
+          'bg-gray-100 text-gray-500',
+        )}>
+          {fmtFuDate(p.followup_date)}
+        </span>
+        <button onClick={del} className="shrink-0 p-1 text-gray-200 hover:text-red-400 transition-colors">
+          <Trash2 size={13} />
+        </button>
+      </div>
+      {p.notes && <p className="text-xs text-gray-400 mt-0.5 pl-7 truncate">{p.notes}</p>}
+      <div className="flex items-center gap-1.5 mt-2 pl-7">
+        {(['contacté', 'closé', 'perdu'] as const).map(s => (
+          <button
+            key={s}
+            onClick={() => changeStatut(s)}
+            className={cn(
+              'text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors',
+              optimisticStatut === s
+                ? s === 'contacté' ? 'bg-blue-100 text-blue-700'
+                  : s === 'closé'  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-200 text-gray-600'
+                : 'bg-gray-50 text-gray-400 hover:bg-gray-100 border border-gray-100',
+            )}
+          >
+            {s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FuAddForm({ onDone }: { onDone: () => void }) {
+  const [, startTransition] = useTransition()
+  const today = new Date().toISOString().slice(0, 10)
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    startTransition(async () => {
+      await addProspectFollowup(fd)
+      onDone()
+    })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="px-4 py-3 bg-violet-50 border-b border-violet-100 space-y-2">
+      <div className="flex gap-2">
+        <input
+          name="prospect_name" required
+          placeholder="Nom du prospect"
+          className="flex-1 px-3 py-1.5 rounded-lg border border-violet-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+        />
+        <input
+          name="followup_date" type="date" required defaultValue={today}
+          className="px-3 py-1.5 rounded-lg border border-violet-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+        />
+      </div>
+      <input
+        name="notes"
+        placeholder="Notes (optionnel)"
+        className="w-full px-3 py-1.5 rounded-lg border border-violet-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+      />
+      <div className="flex gap-2 justify-end">
+        <button type="button" onClick={onDone} className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700">Annuler</button>
+        <button type="submit" className="px-3 py-1 bg-violet-600 text-white text-xs font-medium rounded-lg">Ajouter</button>
+      </div>
+    </form>
+  )
+}
+
 // ── Projection fin de mois ────────────────────────────────────────────
 
 function ProjectionCard({ cashCollected, targetCash, dayOfMonth, daysInMonth }: {
@@ -613,7 +749,7 @@ function ProjectionCard({ cashCollected, targetCash, dayOfMonth, daysInMonth }: 
 
 // ── Composant principal ───────────────────────────────────────────────
 
-export default function CloserView({ entrees, deals, setters, recurrents, userId, prenom, targetCash = 0 }: {
+export default function CloserView({ entrees, deals, setters, recurrents, userId, prenom, targetCash = 0, prospects = [] }: {
   entrees:    CloserEntry[]
   deals:      Deal[]
   setters:    { id: string; full_name: string | null }[]
@@ -621,11 +757,19 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
   userId:     string
   prenom:     string
   targetCash?: number
+  prospects?: ProspectFollowup[]
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
-  const [tab, setTab]           = useState<'activite' | 'deals' | 'recurrents'>('activite')
+  const [tab, setTab]           = useState<'activite' | 'deals' | 'recurrents' | 'followup'>('activite')
   const [modalEntry, setModalEntry] = useState<CloserEntry | null | 'new'>(null)
   const [modalDeal, setModalDeal]   = useState(false)
+  const [fuShowForm, setFuShowForm] = useState(false)
+  const [fuShowDone, setFuShowDone] = useState(false)
+
+  const fuActif   = useMemo(() => prospects.filter(p => p.statut === 'actif' || p.statut === 'contacté').sort((a, b) => a.followup_date.localeCompare(b.followup_date)), [prospects])
+  const fuDone    = useMemo(() => prospects.filter(p => p.statut === 'closé' || p.statut === 'perdu'), [prospects])
+  const todayStr  = new Date().toISOString().split('T')[0]
+  const fuOverdue = fuActif.filter(p => p.followup_date < todayStr).length
 
   const prevRange = useMemo(() => computePrevRange(periode, offset, range), [periode, offset, range])
 
@@ -741,7 +885,7 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
       <PageHeader
         titre="Mon Suivi Closing"
         subtitle={`Bienvenue, ${prenom} — activité et performance`}
-        action={
+        action={tab !== 'followup' ? (
           <button
             onClick={() => tab === 'deals' ? setModalDeal(true) : setModalEntry('new')}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
@@ -749,7 +893,7 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
             <Plus size={15} />
             {tab === 'deals' ? 'Nouveau deal' : 'Saisir ma journée'}
           </button>
-        }
+        ) : undefined}
       />
 
       {/* Tab switcher */}
@@ -763,12 +907,25 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
           Récurrents
           {recurrents.length > 0 && <span className="ml-1.5 text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">{recurrents.length}</span>}
         </button>
+        <button className={tabCls('followup')} onClick={() => setTab('followup')}>
+          Follow up
+          {fuActif.length > 0 && (
+            <span className={cn(
+              'ml-1.5 text-xs px-1.5 py-0.5 rounded-full',
+              fuOverdue > 0 ? 'bg-red-100 text-red-600' : 'bg-violet-100 text-violet-700',
+            )}>
+              {fuActif.length}
+            </span>
+          )}
+        </button>
       </div>
 
-      <PeriodFilter
-        periode={periode} offset={offset} onChange={onPeriodChange}
-        customStart={customStart} customEnd={customEnd} onCustomRange={onCustomRange}
-      />
+      {tab !== 'followup' && (
+        <PeriodFilter
+          periode={periode} offset={offset} onChange={onPeriodChange}
+          customStart={customStart} customEnd={customEnd} onCustomRange={onCustomRange}
+        />
+      )}
 
       {/* ── Tab: Activité ─────────────────────────────────────────── */}
       {tab === 'activite' && (
@@ -1149,6 +1306,58 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
             )}
           </div>
         </>
+      )}
+
+      {/* ── Tab: Follow up ────────────────────────────────────────── */}
+      {tab === 'followup' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              {fuActif.length} actif{fuActif.length !== 1 ? 's' : ''}
+              {fuOverdue > 0 && <span className="text-red-500 font-medium"> · {fuOverdue} en retard</span>}
+              {fuDone.length > 0 && <> · {fuDone.length} fait{fuDone.length !== 1 ? 's' : ''}</>}
+            </p>
+            <button
+              onClick={() => setFuShowForm(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
+            >
+              <Plus size={13} />
+              Ajouter
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            {fuShowForm && <FuAddForm onDone={() => setFuShowForm(false)} />}
+
+            {fuActif.length === 0 && !fuShowForm ? (
+              <div className="py-10 text-center">
+                <UserSearch size={28} className="mx-auto text-gray-200 mb-2" />
+                <p className="text-sm text-gray-400">Aucun follow up actif</p>
+                <button onClick={() => setFuShowForm(true)} className="mt-3 text-xs text-violet-600 hover:underline">
+                  + Ajouter un prospect
+                </button>
+              </div>
+            ) : (
+              fuActif.map(p => <FuRow key={p.id} p={p} />)
+            )}
+          </div>
+
+          {fuDone.length > 0 && (
+            <div>
+              <button
+                onClick={() => setFuShowDone(v => !v)}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors mb-2"
+              >
+                {fuShowDone ? '▲' : '▼'} Complétés ({fuDone.length})
+              </button>
+              {fuShowDone && (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                  {fuDone.map(p => <FuRow key={p.id} p={p} />)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {modalEntry !== null && (

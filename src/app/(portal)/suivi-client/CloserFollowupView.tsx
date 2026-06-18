@@ -6,7 +6,7 @@ import {
   Users, UserSearch, Plus, Trash2,
 } from 'lucide-react'
 import { toggleMessage } from './actions'
-import { toggleProspectFollowup, deleteProspectFollowup, addProspectFollowup } from '@/app/(portal)/todo/actions'
+import { toggleProspectFollowup, deleteProspectFollowup, addProspectFollowup, setProspectStatut } from '@/app/(portal)/todo/actions'
 import { cn } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -34,6 +34,7 @@ export interface ProspectItem {
   notes:        string | null
   done:         boolean
   doneDate:     string | null
+  statut:       string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -106,14 +107,14 @@ function MsgCheckbox({ followupId, num, done, dueDate, doneDate }: {
 
 function ProspectRow({ p }: { p: ProspectItem }) {
   const t = today()
-  const [optimisticDone, setOptimistic] = useOptimistic(p.done)
+  const [optimisticStatut, setOptimistic] = useOptimistic(p.statut)
   const [, startTransition] = useTransition()
 
-  function toggle() {
-    const next = !optimisticDone
+  function changeStatut(s: 'actif' | 'contacté' | 'closé' | 'perdu') {
+    const next: typeof s = optimisticStatut === s ? 'actif' : s
     startTransition(async () => {
       setOptimistic(next)
-      await toggleProspectFollowup(p.id, next)
+      await setProspectStatut(p.id, next)
     })
   }
 
@@ -123,43 +124,57 @@ function ProspectRow({ p }: { p: ProspectItem }) {
     })
   }
 
-  const overdue = !optimisticDone && p.followupDate < t
-  const isToday = !optimisticDone && p.followupDate === t
+  const isDone  = optimisticStatut === 'closé' || optimisticStatut === 'perdu'
+  const overdue = !isDone && p.followupDate < t
+  const isToday = !isDone && p.followupDate === t
 
   return (
-    <div className={cn(
-      'flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0',
-      optimisticDone && 'opacity-50',
-    )}>
-      <button onClick={toggle} className="shrink-0">
-        {optimisticDone
-          ? <CheckCircle2 size={18} className="text-green-500" />
-          : overdue
-            ? <AlertCircle  size={18} className="text-red-400"   />
-            : isToday
-              ? <Clock        size={18} className="text-amber-400" />
-              : <Circle       size={18} className="text-gray-200"  />
-        }
-      </button>
-      <div className="flex-1 min-w-0">
-        <p className={cn('text-sm font-medium', optimisticDone ? 'line-through text-gray-400' : 'text-gray-800')}>
+    <div className={cn('px-4 py-3 border-b border-gray-50 last:border-0', isDone && 'opacity-60')}>
+      <div className="flex items-center gap-3">
+        <div className="shrink-0">
+          {isDone
+            ? optimisticStatut === 'closé'
+              ? <CheckCircle2 size={16} className="text-green-500" />
+              : <Circle size={16} className="text-gray-300" />
+            : overdue ? <AlertCircle size={16} className="text-red-400" />
+            : isToday ? <Clock size={16} className="text-amber-400" />
+            : <Circle size={16} className="text-gray-200" />
+          }
+        </div>
+        <p className={cn('flex-1 min-w-0 text-sm font-medium truncate', isDone ? 'line-through text-gray-400' : 'text-gray-800')}>
           {p.prospectName}
         </p>
-        {p.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{p.notes}</p>}
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
         <span className={cn(
-          'text-xs px-2 py-0.5 rounded-full font-medium',
-          overdue        ? 'bg-red-50 text-red-600'     :
-          isToday        ? 'bg-amber-50 text-amber-600' :
-          optimisticDone ? 'bg-green-50 text-green-600' :
+          'text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0',
+          overdue ? 'bg-red-50 text-red-600' :
+          isToday ? 'bg-amber-50 text-amber-600' :
+          isDone  ? 'bg-gray-100 text-gray-400' :
           'bg-gray-100 text-gray-500',
         )}>
           {formatDate(p.followupDate)}
         </span>
-        <button onClick={del} className="p-1 text-gray-200 hover:text-red-400 transition-colors">
+        <button onClick={del} className="shrink-0 p-1 text-gray-200 hover:text-red-400 transition-colors">
           <Trash2 size={13} />
         </button>
+      </div>
+      {p.notes && <p className="text-xs text-gray-400 mt-0.5 pl-7 truncate">{p.notes}</p>}
+      <div className="flex items-center gap-1.5 mt-2 pl-7">
+        {(['contacté', 'closé', 'perdu'] as const).map(s => (
+          <button
+            key={s}
+            onClick={() => changeStatut(s)}
+            className={cn(
+              'text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors',
+              optimisticStatut === s
+                ? s === 'contacté' ? 'bg-blue-100 text-blue-700'
+                  : s === 'closé'  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-200 text-gray-600'
+                : 'bg-gray-50 text-gray-400 hover:bg-gray-100 border border-gray-100',
+            )}
+          >
+            {s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -295,8 +310,8 @@ function FollowUpTab({ prospects }: { prospects: ProspectItem[] }) {
   const [showForm, setShowForm] = useState(false)
   const [showDone, setShowDone] = useState(false)
 
-  const active = prospects.filter(p => !p.done)
-  const done   = prospects.filter(p => p.done)
+  const active = prospects.filter(p => p.statut === 'actif' || p.statut === 'contacté')
+  const done   = prospects.filter(p => p.statut === 'closé' || p.statut === 'perdu')
 
   const nOverdue = active.filter(p => p.followupDate < today()).length
 

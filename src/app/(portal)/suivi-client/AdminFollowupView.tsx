@@ -5,7 +5,7 @@ import { Users, CheckCircle2, AlertCircle, Clock, Circle, TrendingUp, UserSearch
 import ExportCsvButton from '@/components/ui/ExportCsvButton'
 import { cn } from '@/lib/utils'
 import type { Followup } from './CloserFollowupView'
-import { toggleProspectFollowup, deleteProspectFollowup } from '@/app/(portal)/todo/actions'
+import { deleteProspectFollowup, setProspectStatut } from '@/app/(portal)/todo/actions'
 import { toggleMessageAdmin } from './actions'
 
 interface Profile { id: string; full_name: string | null }
@@ -18,6 +18,7 @@ interface ProspectRow {
   notes:        string | null
   done:         boolean
   doneDate:     string | null
+  statut:       string
 }
 
 interface Props {
@@ -56,14 +57,14 @@ type MainTab = 'suivi' | 'followup'
 
 function AdminProspectRow({ p, profileMap }: { p: ProspectRow; profileMap: Map<string, string> }) {
   const t = new Date().toISOString().split('T')[0]
-  const [optimisticDone, setOptimistic] = useOptimistic(p.done)
+  const [optimisticStatut, setOptimistic] = useOptimistic(p.statut)
   const [, startTransition] = useTransition()
 
-  function toggle() {
-    const next = !optimisticDone
+  function changeStatut(s: 'actif' | 'contacté' | 'closé' | 'perdu') {
+    const next: typeof s = optimisticStatut === s ? 'actif' : s
     startTransition(async () => {
       setOptimistic(next)
-      await toggleProspectFollowup(p.id, next)
+      await setProspectStatut(p.id, next)
     })
   }
 
@@ -71,41 +72,48 @@ function AdminProspectRow({ p, profileMap }: { p: ProspectRow; profileMap: Map<s
     startTransition(async () => { await deleteProspectFollowup(p.id) })
   }
 
-  const overdue = !optimisticDone && p.followupDate < t
-  const isToday = !optimisticDone && p.followupDate === t
+  const isDone  = optimisticStatut === 'closé' || optimisticStatut === 'perdu'
+  const overdue = !isDone && p.followupDate < t
+  const isToday = !isDone && p.followupDate === t
 
   return (
-    <tr className={cn('hover:bg-gray-50/50 transition-colors', optimisticDone && 'opacity-50')}>
+    <tr className={cn('hover:bg-gray-50/50 transition-colors', isDone && 'opacity-60')}>
       <td className="px-4 py-3">
-        <button onClick={toggle}>
-          {optimisticDone
-            ? <CheckCircle2 size={16} className="text-green-500" />
-            : overdue
-              ? <AlertCircle  size={16} className="text-red-400"   />
-              : isToday
-                ? <Clock        size={16} className="text-amber-400" />
-                : <Circle       size={16} className="text-gray-200"  />
-          }
-        </button>
+        {isDone
+          ? optimisticStatut === 'closé' ? <CheckCircle2 size={16} className="text-green-500" /> : <Circle size={16} className="text-gray-300" />
+          : overdue ? <AlertCircle size={16} className="text-red-400" />
+          : isToday ? <Clock size={16} className="text-amber-400" />
+          : <Circle size={16} className="text-gray-200" />
+        }
       </td>
       <td className="px-4 py-3 font-medium text-gray-800">
-        <span className={cn(optimisticDone && 'line-through text-gray-400')}>{p.prospectName}</span>
+        <span className={cn(isDone && 'line-through text-gray-400')}>{p.prospectName}</span>
         {p.notes && <span className="text-xs text-gray-400 ml-2">· {p.notes}</span>}
       </td>
       <td className="px-4 py-3 text-gray-500 text-sm">{profileMap.get(p.closerId) ?? '—'}</td>
       <td className="px-4 py-3 text-gray-500 text-sm whitespace-nowrap">
         {new Date(p.followupDate + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-        {overdue && !optimisticDone && (
-          <span className="ml-2 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">En retard</span>
-        )}
+        {overdue && <span className="ml-2 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">En retard</span>}
       </td>
-      <td className="px-4 py-3 text-center">
-        <span className={cn(
-          'text-[11px] font-semibold px-2 py-0.5 rounded-full',
-          optimisticDone ? 'bg-green-50 text-green-700' : overdue ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700',
-        )}>
-          {optimisticDone ? 'Fait' : overdue ? 'En retard' : 'À faire'}
-        </span>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          {(['contacté', 'closé', 'perdu'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => changeStatut(s)}
+              className={cn(
+                'text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors',
+                optimisticStatut === s
+                  ? s === 'contacté' ? 'bg-blue-100 text-blue-700'
+                    : s === 'closé'  ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-200 text-gray-600'
+                  : 'bg-gray-50 text-gray-400 hover:bg-gray-100 border border-gray-100',
+              )}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
       </td>
       <td className="px-4 py-3 text-right">
         <button onClick={del} className="p-1 text-gray-200 hover:text-red-400 transition-colors">

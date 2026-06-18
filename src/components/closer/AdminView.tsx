@@ -11,6 +11,7 @@ import {
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { ajouterEntree, supprimerEntree } from '@/app/(portal)/closer/actions'
+import { batchAddFollowups } from '@/app/(portal)/todo/actions'
 import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
 import PeriodFilter, { usePeriodFilter, computePrevRange } from '@/components/ui/PeriodFilter'
@@ -91,15 +92,35 @@ function computeKpis(rows: CloserEntry[]) {
 
 // ── Modal ajout ───────────────────────────────────────────────────────
 
+type PendingFu = { id: string; name: string; date: string }
+
+function fmtFuDate(d: string) {
+  return new Date(d + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+}
+
 function ModalAjout({ closers, onClose }: { closers: Profil[]; onClose: () => void }) {
   const [pending, startTransition] = useTransition()
+  const [pendingFus, setPendingFus] = useState<PendingFu[]>([])
+  const [newFuName, setNewFuName]   = useState('')
+  const [newFuDate, setNewFuDate]   = useState('')
   const today = new Date().toISOString().slice(0, 10)
+
+  function handleAddFu() {
+    if (!newFuName.trim() || !newFuDate) return
+    setPendingFus(prev => [...prev, { id: Math.random().toString(36), name: newFuName.trim(), date: newFuDate }])
+    setNewFuName('')
+    setNewFuDate('')
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
+    const closerId = fd.get('user_id') as string
     startTransition(async () => {
       await ajouterEntree(fd)
+      if (pendingFus.length > 0 && closerId) {
+        await batchAddFollowups(pendingFus.map(f => ({ closer_id: closerId, prospect_name: f.name, followup_date: f.date })))
+      }
       onClose()
     })
   }
@@ -152,6 +173,51 @@ function ModalAjout({ closers, onClose }: { closers: Profil[]; onClose: () => vo
           <label className="text-sm font-medium text-gray-700">Notes (optionnel)</label>
           <textarea name="notes" rows={2} placeholder="Remarques..." className={`${INPUT_CLS} resize-none`} />
         </div>
+
+        {/* Follow ups */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Follow ups</p>
+          {pendingFus.length > 0 && (
+            <div className="mb-2 space-y-1.5">
+              {pendingFus.map(f => (
+                <div key={f.id} className="flex items-center gap-2 px-3 py-2 bg-violet-50 rounded-lg text-xs">
+                  <span className="flex-1 font-medium text-violet-800 truncate">{f.name}</span>
+                  <span className="text-violet-500 shrink-0">{fmtFuDate(f.date)}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingFus(prev => prev.filter(x => x.id !== f.id))}
+                    className="text-violet-300 hover:text-red-400 transition-colors shrink-0"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={newFuName}
+              onChange={e => setNewFuName(e.target.value)}
+              placeholder="Nom du prospect"
+              className={`${INPUT_CLS} flex-1`}
+            />
+            <input
+              type="date"
+              value={newFuDate}
+              onChange={e => setNewFuDate(e.target.value)}
+              className={`${INPUT_CLS} w-36`}
+            />
+            <button
+              type="button"
+              onClick={handleAddFu}
+              disabled={!newFuName.trim() || !newFuDate}
+              className="px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+        </div>
+
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
             Annuler

@@ -42,7 +42,7 @@ export default async function CloserPage() {
 
   // ── Vue closer ──────────────────────────────────────────────────
   const now = new Date()
-  const [{ data: entrees }, { data: deals }, { data: setters }, { data: recurrents }, { data: goalRaw }] = await Promise.all([
+  const [{ data: entrees }, { data: deals }, { data: setters }, { data: recurrents }, { data: goalRaw }, { data: prospectsRaw }] = await Promise.all([
     db.from('closer_entries')
       .select('*')
       .eq('user_id', user.id)
@@ -63,6 +63,10 @@ export default async function CloserPage() {
       .eq('year', now.getFullYear())
       .eq('month', now.getMonth() + 1)
       .maybeSingle(),
+    db.from('prospect_followups')
+      .select('id, prospect_name, followup_date, notes, done, done_date, statut')
+      .eq('closer_id', user.id)
+      .order('followup_date', { ascending: true }),
   ])
 
   return (
@@ -74,6 +78,7 @@ export default async function CloserPage() {
       userId={user.id}
       prenom={profil.full_name?.split(' ')[0] ?? 'vous'}
       targetCash={goalRaw?.target_cash ?? 0}
+      prospects={prospectsRaw ?? []}
     />
   )
 }

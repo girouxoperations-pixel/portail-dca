@@ -37,9 +37,9 @@ export default async function SuiviClientPage() {
         .eq('closer_id', user.id)
         .order('close_date', { ascending: false }),
       db.from('prospect_followups')
-        .select('id, prospect_name, followup_date, notes, done, done_date')
+        .select('id, prospect_name, followup_date, notes, done, done_date, statut')
         .eq('closer_id', user.id)
-        .eq('done', false)
+        .in('statut', ['actif', 'contacté'])
         .order('followup_date', { ascending: true }),
     ])
 
@@ -50,6 +50,7 @@ export default async function SuiviClientPage() {
       notes:        p.notes,
       done:         p.done,
       doneDate:     p.done_date,
+      statut:       p.statut ?? 'actif',
     }))
 
     const followups = (followupsRaw ?? []).filter(f =>
@@ -75,7 +76,7 @@ export default async function SuiviClientPage() {
       .select('id, full_name')
       .eq('role', 'closer'),
     db.from('prospect_followups')
-      .select('id, closer_id, prospect_name, followup_date, notes, done, done_date')
+      .select('id, closer_id, prospect_name, followup_date, notes, done, done_date, statut')
       .order('followup_date', { ascending: false }),
   ])
 
@@ -87,6 +88,7 @@ export default async function SuiviClientPage() {
     notes:        p.notes,
     done:         p.done,
     doneDate:     p.done_date,
+    statut:       p.statut ?? 'actif',
   }))
 
   const followups = (followupsRaw ?? []).filter(f =>
