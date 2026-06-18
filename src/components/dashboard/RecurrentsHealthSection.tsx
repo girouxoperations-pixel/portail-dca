@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Clock, Calendar, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Clock, Calendar, Zap, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dollar } from '@/lib/constants'
 
@@ -17,14 +17,13 @@ export interface RecurrentsOcc {
 }
 
 interface Props {
-  occsRetard:  RecurrentsOcc[]
-  occsSemaine: RecurrentsOcc[]
-  occsMois:    RecurrentsOcc[]
+  occsAujourdhui: RecurrentsOcc[]
+  occsRetard:     RecurrentsOcc[]
+  occsSemaine:    RecurrentsOcc[]
+  occsMois:       RecurrentsOcc[]
 }
 
-type Filtre = 'retard' | 'semaine' | 'mois'
-
-const MOIS_COURT = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+type Filtre = 'aujourd_hui' | 'semaine' | 'mois' | 'retard'
 
 function fmtDate(d: string) {
   return new Date(d + 'T00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -68,29 +67,30 @@ function OccTable({ occs, accentCls }: { occs: RecurrentsOcc[]; accentCls: strin
   )
 }
 
-export default function RecurrentsHealthSection({ occsRetard, occsSemaine, occsMois }: Props) {
+export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, occsSemaine, occsMois }: Props) {
   const [open, setOpen] = useState<Filtre | null>(null)
 
   function toggle(f: Filtre) {
     setOpen(prev => prev === f ? null : f)
   }
 
-  const hasData = occsRetard.length + occsSemaine.length + occsMois.length > 0
+  const hasData = occsAujourdhui.length + occsRetard.length + occsSemaine.length + occsMois.length > 0
   if (!hasData) return null
 
   const CARDS = [
     {
-      key:     'retard' as const,
-      icon:    AlertTriangle,
-      label:   'En retard',
-      amount:  occsRetard.reduce((s, o) => s + o.montant_attendu, 0),
-      count:   occsRetard.length,
-      sub:     (n: number) => `${n} versement${n !== 1 ? 's' : ''} non reçu${n !== 1 ? 's' : ''}`,
-      danger:  occsRetard.length > 0,
-      occs:    occsRetard,
-      openCls: 'border-red-300 bg-red-50',
-      headCls: 'bg-red-50 border-b border-red-100',
-      thCls:   'text-red-400',
+      key:     'aujourd_hui' as const,
+      icon:    Zap,
+      label:   "Aujourd'hui",
+      amount:  occsAujourdhui.reduce((s, o) => s + o.montant_attendu, 0),
+      count:   occsAujourdhui.length,
+      sub:     (n: number) => `${n} versement${n !== 1 ? 's' : ''} dû${n !== 1 ? 's' : ''} aujourd'hui`,
+      danger:  occsAujourdhui.length > 0,
+      occs:    occsAujourdhui,
+      openCls: 'border-orange-300 bg-orange-50',
+      headCls: 'bg-orange-50 border-b border-orange-100',
+      thCls:   'text-orange-400',
+      filtre:  'aujourd_hui',
     },
     {
       key:     'semaine' as const,
@@ -104,11 +104,12 @@ export default function RecurrentsHealthSection({ occsRetard, occsSemaine, occsM
       openCls: 'border-amber-200 bg-amber-50/30',
       headCls: 'bg-amber-50 border-b border-amber-100',
       thCls:   'text-amber-400',
+      filtre:  'semaine',
     },
     {
       key:     'mois' as const,
       icon:    Calendar,
-      label:   'Ce mois (à venir)',
+      label:   'Ce mois-ci',
       amount:  occsMois.reduce((s, o) => s + o.montant_attendu, 0),
       count:   occsMois.length,
       sub:     (n: number) => `${n} versement${n !== 1 ? 's' : ''} à encaisser`,
@@ -117,6 +118,21 @@ export default function RecurrentsHealthSection({ occsRetard, occsSemaine, occsM
       openCls: 'border-violet-200 bg-violet-50/30',
       headCls: 'bg-violet-50 border-b border-violet-100',
       thCls:   'text-violet-400',
+      filtre:  'mois',
+    },
+    {
+      key:     'retard' as const,
+      icon:    AlertTriangle,
+      label:   'En retard',
+      amount:  occsRetard.reduce((s, o) => s + o.montant_attendu, 0),
+      count:   occsRetard.length,
+      sub:     (n: number) => `${n} versement${n !== 1 ? 's' : ''} non reçu${n !== 1 ? 's' : ''}`,
+      danger:  occsRetard.length > 0,
+      occs:    occsRetard,
+      openCls: 'border-red-300 bg-red-50',
+      headCls: 'bg-red-50 border-b border-red-100',
+      thCls:   'text-red-400',
+      filtre:  'retard',
     },
   ]
 
@@ -124,7 +140,7 @@ export default function RecurrentsHealthSection({ occsRetard, occsSemaine, occsM
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {CARDS.map(card => {
           const Icon    = card.icon
           const isOpen  = open === card.key
@@ -138,26 +154,29 @@ export default function RecurrentsHealthSection({ occsRetard, occsSemaine, occsM
                 isOpen
                   ? card.openCls + ' ring-2 ring-offset-1 ' + (card.danger ? 'ring-red-300' : 'ring-violet-200')
                   : card.danger && !isEmpty
-                    ? 'bg-red-50 border-red-200'
+                    ? card.key === 'aujourd_hui' ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200'
                     : 'bg-white border-gray-100',
               )}
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <Icon size={14} className={card.danger && !isEmpty ? 'text-red-500' : 'text-gray-300'} />
+                  <Icon
+                    size={14}
+                    className={
+                      card.danger && !isEmpty
+                        ? card.key === 'aujourd_hui' ? 'text-orange-500' : 'text-red-500'
+                        : 'text-gray-300'
+                    }
+                  />
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{card.label}</p>
                 </div>
-                <ChevronRight
-                  size={13}
-                  className={cn(
-                    'text-gray-300 transition-transform',
-                    isOpen && 'rotate-90',
-                  )}
-                />
+                <ChevronRight size={13} className={cn('text-gray-300 transition-transform', isOpen && 'rotate-90')} />
               </div>
               <p className={cn(
                 'text-2xl font-bold tabular-nums',
-                card.danger && !isEmpty ? 'text-red-600' : isEmpty ? 'text-gray-300' : 'text-gray-900',
+                card.danger && !isEmpty
+                  ? card.key === 'aujourd_hui' ? 'text-orange-600' : 'text-red-600'
+                  : isEmpty ? 'text-gray-300' : 'text-gray-900',
               )}>
                 {isEmpty ? '—' : dollar(card.amount)}
               </p>
@@ -175,7 +194,7 @@ export default function RecurrentsHealthSection({ occsRetard, occsSemaine, occsM
               {activeCard.label} — {activeCard.count} versement{activeCard.count !== 1 ? 's' : ''}
             </p>
             <Link
-              href={`/recurrents?filtre=${activeCard.key}`}
+              href={`/recurrents?filtre=${activeCard.filtre}`}
               className="text-xs text-violet-600 hover:text-violet-800 font-medium flex items-center gap-1"
               onClick={e => e.stopPropagation()}
             >
