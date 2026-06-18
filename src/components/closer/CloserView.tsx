@@ -243,19 +243,19 @@ function ModalEntree({
               onChange={e => setNewFuName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddFu(e as unknown as React.FormEvent) } }}
               placeholder="Nom du prospect"
-              className={`${INPUT_CLS} flex-1`}
+              className="flex-1 min-w-0 px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
             />
             <input
               type="date"
               value={newFuDate}
               onChange={e => setNewFuDate(e.target.value)}
-              className={`${INPUT_CLS} w-36`}
+              className="w-32 shrink-0 px-2 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
             />
             <button
               type="button"
               onClick={handleAddFu}
               disabled={!newFuName.trim() || !newFuDate}
-              className="px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+              className="shrink-0 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
             >
               <Plus size={14} />
             </button>
