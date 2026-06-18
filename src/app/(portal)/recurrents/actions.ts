@@ -145,6 +145,7 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
   }
 
   revalidatePath('/recurrents')
+  revalidatePath('/dashboard')
   revalidatePath('/cashcollect')
   revalidatePath('/payes')
 }
