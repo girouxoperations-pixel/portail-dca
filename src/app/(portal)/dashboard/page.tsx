@@ -723,8 +723,8 @@ export default async function DashboardPage({
 
   const occsAujourdhuiHealth = occs.filter(o => o.date_attendue === todayStr).map(toHealthOcc)
   const occsRetardHealth     = occs.filter(o => o.date_attendue < todayStr).map(toHealthOcc)
-  const occsSemaineHealth    = occs.filter(o => o.date_attendue > todayStr && o.date_attendue <= weekEndStr).map(toHealthOcc)
-  const occsMoisHealth       = occs.filter(o => o.mois === curMonth && o.annee === curYear && o.date_attendue > weekEndStr).map(toHealthOcc)
+  const occsSemaineHealth    = occs.filter(o => o.date_attendue >= todayStr && o.date_attendue <= weekEndStr).map(toHealthOcc)
+  const occsMoisHealth       = occs.filter(o => o.mois === curMonth && o.annee === curYear && o.date_attendue >= todayStr).map(toHealthOcc)
 
   const recurrentsHealth: RecurrentsHealth = {
     nRetard:    occsRetardHealth.length,
