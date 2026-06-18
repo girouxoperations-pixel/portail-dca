@@ -33,6 +33,7 @@ function OccTable({ occs, accentCls }: { occs: RecurrentsOcc[]; accentCls: strin
   if (occs.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-6">Aucun versement</p>
   }
+  const sorted = [...occs].sort((a, b) => a.date_attendue.localeCompare(b.date_attendue))
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -45,7 +46,7 @@ function OccTable({ occs, accentCls }: { occs: RecurrentsOcc[]; accentCls: strin
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
-          {occs.map(o => (
+          {sorted.map(o => (
             <tr key={o.id} className="hover:bg-gray-50/60 transition-colors">
               <td className="px-4 py-2.5 font-medium text-gray-800">{o.clientName}</td>
               <td className="px-4 py-2.5 text-gray-500">{o.closerName ?? '—'}</td>
@@ -58,7 +59,7 @@ function OccTable({ occs, accentCls }: { occs: RecurrentsOcc[]; accentCls: strin
           <tr className="border-t border-gray-100 bg-gray-50/60">
             <td colSpan={3} className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</td>
             <td className="px-4 py-2.5 text-right font-bold text-gray-800 tabular-nums">
-              {dollar(occs.reduce((s, o) => s + o.montant_attendu, 0))}
+              {dollar(sorted.reduce((s, o) => s + o.montant_attendu, 0))}
             </td>
           </tr>
         </tfoot>
