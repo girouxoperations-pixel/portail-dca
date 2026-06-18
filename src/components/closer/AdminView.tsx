@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from 'react'
 import {
-  Plus, Trash2, Phone, TrendingUp, Target, CheckCircle2,
+  Plus, Trash2, Pencil, Phone, TrendingUp, Target, CheckCircle2,
   Wallet, DollarSign, ArrowUp, ArrowDown, Minus,
 } from 'lucide-react'
 import {
@@ -10,7 +10,7 @@ import {
   Legend, ResponsiveContainer,
 } from 'recharts'
 import { cn } from '@/lib/utils'
-import { ajouterEntree, supprimerEntree } from '@/app/(portal)/closer/actions'
+import { ajouterEntree, modifierEntree, supprimerEntree } from '@/app/(portal)/closer/actions'
 import { batchAddFollowups } from '@/app/(portal)/todo/actions'
 import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
@@ -233,6 +233,83 @@ function ModalAjout({ closers, onClose }: { closers: Profil[]; onClose: () => vo
   )
 }
 
+// ── Modal modifier entrée closer ──────────────────────────────────────
+
+function ModalModifier({ entry, closerName, onClose }: {
+  entry:      CloserEntry
+  closerName: string
+  onClose:    () => void
+}) {
+  const [pending, startTransition] = useTransition()
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    startTransition(async () => {
+      await modifierEntree(entry.id, fd)
+      onClose()
+    })
+  }
+
+  return (
+    <Modal titre="Modifier l'entrée" onClose={onClose} maxWidth="max-w-lg" scrollable>
+      <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Closer</label>
+          <p className="text-sm text-gray-800 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200">{closerName}</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Date</label>
+          <input name="entry_date" type="date" required defaultValue={entry.entry_date} className={INPUT_CLS} />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Appels</p>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { name: 'scheduled_calls', label: 'Schedulés',  value: entry.scheduled_calls },
+              { name: 'show_calls',      label: 'Shows',      value: entry.show_calls      },
+              { name: 'pitch_calls',     label: 'Pitches',    value: entry.pitch_calls     },
+              { name: 'closes',          label: 'Closes',     value: entry.closes          },
+            ] as const).map(f => (
+              <div key={f.name} className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">{f.label}</label>
+                <input name={f.name} type="number" min="0" defaultValue={f.value} className={INPUT_CLS} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Financier</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Cash collecté ($)</label>
+              <input name="cash_collected" type="number" min="0" step="0.01" defaultValue={entry.cash_collected} className={INPUT_CLS} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Revenue ($)</label>
+              <input name="revenue" type="number" min="0" step="0.01" defaultValue={entry.revenue} className={INPUT_CLS} />
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Notes (optionnel)</label>
+          <textarea name="notes" rows={2} placeholder="Remarques..." defaultValue={entry.notes ?? ''} className={`${INPUT_CLS} resize-none`} />
+        </div>
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
+            Annuler
+          </button>
+          <button type="submit" disabled={pending}
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+          >
+            {pending ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 // ── Composant principal ───────────────────────────────────────────────
 
 export default function AdminView({ entrees, closers, isAdmin }: {
@@ -243,6 +320,7 @@ export default function AdminView({ entrees, closers, isAdmin }: {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [closerFilter, setCloserFilter] = useState<string>('tout')
   const [modalOuverte, setModalOuverte] = useState(false)
+  const [entreeEnEdit, setEntreeEnEdit] = useState<CloserEntry | null>(null)
   const [pending, startTransition]      = useTransition()
 
   const profileMap = useMemo(
@@ -538,14 +616,23 @@ export default function AdminView({ entrees, closers, isAdmin }: {
                     <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
                     {isAdmin && (
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleDelete(e.id)}
-                          disabled={pending}
-                          title="Supprimer"
-                          className="p-1.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setEntreeEnEdit(e)}
+                            title="Modifier"
+                            className="p-1.5 text-gray-200 hover:text-violet-500 hover:bg-violet-50 rounded transition-colors"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(e.id)}
+                            disabled={pending}
+                            title="Supprimer"
+                            className="p-1.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -558,6 +645,13 @@ export default function AdminView({ entrees, closers, isAdmin }: {
 
       {modalOuverte && (
         <ModalAjout closers={closers} onClose={() => setModalOuverte(false)} />
+      )}
+      {entreeEnEdit && (
+        <ModalModifier
+          entry={entreeEnEdit}
+          closerName={profileMap.get(entreeEnEdit.user_id) ?? 'Inconnu'}
+          onClose={() => setEntreeEnEdit(null)}
+        />
       )}
     </div>
   )

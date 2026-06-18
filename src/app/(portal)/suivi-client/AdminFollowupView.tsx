@@ -249,8 +249,8 @@ export default function AdminFollowupView({ followups, profiles, prospects }: Pr
   const filteredProspects = prospects.filter(p =>
     fuCloserFilter === 'tous' || p.closerId === fuCloserFilter
   )
-  const fuActive  = filteredProspects.filter(p => !p.done)
-  const fuDone    = filteredProspects.filter(p => p.done)
+  const fuActive  = filteredProspects.filter(p => p.statut === 'actif' || p.statut === 'contacté')
+  const fuDone    = filteredProspects.filter(p => p.statut === 'closé' || p.statut === 'perdu')
   const fuOverdue = fuActive.filter(p => p.followupDate < new Date().toISOString().split('T')[0]).length
 
   return (
@@ -280,12 +280,12 @@ export default function AdminFollowupView({ followups, profiles, prospects }: Pr
             )}
           >
             <UserSearch size={14} />Follow up
-            {prospects.filter(p => !p.done).length > 0 && (
+            {prospects.filter(p => p.statut === 'actif' || p.statut === 'contacté').length > 0 && (
               <span className={cn(
                 'text-[11px] font-bold px-1.5 py-0.5 rounded-full',
                 fuOverdue > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600',
               )}>
-                {prospects.filter(p => !p.done).length}
+                {prospects.filter(p => p.statut === 'actif' || p.statut === 'contacté').length}
               </span>
             )}
           </button>

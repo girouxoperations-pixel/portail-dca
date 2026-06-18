@@ -99,7 +99,7 @@ export async function batchAddFollowups(items: { closer_id: string; prospect_nam
 
   const db = createAdminClient()
   const { error } = await db.from('prospect_followups').insert(
-    items.map(i => ({ closer_id: i.closer_id, prospect_name: i.prospect_name.trim(), followup_date: i.followup_date, statut: 'actif' }))
+    items.map(i => ({ closer_id: i.closer_id, prospect_name: i.prospect_name.trim(), followup_date: i.followup_date }))
   )
   if (error) throw error
   revalidatePath('/closer')
