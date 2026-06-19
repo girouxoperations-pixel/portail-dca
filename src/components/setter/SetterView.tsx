@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Phone, TrendingUp, CalendarCheck, XCircle, UserX, Ban, ArrowUp, ArrowDown, Minus } from 'lucide-react'
+import { Plus, Pencil, Phone, TrendingUp, CalendarCheck, XCircle, UserX, Ban, ArrowUp, ArrowDown, Minus, Zap, RefreshCw, Wallet, DollarSign } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { cn } from '@/lib/utils'
 import { ajouterEntreeSetter, modifierEntreeSetter } from '@/app/(portal)/setter/actions'
-import { MOIS_COURT, formatDate } from '@/lib/constants'
+import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
 import PeriodFilter, { usePeriodFilter, computePrevRange } from '@/components/ui/PeriodFilter'
 import Modal        from '@/components/ui/Modal'
@@ -13,6 +13,18 @@ import PageHeader   from '@/components/layout/PageHeader'
 import FunnelCard   from '@/components/dashboard/FunnelCard'
 
 // ── Types ─────────────────────────────────────────────────────────────
+
+interface Deal {
+  id:              string
+  entry_date:      string
+  client_name:     string | null
+  montant_courant: number
+  collected:       number
+  methode:         string | null
+  close_type:      string | null
+  notes:           string | null
+  profiles:        { full_name: string | null }[] | null
+}
 
 interface SetterEntry {
   id:           string
@@ -61,6 +73,13 @@ function DeltaBadge({ current, prev }: { current: number; prev: number }) {
       {up ? <ArrowUp size={10} /> : <ArrowDown size={10} />}{Math.abs(delta)} %
     </span>
   )
+}
+
+function CloseTypeBadge({ type }: { type: string | null }) {
+  if (!type) return <span className="text-gray-300 text-xs">—</span>
+  return type === 'on_the_spot'
+    ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200"><Zap size={10} />Spot</span>
+    : <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-200"><RefreshCw size={10} />FU</span>
 }
 
 function PctBadge({ value, bold = false }: { value: number; bold?: boolean }) {
@@ -175,12 +194,14 @@ function ModalEntree({ entry, userId, onClose }: {
 
 // ── Composant principal ───────────────────────────────────────────────
 
-export default function SetterView({ entrees, userId, prenom }: {
+export default function SetterView({ entrees, deals, userId, prenom }: {
   entrees: SetterEntry[]
+  deals:   Deal[]
   userId:  string
   prenom:  string
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
+  const [tab, setTab]               = useState<'activite' | 'deals'>('activite')
   const [modalEntry, setModalEntry] = useState<SetterEntry | null | 'new'>(null)
 
   const prevRange = useMemo(() => computePrevRange(periode, offset, range), [periode, offset, range])
@@ -212,6 +233,19 @@ export default function SetterView({ entrees, userId, prenom }: {
 
   const kpis     = useMemo(() => computeKpis(filtrees),     [filtrees])
   const kpisPrev = useMemo(() => computeKpis(filtreesPrev), [filtreesPrev])
+
+  // ── Deals ─────────────────────────────────────────────────────────
+  const filteredDeals = useMemo(
+    () => !range.start ? [] : deals.filter(d => d.entry_date >= range.start && d.entry_date <= range.end),
+    [deals, range],
+  )
+  const dealKpis = useMemo(() => ({
+    count:     filteredDeals.length,
+    total:     filteredDeals.reduce((s, d) => s + d.montant_courant, 0),
+    collected: filteredDeals.reduce((s, d) => s + d.collected, 0),
+    spot:      filteredDeals.filter(d => d.close_type === 'on_the_spot').length,
+    fu:        filteredDeals.filter(d => d.close_type === 'follow_up').length,
+  }), [filteredDeals])
 
   const chartData = useMemo(() => [
     { name: 'Tentatives', current: kpis.attempts, prev: kpisPrev.attempts },
@@ -251,20 +285,41 @@ export default function SetterView({ entrees, userId, prenom }: {
         titre="Mon Suivi Setting"
         subtitle={`Bienvenue, ${prenom} — activité et performance`}
         action={
-          <button
-            onClick={() => setModalEntry('new')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            <Plus size={15} />
-            Saisir ma journée
-          </button>
+          tab === 'activite' ? (
+            <button
+              onClick={() => setModalEntry('new')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <Plus size={15} />
+              Saisir ma journée
+            </button>
+          ) : undefined
         }
       />
+
+      {/* Tab switcher */}
+      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setTab('activite')}
+          className={cn('px-4 py-2 text-sm font-medium rounded-lg transition-colors', tab === 'activite' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700')}
+        >
+          Mon Activité
+        </button>
+        <button
+          onClick={() => setTab('deals')}
+          className={cn('px-4 py-2 text-sm font-medium rounded-lg transition-colors', tab === 'deals' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700')}
+        >
+          Mes Deals
+          {deals.length > 0 && <span className="ml-1.5 text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">{deals.length}</span>}
+        </button>
+      </div>
 
       <PeriodFilter
         periode={periode} offset={offset} onChange={onPeriodChange}
         customStart={customStart} customEnd={customEnd} onCustomRange={onCustomRange}
       />
+
+      {tab === 'activite' && (<>
 
       {/* KPIs activité */}
       <div>
@@ -463,6 +518,104 @@ export default function SetterView({ entrees, userId, prenom }: {
           onClose={() => setModalEntry(null)}
         />
       )}
+
+      </>)}
+
+      {/* ── Tab: Mes Deals ──────────────────────────────────────────── */}
+      {tab === 'deals' && (
+        <>
+          {/* KPI summary */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs text-gray-400 mb-1">Deals settés</p>
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">{dealKpis.count}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                <span className="text-amber-600">⚡ {dealKpis.spot}</span> · <span className="text-blue-600">🔄 {dealKpis.fu}</span>
+              </p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs text-gray-400 mb-1">Valeur totale</p>
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">{dollar(dealKpis.total)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Montant des deals</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs text-gray-400 mb-1">Cash collecté</p>
+              <p className="text-2xl font-bold text-blue-700 tabular-nums">{dollar(dealKpis.collected)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Reçu en caisse</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs text-gray-400 mb-1">À collecter</p>
+              <p className={cn('text-2xl font-bold tabular-nums', dealKpis.total - dealKpis.collected > 0 ? 'text-amber-600' : 'text-gray-300')}>
+                {dollar(Math.max(0, dealKpis.total - dealKpis.collected))}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">Reste à encaisser</p>
+            </div>
+          </div>
+
+          {/* Deals table */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+              <h3 className="text-sm font-semibold text-gray-900">Mes deals settés</h3>
+              <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                {filteredDeals.length} deal{filteredDeals.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {filteredDeals.length === 0 ? (
+              <div className="px-5 py-12 text-center">
+                <Wallet size={28} className="mx-auto text-gray-200 mb-3" />
+                <p className="text-sm text-gray-400">Aucun deal pour cette période</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                      <th className="px-4 py-2.5 text-left">Date</th>
+                      <th className="px-4 py-2.5 text-left">Client</th>
+                      <th className="px-4 py-2.5 text-right">Montant</th>
+                      <th className="px-4 py-2.5 text-right">Cash collecté</th>
+                      <th className="px-4 py-2.5 text-right">Reste</th>
+                      <th className="px-4 py-2.5 text-center">Type</th>
+                      <th className="px-4 py-2.5 text-left">Closer</th>
+                      <th className="px-4 py-2.5 text-left">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredDeals.map(d => {
+                      const reste = Math.max(0, d.montant_courant - d.collected)
+                      return (
+                        <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(d.entry_date, MOIS_COURT)}</td>
+                          <td className="px-4 py-3 font-medium text-gray-800">{d.client_name ?? <span className="text-gray-300">—</span>}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(d.montant_courant)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-blue-700 font-medium">{dollar(d.collected)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums">
+                            {reste > 0 ? <span className="text-amber-600 font-medium">{dollar(reste)}</span> : <span className="text-green-600 text-xs">✓ Payé</span>}
+                          </td>
+                          <td className="px-4 py-3 text-center"><CloseTypeBadge type={d.close_type} /></td>
+                          <td className="px-4 py-3 text-xs text-gray-600">{d.profiles?.[0]?.full_name ?? <span className="text-gray-300">—</span>}</td>
+                          <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{d.notes ?? '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-gray-100 bg-gray-50/50 text-xs font-semibold text-gray-700">
+                      <td colSpan={2} className="px-4 py-3 text-gray-500 uppercase tracking-wide">Totaux</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{dollar(dealKpis.total)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(dealKpis.collected)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-amber-600">{dollar(Math.max(0, dealKpis.total - dealKpis.collected))}</td>
+                      <td colSpan={3} />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
     </div>
   )
 }

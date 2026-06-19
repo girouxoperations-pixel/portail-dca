@@ -19,17 +19,23 @@ export default async function SetterPage() {
 
   // ── Vue setter : uniquement ses propres entrées ───────────────────
   if (role === 'setter') {
-    const { data: entrees } = await db
-      .from('setter_entries')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('entry_date', { ascending: false })
+    const [{ data: entrees }, { data: deals }] = await Promise.all([
+      db.from('setter_entries')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('entry_date', { ascending: false }),
+      db.from('cash_entries')
+        .select('id, entry_date, client_name, montant_courant, collected, methode, close_type, notes, profiles!closed_by(full_name)')
+        .eq('set_by', user.id)
+        .order('entry_date', { ascending: false }),
+    ])
 
     const prenom = (profil.full_name as string | null)?.split(' ')[0] ?? 'vous'
 
     return (
       <SetterView
         entrees={entrees ?? []}
+        deals={deals ?? []}
         userId={user.id}
         prenom={prenom}
       />
