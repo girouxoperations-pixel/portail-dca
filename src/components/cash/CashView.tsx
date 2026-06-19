@@ -32,6 +32,7 @@ interface CashEntry {
   year: number | null
   notes: string | null
   source_type: 'webi' | 'vsl' | null
+  onboarding_date: string | null
 }
 
 interface Profil {
@@ -239,9 +240,14 @@ function ModalForm({
             </Champ>
           </div>
 
-          <Champ label="Nom du client">
-            <input name="client_name" placeholder="Entreprise Dupont" defaultValue={entry?.client_name ?? ''} className={INPUT_CLS} />
-          </Champ>
+          <div className="grid grid-cols-2 gap-4">
+            <Champ label="Nom du client">
+              <input name="client_name" placeholder="Entreprise Dupont" defaultValue={entry?.client_name ?? ''} className={INPUT_CLS} />
+            </Champ>
+            <Champ label="Date d'onboarding">
+              <input name="onboarding_date" type="date" defaultValue={entry?.onboarding_date ?? ''} className={INPUT_CLS} />
+            </Champ>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <Champ label="Closer">

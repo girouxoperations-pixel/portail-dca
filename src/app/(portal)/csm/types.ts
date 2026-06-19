@@ -5,6 +5,7 @@ export interface CsmClient {
   payment_type:        string | null
   invoice_sent:        boolean
   onboarding_notes:    string | null
+  onboarding_date:     string | null
   m1_date:             string | null
   m1_notes:            string | null
   m1_missed:           boolean

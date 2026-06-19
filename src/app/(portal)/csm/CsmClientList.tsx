@@ -11,7 +11,7 @@ import ExportCsvButton from '@/components/ui/ExportCsvButton'
 import type { CsmClient } from './types'
 import { computeDueDates, today, formatDate } from './types'
 import {
-  updateMeeting, updateMissed, toggleText, updateStatus, marquerRemboursement,
+  updateMeeting, updateMissed, toggleText, updateStatus, marquerRemboursement, updateOnboardingDate,
 } from './actions'
 
 type StatusFilter = 'tous' | 'active' | 'paused' | 'completed' | 'dropped' | 'refund'
@@ -26,6 +26,65 @@ const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }>
 
 function daysBetween(a: string, b: string) {
   return Math.floor((new Date(b).getTime() - new Date(a + 'T00:00').getTime()) / 86400000)
+}
+
+// ── Editable onboarding date cell ─────────────────────────────────────
+
+function EditableOnboardingCell({ clientId, date }: {
+  clientId: string
+  date:     string | null
+}) {
+  const [open, setOpen]    = useState(false)
+  const [val, setVal]      = useState(date ?? '')
+  const [pending, startT]  = useTransition()
+  const todayStr = today()
+
+  function handleSave() {
+    startT(async () => {
+      await updateOnboardingDate(clientId, val || null)
+      setOpen(false)
+    })
+  }
+
+  const cellCls = !date
+    ? 'bg-gray-50 text-gray-300 border border-dashed border-gray-200'
+    : date < todayStr
+      ? 'bg-green-100 text-green-800 border border-green-200'
+      : date === todayStr
+        ? 'bg-red-500 text-white border border-red-600'
+        : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+
+  return (
+    <td className="px-2 py-2 text-center relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium w-full min-w-[52px] transition-all', cellCls)}
+      >
+        {date ? formatDate(date) : <span className="opacity-50">+ date</span>}
+      </button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-48 text-left">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-700">Onboarding</p>
+            <button onClick={() => setOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={12} /></button>
+          </div>
+          <input
+            type="date"
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 mb-2"
+          />
+          <button
+            onClick={handleSave}
+            disabled={pending}
+            className="w-full py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+          >
+            {pending ? '…' : 'Sauvegarder'}
+          </button>
+        </div>
+      )}
+    </td>
+  )
 }
 
 // ── Editable meeting date cell ────────────────────────────────────────
@@ -395,6 +454,7 @@ export default function CsmClientList({ clients }: Props) {
                 <tr className="border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50">
                   <th className="px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-40">Cliente</th>
                   <th className="px-2 py-2.5 text-center text-gray-300">J.</th>
+                  <th className="px-2 py-2.5 text-center text-emerald-500">Onb.</th>
                   {/* Meetings */}
                   <th className="px-2 py-2.5 text-center text-violet-500">M1</th>
                   <th className="px-2 py-2.5 text-center">J+7</th>
@@ -460,6 +520,9 @@ export default function CsmClientList({ clients }: Props) {
                       <td className="px-2 py-2 text-center">
                         <span className="text-[10px] font-bold text-gray-400">J+{dayN}</span>
                       </td>
+
+                      {/* Onboarding date */}
+                      <EditableOnboardingCell clientId={c.id} date={c.onboarding_date} />
 
                       {/* M1 */}
                       <EditableMCell clientId={c.id} num={1} date={c.m1_date} missed={c.m1_missed} />

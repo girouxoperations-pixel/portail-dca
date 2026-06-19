@@ -134,6 +134,15 @@ export async function marquerRemboursement(clientId: string) {
   revalidatePath('/payes')
 }
 
+// ── Onboarding date ─────────────────────────────────────────────────
+export async function updateOnboardingDate(clientId: string, date: string | null) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_clients').update({ onboarding_date: date || null }).eq('id', clientId)
+  if (error) throw error
+  revalidatePath('/csm')
+}
+
 // ── Notes ───────────────────────────────────────────────────────────
 export async function updateNotes(clientId: string, notes: string) {
   await verifyAdminOrCsm()

@@ -67,13 +67,18 @@ export default function QuickCashModal({ closers, setters }: Props) {
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-gray-600">Date</label>
+                    <label className="text-xs font-medium text-gray-600">Date du deal</label>
                     <input name="entry_date" type="date" defaultValue={today} required className={INPUT} />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-gray-600">Client</label>
                     <input name="client_name" type="text" placeholder="Nom du client" className={INPUT} />
                   </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-gray-600">Date d&apos;onboarding</label>
+                  <input name="onboarding_date" type="date" className={INPUT} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
