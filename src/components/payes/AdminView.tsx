@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import {
   basculerStatut, assignerMVP,
   approuverPeriode, approuverPayesBatch, modifierPaye,
+  ajouterBonusPeriode,
 } from '@/app/(portal)/payes/actions'
 import { PALIERS, dollar, getPalier, MOIS_FR } from '@/lib/constants'
 import BonusCard  from '@/components/ui/BonusCard'
@@ -83,33 +84,74 @@ interface EmployeeGroup {
 
 // ── Section bonus ─────────────────────────────────────────────────────
 
-function SectionBonus({ bonusClosers, bonusSetters, isAdmin, teamMembers, periodes }: {
-  bonusClosers:  BonusItem[]
-  bonusSetters:  BonusItem[]
-  isAdmin:       boolean
-  teamMembers:   Profil[]
-  periodes:      { label: string; month: number; year: number }[]
+function SectionBonus({ bonusClosers, bonusSetters, isAdmin, teamMembers, periodes, periodeActuelle }: {
+  bonusClosers:    BonusItem[]
+  bonusSetters:    BonusItem[]
+  isAdmin:         boolean
+  teamMembers:     Profil[]
+  periodes:        { label: string; month: number; year: number }[]
+  periodeActuelle: { label: string; month: number; year: number }
 }) {
-  const [mvpOuvert, setMvpOuvert] = useState(false)
+  const [mvpOuvert, setMvpOuvert]       = useState(false)
+  const [pendingBonus, startBonus]       = useTransition()
+  const [bonusMsg, setBonusMsg]          = useState<string | null>(null)
+
+  const bonusItems = [
+    ...bonusClosers.filter(b => b.palier !== null).map(b => ({
+      uid: b.uid, role: 'closer' as const, bonus: b.palier!.closer, seuil: b.palier!.seuil,
+    })),
+    ...bonusSetters.filter(b => b.palier !== null).map(b => ({
+      uid: b.uid, role: 'setter' as const, bonus: b.palier!.setter, seuil: b.palier!.seuil,
+    })),
+  ]
+
+  function handleVerserBonus() {
+    if (bonusItems.length === 0) return
+    startBonus(async () => {
+      const result = await ajouterBonusPeriode(bonusItems, periodeActuelle)
+      const msg = result.inserted > 0
+        ? `${result.inserted} bonus ajouté${result.inserted !== 1 ? 's' : ''} à la paie${result.skipped > 0 ? ` · ${result.skipped} déjà présent${result.skipped !== 1 ? 's' : ''}` : ''}`
+        : `Tous les bonus sont déjà dans la paie (${result.skipped})`
+      setBonusMsg(msg)
+      setTimeout(() => setBonusMsg(null), 5000)
+    })
+  }
 
   return (
     <>
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between flex-wrap gap-2">
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques — période en cours</h3>
             <p className="text-xs text-gray-400 mt-0.5">Calculés sur le cash collecté cette période</p>
           </div>
           {isAdmin && (
-            <button
-              onClick={() => setMvpOuvert(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold rounded-lg transition-colors"
-            >
-              <Star size={13} />
-              Assigner MVP du mois
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {bonusItems.length > 0 && (
+                <button
+                  onClick={handleVerserBonus}
+                  disabled={pendingBonus}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <CheckCircle2 size={13} />
+                  {pendingBonus ? 'Versement…' : `Verser ${bonusItems.length} bonus à la paie`}
+                </button>
+              )}
+              <button
+                onClick={() => setMvpOuvert(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold rounded-lg transition-colors"
+              >
+                <Star size={13} />
+                Assigner MVP du mois
+              </button>
+            </div>
           )}
         </div>
+        {bonusMsg && (
+          <div className="px-5 py-2 bg-green-50 border-b border-green-100">
+            <p className="text-xs text-green-700 font-medium">{bonusMsg}</p>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-50">
           <div className="px-5">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">Closers</p>
@@ -718,6 +760,11 @@ export default function AdminView({
     [allProfiles],
   )
 
+  const periodeActuelle = useMemo(
+    () => periodesCourant.find(p => p.label === periodeDefaut) ?? { label: periodeDefaut, month: 0, year: 0 },
+    [periodesCourant, periodeDefaut],
+  )
+
   // Périodes qui ont au moins une entrée
   const periodesAvecEntrees = useMemo(() => {
     const labels = new Set(entrees.map(e => e.period_label))
@@ -873,6 +920,7 @@ export default function AdminView({
         isAdmin={isAdmin}
         teamMembers={teamMembers}
         periodes={periodesCourant}
+        periodeActuelle={periodeActuelle}
       />
 
       {/* ── Historique groupé ─────────────────────────────────────────── */}

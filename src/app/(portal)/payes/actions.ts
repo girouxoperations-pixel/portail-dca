@@ -107,6 +107,53 @@ export async function approuverPayesBatch(ids: string[]) {
   revalidatePath('/payes')
 }
 
+export async function ajouterBonusPeriode(
+  items: Array<{ uid: string; role: 'closer' | 'setter'; bonus: number; seuil: number }>,
+  period: { label: string; month: number; year: number },
+): Promise<{ inserted: number; skipped: number }> {
+  const { userId } = await requireRole(['admin'])
+  if (items.length === 0) return { inserted: 0, skipped: 0 }
+
+  const db = createAdminClient()
+
+  // Find existing bonus entries for this period to prevent duplicates
+  const { data: existing } = await db
+    .from('paye_entries')
+    .select('closer_id, setter_id')
+    .eq('period_label', period.label)
+    .ilike('notes', '%Bonus palier%')
+
+  const existingClosers = new Set((existing ?? []).map(e => e.closer_id).filter(Boolean) as string[])
+  const existingSetters = new Set((existing ?? []).map(e => e.setter_id).filter(Boolean) as string[])
+
+  const toInsert = items.filter(i =>
+    i.role === 'closer' ? !existingClosers.has(i.uid) : !existingSetters.has(i.uid)
+  )
+
+  if (toInsert.length === 0) return { inserted: 0, skipped: items.length }
+
+  const { error } = await db.from('paye_entries').insert(
+    toInsert.map(i => ({
+      period_label:      period.label,
+      month:             period.month,
+      year:              period.year,
+      client_name:       `— Bonus palier ${i.seuil.toLocaleString('fr-FR')} $ —`,
+      closer_id:         i.role === 'closer' ? i.uid : null,
+      setter_id:         i.role === 'setter' ? i.uid : null,
+      montant:           i.bonus,
+      commission:        i.role === 'closer' ? i.bonus : 0,
+      commission_setter: i.role === 'setter' ? i.bonus : 0,
+      statut:            'En attente',
+      notes:             `Bonus palier ${i.seuil.toLocaleString('fr-FR')} $`,
+      created_by:        userId,
+    }))
+  )
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/payes')
+  return { inserted: toInsert.length, skipped: items.length - toInsert.length }
+}
+
 export async function assignerMVP(
   personId: string,
   personRole: string,
