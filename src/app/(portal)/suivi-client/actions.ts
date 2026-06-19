@@ -45,9 +45,10 @@ export async function toggleMessageAdmin(
   if (!user) throw new Error('Non authentifié')
 
   const { data: profil } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
+    .from('profiles').select('roles').eq('id', user.id).single()
 
-  if (!profil || !['admin', 'csm'].includes(profil.role)) throw new Error('Accès refusé')
+  const userRoles = (profil?.roles ?? []) as string[]
+  if (!profil || !userRoles.some((r: string) => ['admin', 'csm'].includes(r))) throw new Error('Accès refusé')
 
   const db = createAdminClient()
   await db

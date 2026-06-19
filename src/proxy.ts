@@ -32,6 +32,7 @@ const ROUTE_RULES: { prefix: string; roles: string[] }[] = [
   { prefix: '/feedback',     roles: ['admin', 'csm', 'closer', 'setter']   },
   { prefix: '/suivi-client', roles: ['admin', 'csm', 'closer']             },
   { prefix: '/csm',         roles: ['admin', 'csm']                       },
+  { prefix: '/cm',          roles: ['admin', 'csm', 'cm']                 },
   { prefix: '/todo',        roles: ['admin', 'csm', 'closer']             },
 ]
 
@@ -92,11 +93,12 @@ export async function proxy(request: NextRequest) {
     if (rule) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('roles')
         .eq('id', user.id)
         .single()
 
-      if (!profile || !rule.roles.includes(profile.role)) {
+      const userRoles = (profile?.roles ?? []) as string[]
+      if (!profile || !userRoles.some((r) => rule.roles.includes(r))) {
         return NextResponse.redirect(new URL('/unauthorized', request.url))
       }
     }

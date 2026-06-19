@@ -18,6 +18,7 @@ type Membre = {
   full_name:  string | null
   email:      string | null
   role:       string
+  roles:      string[]
   avatar_url: string | null
   created_at: string
 }
@@ -39,13 +40,14 @@ type Tab = 'membres' | 'stats' | 'bonus'
 
 // ── Constantes ───────────────────────────────────────────────────────
 
-type RoleKey = 'admin' | 'csm' | 'closer' | 'setter'
+type RoleKey = 'admin' | 'csm' | 'closer' | 'setter' | 'cm'
 
 const ROLES: { key: RoleKey; label: string }[] = [
-  { key: 'admin',  label: 'Administrateur' },
-  { key: 'csm',    label: 'CSM'            },
-  { key: 'closer', label: 'Closer'         },
-  { key: 'setter', label: 'Setter'         },
+  { key: 'admin',  label: 'Administrateur'     },
+  { key: 'csm',    label: 'CSM'                },
+  { key: 'closer', label: 'Closer'             },
+  { key: 'setter', label: 'Setter'             },
+  { key: 'cm',     label: 'Community Manager'  },
 ]
 
 const ROLE_STYLE: Record<string, { badge: string; dot: string; initials: string }> = {
@@ -53,10 +55,11 @@ const ROLE_STYLE: Record<string, { badge: string; dot: string; initials: string 
   csm:    { badge: 'bg-blue-500/20   text-blue-300   border-blue-500/20',    dot: 'bg-blue-400',    initials: 'bg-blue-600'   },
   closer: { badge: 'bg-green-500/20  text-green-300  border-green-500/20',   dot: 'bg-green-400',   initials: 'bg-green-700'  },
   setter: { badge: 'bg-amber-500/20  text-amber-300  border-amber-500/20',   dot: 'bg-amber-400',   initials: 'bg-amber-600'  },
+  cm:     { badge: 'bg-pink-500/20   text-pink-300   border-pink-500/20',    dot: 'bg-pink-400',    initials: 'bg-pink-600'   },
 }
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: 'Administrateur', csm: 'CSM', closer: 'Closer', setter: 'Setter',
+  admin: 'Administrateur', csm: 'CSM', closer: 'Closer', setter: 'Setter', cm: 'Community Manager',
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -184,8 +187,9 @@ function ModalModifier({ membre, onClose }: { membre: Membre; onClose: () => voi
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Nom complet *" name="full_name" required defaultValue={membre.full_name ?? ''} />
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-1.5">Rôle *</label>
-          <SelectRole name="role" defaultValue={membre.role} />
+          <label className="block text-xs font-medium text-gray-400 mb-1.5">Rôles *</label>
+          <MultiCheckboxRoles defaultValues={membre.roles} />
+          <p className="text-[11px] text-gray-500 mt-1.5">Au moins un rôle requis. Le premier coché devient le rôle principal.</p>
         </div>
         {error && <p className="text-red-400 text-sm">{error}</p>}
         <Boutons onClose={onClose} pending={isPending} labelSubmit="Enregistrer" />
@@ -271,6 +275,30 @@ function SelectRole({ name, defaultValue = '' }: { name: string; defaultValue?: 
   )
 }
 
+function MultiCheckboxRoles({ defaultValues = [] }: { defaultValues?: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-3">
+      {ROLES.map(r => {
+        const style = ROLE_STYLE[r.key]
+        return (
+          <label key={r.key} className="flex items-center gap-2 cursor-pointer select-none group">
+            <input
+              type="checkbox"
+              name="roles"
+              value={r.key}
+              defaultChecked={defaultValues.includes(r.key)}
+              className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+            />
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${style.badge}`}>
+              {r.label}
+            </span>
+          </label>
+        )
+      })}
+    </div>
+  )
+}
+
 function Boutons({
   onClose, pending, labelSubmit, pendingLabel = 'Enregistrement…',
 }: {
@@ -310,7 +338,13 @@ function LigneMembre({
           </div>
         </div>
       </td>
-      <td className="px-5 py-3.5"><RoleBadge role={membre.role} /></td>
+      <td className="px-5 py-3.5">
+        <div className="flex flex-wrap gap-1">
+          {(membre.roles?.length ? membre.roles : [membre.role]).map(r => (
+            <RoleBadge key={r} role={r} />
+          ))}
+        </div>
+      </td>
       <td className="px-5 py-3.5 text-xs text-gray-500 tabular-nums">{fmtDate(membre.created_at)}</td>
       <td className="px-5 py-3.5">
         {isAdmin && (
@@ -405,10 +439,11 @@ export default function AdminView({
 
   const counts = useMemo(() => ({
     total:  membres.length,
-    admin:  membres.filter(m => m.role === 'admin').length,
-    csm:    membres.filter(m => m.role === 'csm').length,
-    closer: membres.filter(m => m.role === 'closer').length,
-    setter: membres.filter(m => m.role === 'setter').length,
+    admin:  membres.filter(m => m.roles?.includes('admin')  ?? m.role === 'admin').length,
+    csm:    membres.filter(m => m.roles?.includes('csm')    ?? m.role === 'csm').length,
+    closer: membres.filter(m => m.roles?.includes('closer') ?? m.role === 'closer').length,
+    setter: membres.filter(m => m.roles?.includes('setter') ?? m.role === 'setter').length,
+    cm:     membres.filter(m => m.roles?.includes('cm')     ?? m.role === 'cm').length,
   }), [membres])
 
   const filtres = [
@@ -417,11 +452,12 @@ export default function AdminView({
     { key: 'csm',    label: 'CSM',             count: counts.csm    },
     { key: 'closer', label: 'Closers',         count: counts.closer },
     { key: 'setter', label: 'Setters',         count: counts.setter },
+    { key: 'cm',     label: 'CM',              count: counts.cm     },
   ]
 
   const membresAffiches = filtreRole === 'tous'
     ? membres
-    : membres.filter(m => m.role === filtreRole)
+    : membres.filter(m => m.roles?.includes(filtreRole) ?? m.role === filtreRole)
 
   function handleDelete(m: Membre) {
     if (!confirm(`Supprimer le compte de "${m.full_name}" ? Cette action est irréversible.`)) return

@@ -15,11 +15,12 @@ export default async function AdminPage() {
   if (!user) redirect('/login')
 
   const { data: profil } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
+    .from('profiles').select('role, roles').eq('id', user.id).single()
   if (!profil) redirect('/login')
 
-  const role = profil.role as string
-  if (role !== 'admin' && role !== 'csm') redirect('/dashboard')
+  const role      = profil.role as string
+  const userRoles = (profil.roles ?? []) as string[]
+  if (!userRoles.some(r => ['admin', 'csm'].includes(r))) redirect('/dashboard')
 
   const db  = createAdminClient()
   const now = new Date()
@@ -33,7 +34,7 @@ export default async function AdminPage() {
     { data: mvpEntries },
   ] = await Promise.all([
     db.from('profiles')
-      .select('id, full_name, email, role, avatar_url, created_at')
+      .select('id, full_name, email, role, roles, avatar_url, created_at')
       .order('created_at', { ascending: true }),
     db.from('closer_entries')
       .select('closes')
@@ -69,12 +70,12 @@ export default async function AdminPage() {
   }
 
   const bonusClosers = (membres ?? [])
-    .filter(m => m.role === 'closer')
+    .filter(m => (m.roles as string[] | null)?.includes('closer'))
     .map(m => ({ id: m.id, nom: (m.full_name as string) ?? 'Inconnu', collected: closerCash.get(m.id) ?? 0 }))
     .sort((a, b) => b.collected - a.collected)
 
   const bonusSetters = (membres ?? [])
-    .filter(m => m.role === 'setter')
+    .filter(m => (m.roles as string[] | null)?.includes('setter'))
     .map(m => ({ id: m.id, nom: (m.full_name as string) ?? 'Inconnu', collected: setterCash.get(m.id) ?? 0 }))
     .sort((a, b) => b.collected - a.collected)
 

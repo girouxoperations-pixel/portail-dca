@@ -104,8 +104,9 @@ export async function importCsmClients(rows: Record<string, string>[]) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!profile || !['admin', 'csm'].includes(profile.role)) throw new Error('Forbidden')
+  const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
+  const userRoles = (profile?.roles ?? []) as string[]
+  if (!profile || !userRoles.some((r: string) => ['admin', 'csm'].includes(r))) throw new Error('Forbidden')
 
   const db = createAdminClient()
 
@@ -186,8 +187,8 @@ export async function deleteAllCsmClients() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!profile || profile.role !== 'admin') throw new Error('Forbidden')
+  const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
+  if (!profile || !((profile.roles ?? []) as string[]).includes('admin')) throw new Error('Forbidden')
 
   const db = createAdminClient()
   const { error } = await db.from('csm_clients').delete().neq('id', '00000000-0000-0000-0000-000000000000')

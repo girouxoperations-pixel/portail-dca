@@ -8,8 +8,9 @@ async function verifyAdminOrCsm() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!profile || !['admin', 'csm'].includes(profile.role)) throw new Error('Forbidden')
+  const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
+  const userRoles = (profile?.roles ?? []) as string[]
+  if (!profile || !userRoles.some((r: string) => ['admin', 'csm'].includes(r))) throw new Error('Forbidden')
 }
 
 // ── Meeting dates / notes ───────────────────────────────────────────

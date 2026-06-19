@@ -13,6 +13,7 @@ export interface PortalProfile {
   full_name:  string | null
   email:      string | null
   role:       string
+  roles?:     string[] | null
   avatar_url: string | null
 }
 
@@ -42,6 +43,7 @@ const ROLE_LABELS: Record<string, string> = {
   csm:    'CSM',
   closer: 'Closer',
   setter: 'Setter',
+  cm:     'Community Manager',
 }
 
 // ── Composant ────────────────────────────────────────────────────
@@ -51,7 +53,16 @@ export default function PortalHeader({ profile }: PortalHeaderProps) {
   const router    = useRouter()
   const supabase  = createClient()
 
-  const navItems: NavItem[] = NAV_ITEMS[profile.role] ?? NAV_ITEMS['closer']
+  // Build nav from all roles, deduplicated by href, preserving priority order
+  const userRoles = (profile.roles?.length ? profile.roles : [profile.role])
+  const seen = new Set<string>()
+  const navItems: NavItem[] = userRoles
+    .flatMap(r => NAV_ITEMS[r] ?? [])
+    .filter(item => {
+      if (seen.has(item.href)) return false
+      seen.add(item.href)
+      return true
+    })
   const initials = getInitials(profile.full_name, profile.email)
   const roleLabel = ROLE_LABELS[profile.role] ?? profile.role
 

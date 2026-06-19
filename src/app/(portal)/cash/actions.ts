@@ -16,10 +16,11 @@ async function requireRole(roles: string[]) {
   if (!user) throw new Error('Non authentifié')
 
   const { data: profil } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
+    .from('profiles').select('roles').eq('id', user.id).single()
 
-  if (!profil || !roles.includes(profil.role)) throw new Error('Non autorisé')
-  return { userId: user.id, role: profil.role as string }
+  const userRoles = (profil?.roles ?? []) as string[]
+  if (!profil || !userRoles.some((r: string) => roles.includes(r))) throw new Error('Non autorisé')
+  return { userId: user.id, role: userRoles[0] as string }
 }
 
 function parseYearMonth(entryDate: string) {

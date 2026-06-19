@@ -10,10 +10,10 @@ async function requireAuth() {
   if (!user) throw new Error('Non authentifié')
 
   const { data: profil } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
+    .from('profiles').select('roles').eq('id', user.id).single()
   if (!profil) throw new Error('Non autorisé')
 
-  return { userId: user.id, role: profil.role as string }
+  return { userId: user.id, role: ((profil.roles ?? []) as string[])[0] as string }
 }
 
 // ── Bucket : s'assurer qu'il existe ─────────────────────────────────

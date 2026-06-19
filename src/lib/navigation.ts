@@ -12,6 +12,7 @@ import {
   HeartHandshake,
   BookUser,
   ListTodo,
+  MessagesSquare,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -38,6 +39,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Cash Collect',href: '/cashcollect',  icon: Receipt         },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
     { label: 'Clientes CSM', href: '/csm',         icon: BookUser        },
+    { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
     { label: 'Admin',       href: '/admin',        icon: ShieldCheck     },
@@ -53,8 +55,13 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Cash Collect',href: '/cashcollect',  icon: Receipt         },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake },
     { label: 'Clientes CSM', href: '/csm',         icon: BookUser        },
+    { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
+  ],
+  cm: [
+    { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },
+    { label: 'Documents',   href: '/documents',   icon: FolderOpen      },
   ],
   closer: [
     { label: 'Todo',         href: '/todo',         icon: ListTodo        },

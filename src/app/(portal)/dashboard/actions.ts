@@ -9,8 +9,9 @@ async function requireRole(roles: string[]) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Non authentifié')
   const { data: profil } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
-  if (!profil || !roles.includes(profil.role)) throw new Error('Non autorisé')
+    .from('profiles').select('roles').eq('id', user.id).single()
+  const userRoles = (profil?.roles ?? []) as string[]
+  if (!profil || !userRoles.some((r: string) => roles.includes(r))) throw new Error('Non autorisé')
 }
 
 export async function definirObjectifs(

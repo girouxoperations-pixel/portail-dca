@@ -28,7 +28,7 @@ export default async function PortalLayout({
   // Récupère le profil complet pour le header et la navigation
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, email, role, avatar_url')
+    .select('full_name, email, role, roles, avatar_url')
     .eq('id', user.id)
     .single()
 

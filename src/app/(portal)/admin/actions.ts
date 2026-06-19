@@ -11,8 +11,9 @@ async function requireAdmin() {
   if (!user) throw new Error('Non authentifié')
 
   const { data: profil } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
-  if (!profil || profil.role !== 'admin') throw new Error('Accès refusé — rôle admin requis')
+    .from('profiles').select('roles').eq('id', user.id).single()
+  const userRoles = (profil?.roles ?? []) as string[]
+  if (!profil || !userRoles.includes('admin')) throw new Error('Accès refusé — rôle admin requis')
 
   return { userId: user.id }
 }
@@ -28,7 +29,6 @@ export async function inviterMembre(formData: FormData) {
 
   if (!email || !fullName || !role) throw new Error('Tous les champs sont requis')
 
-  // Envoie un e-mail d'invitation ; le trigger crée le profil avec le bon rôle
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://portail-dca.vercel.app'
   const { error } = await db.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName, role },
@@ -45,20 +45,18 @@ export async function modifierMembre(id: string, formData: FormData) {
   const db = createAdminClient()
 
   const fullName = (formData.get('full_name') as string)?.trim()
-  const role     = formData.get('role')       as string
+  const roles    = formData.getAll('roles')   as string[]
 
-  if (!fullName || !role) throw new Error('Tous les champs sont requis')
+  if (!fullName || !roles.length) throw new Error('Tous les champs sont requis')
 
-  // Mettre à jour la table profiles
   const { error: profileError } = await db
     .from('profiles')
-    .update({ full_name: fullName, role })
+    .update({ full_name: fullName, roles })
     .eq('id', id)
   if (profileError) throw new Error(profileError.message)
 
-  // Mettre à jour les métadonnées Supabase Auth pour la cohérence
   const { error: authError } = await db.auth.admin.updateUserById(id, {
-    user_metadata: { full_name: fullName, role },
+    user_metadata: { full_name: fullName, role: roles[0], roles },
   })
   if (authError) throw new Error(authError.message)
 
@@ -105,14 +103,15 @@ export async function assignerMVP(formData: FormData) {
   }
 
   const { data: profil } = await db
-    .from('profiles').select('role').eq('id', memberId).single()
+    .from('profiles').select('roles').eq('id', memberId).single()
   if (!profil) throw new Error('Membre introuvable')
 
   const MOIS_FR = [
     'Janvier','Février','Mars','Avril','Mai','Juin',
     'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
   ]
-  const isSetter = profil.role === 'setter'
+  const memberRoles = (profil.roles ?? []) as string[]
+  const isSetter = memberRoles.includes('setter') && !memberRoles.includes('closer')
 
   const { error } = await db.from('paye_entries').insert({
     period_label:      `MVP — ${MOIS_FR[now.getMonth()]} ${year}`,
