@@ -30,24 +30,28 @@ type CmFollowup = {
 // ── Constantes ────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<CmStatus, { label: string; next: CmStatus; badge: string; icon: React.ElementType }> = {
-  en_cours:      { label: 'En cours',         next: 'pas_reponse_1', badge: 'bg-blue-500/20 text-blue-300 border-blue-500/30',    icon: Clock        },
-  pas_reponse_1: { label: 'Pas de réponse 1', next: 'pas_reponse_2', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30', icon: AlertCircle  },
-  pas_reponse_2: { label: 'Pas de réponse 2', next: 'en_cours',      badge: 'bg-red-500/20 text-red-300 border-red-500/30',       icon: AlertCircle  },
+  en_cours:      { label: 'En cours',         next: 'pas_reponse_1', badge: 'bg-blue-500/20 text-blue-300 border-blue-500/30',    icon: Clock       },
+  pas_reponse_1: { label: 'Pas de réponse 1', next: 'pas_reponse_2', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30', icon: AlertCircle },
+  pas_reponse_2: { label: 'Pas de réponse 2', next: 'en_cours',      badge: 'bg-red-500/20 text-red-300 border-red-500/30',       icon: AlertCircle },
 }
 
 const FILTER_OPTS: { key: 'tous' | CmStatus; label: string }[] = [
-  { key: 'tous',          label: 'Tous'              },
-  { key: 'en_cours',      label: 'En cours'          },
-  { key: 'pas_reponse_1', label: 'Pas de réponse 1'  },
-  { key: 'pas_reponse_2', label: 'Pas de réponse 2'  },
+  { key: 'tous',          label: 'Tous'   },
+  { key: 'en_cours',      label: 'En cours' },
+  { key: 'pas_reponse_1', label: 'PR 1'   },
+  { key: 'pas_reponse_2', label: 'PR 2'   },
 ]
 
-function fmt(d: string | null) {
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('fr-CA', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function fmtShort(d: string | null) {
   if (!d) return ''
   return new Date(d + 'T00:00').toLocaleDateString('fr-CA', { day: '2-digit', month: 'short' })
 }
 
-// ── Sous-composants ───────────────────────────────────────────────────
+// ── Sous-composants partagés ──────────────────────────────────────────
 
 function MsgCircle({ num, done, date, onClick, disabled }: {
   num:      number
@@ -60,16 +64,16 @@ function MsgCircle({ num, done, date, onClick, disabled }: {
     <button
       onClick={onClick}
       disabled={disabled}
-      title={done && date ? `M${num} — ${fmt(date)}` : `Message ${num}`}
-      className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold
-        transition-all border select-none
+      title={done && date ? `M${num} — ${fmtShort(date)}` : `Message ${num}`}
+      className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold
+        transition-all border select-none shrink-0
         ${done
-          ? 'bg-green-500/20 text-green-400 border-green-500/40 hover:bg-green-500/30'
-          : 'bg-white/5 text-gray-600 border-white/10 hover:bg-white/10 hover:text-gray-300'
+          ? 'bg-green-500/20 text-green-400 border-green-500/40 active:bg-green-500/30'
+          : 'bg-white/5 text-gray-500 border-white/10 active:bg-white/10'
         }
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+        ${disabled ? 'opacity-50' : 'cursor-pointer'}`}
     >
-      {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : num}
+      {done ? <CheckCircle2 className="w-4 h-4" /> : num}
     </button>
   )
 }
@@ -85,10 +89,9 @@ function StatusBadge({ status, onClick, disabled }: {
     <button
       onClick={onClick}
       disabled={disabled}
-      title="Cliquer pour changer le statut"
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
-        border transition-all cursor-pointer hover:opacity-80
-        ${cfg.badge} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
+        border transition-all active:opacity-70
+        ${cfg.badge} ${disabled ? 'opacity-50' : 'cursor-pointer'}`}
     >
       <Icon className="w-3 h-3 shrink-0" />
       {cfg.label}
@@ -122,10 +125,7 @@ function ModalAjout({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1.5">Nom du client *</label>
             <input
-              name="client_name"
-              required
-              autoFocus
-              placeholder="Prénom Nom"
+              name="client_name" required autoFocus placeholder="Prénom Nom"
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm
                 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 transition-colors"
             />
@@ -133,11 +133,11 @@ function ModalAjout({ onClose }: { onClose: () => void }) {
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 px-4 py-2 border border-white/10 rounded-lg text-sm text-gray-300 hover:border-white/20 transition-colors">
+              className="flex-1 px-4 py-2 border border-white/10 rounded-lg text-sm text-gray-300">
               Annuler
             </button>
             <button type="submit" disabled={pending}
-              className="flex-1 px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
+              className="flex-1 px-4 py-2 bg-violet-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg">
               {pending ? 'Ajout…' : 'Ajouter'}
             </button>
           </div>
@@ -147,28 +147,133 @@ function ModalAjout({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ── Ligne ─────────────────────────────────────────────────────────────
+// ── Carte mobile ──────────────────────────────────────────────────────
 
-function Ligne({
-  followup, isPrivileged,
-}: {
+function Carte({ followup, isPrivileged, local, setLocal, pending, start }: {
   followup:     CmFollowup
   isPrivileged: boolean
+  local:        CmFollowup
+  setLocal:     React.Dispatch<React.SetStateAction<CmFollowup>>
+  pending:      boolean
+  start:        React.TransitionStartFunction
 }) {
-  const [local, setLocal]     = useState(followup)
-  const [pending, start]      = useTransition()
-  const [editNotes, setNotes] = useState(false)
+  const [editNotes, setEditNotes] = useState(false)
+  const [notesVal,  setNotesVal]  = useState(followup.notes ?? '')
+
+  function toggleMsg(num: 1 | 2 | 3 | 4 | 5) {
+    const key     = `message_${num}` as keyof CmFollowup
+    const dateKey = `message_${num}_date` as keyof CmFollowup
+    const next    = !local[key]
+    setLocal(prev => ({ ...prev, [key]: next, [dateKey]: next ? new Date().toISOString().split('T')[0] : null }))
+    start(() => toggleCmMessage(followup.id, num, next))
+  }
+
+  function cycleStatus() {
+    const next = STATUS_CONFIG[local.status].next
+    setLocal(prev => ({ ...prev, status: next }))
+    start(() => setCmStatus(followup.id, next))
+  }
+
+  function saveNotes() {
+    start(async () => {
+      await updateCmNotes(followup.id, notesVal)
+      setLocal(prev => ({ ...prev, notes: notesVal.trim() || null }))
+      setEditNotes(false)
+    })
+  }
+
+  function handleDelete() {
+    if (!confirm(`Supprimer "${followup.client_name}" ?`)) return
+    start(() => supprimerCmFollowup(followup.id))
+  }
+
+  const msgs: [1 | 2 | 3 | 4 | 5, boolean, string | null][] = [
+    [1, local.message_1, local.message_1_date],
+    [2, local.message_2, local.message_2_date],
+    [3, local.message_3, local.message_3_date],
+    [4, local.message_4, local.message_4_date],
+    [5, local.message_5, local.message_5_date],
+  ]
+  const progress = msgs.filter(([, done]) => done).length
+
+  return (
+    <div className={`bg-white/[0.04] border border-white/8 rounded-xl p-4 space-y-3 ${pending ? 'opacity-70' : ''}`}>
+      {/* Ligne 1 : nom + delete */}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-sm text-white leading-tight">{local.client_name}</p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <span className="text-[11px] text-gray-500">{fmtDate(local.created_at)}</span>
+            {local.csm_client_id && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20">CSM</span>
+            )}
+            {local.cash_entry_id && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">Vente</span>
+            )}
+          </div>
+        </div>
+        {isPrivileged && (
+          <button onClick={handleDelete} disabled={pending}
+            className="p-1.5 shrink-0 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Ligne 2 : messages */}
+      <div>
+        <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-2">Messages — {progress}/5</p>
+        <div className="flex items-center gap-2">
+          {msgs.map(([num, done, date]) => (
+            <MsgCircle key={num} num={num} done={done} date={date}
+              onClick={() => toggleMsg(num)} disabled={pending} />
+          ))}
+        </div>
+      </div>
+
+      {/* Ligne 3 : statut + notes */}
+      <div className="flex items-center justify-between gap-3">
+        <StatusBadge status={local.status} onClick={cycleStatus} disabled={pending} />
+
+        {editNotes ? (
+          <div className="flex gap-1.5 flex-1">
+            <input
+              autoFocus value={notesVal}
+              onChange={e => setNotesVal(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveNotes()}
+              className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white
+                focus:outline-none focus:border-violet-500 min-w-0"
+            />
+            <button onClick={saveNotes} disabled={pending}
+              className="px-2 py-1 bg-violet-600 text-white text-xs rounded">OK</button>
+            <button onClick={() => { setEditNotes(false); setNotesVal(local.notes ?? '') }}
+              className="px-1 text-gray-500"><X className="w-3.5 h-3.5" /></button>
+          </div>
+        ) : (
+          <button onClick={() => setEditNotes(true)}
+            className="text-xs text-gray-500 hover:text-white transition-colors text-right truncate max-w-[40%]"
+            title={local.notes ?? 'Note'}>
+            {local.notes ? local.notes : <span className="italic text-gray-700">+ note</span>}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Ligne desktop ─────────────────────────────────────────────────────
+
+function Ligne({ followup, isPrivileged }: { followup: CmFollowup; isPrivileged: boolean }) {
+  const [local,    setLocal]   = useState(followup)
+  const [pending,  start]      = useTransition()
+  const [editNotes, setNotes]  = useState(false)
   const [notesVal, setNotesVal] = useState(followup.notes ?? '')
 
   function toggleMsg(num: 1 | 2 | 3 | 4 | 5) {
-    const key = `message_${num}` as keyof CmFollowup
+    const key     = `message_${num}` as keyof CmFollowup
     const dateKey = `message_${num}_date` as keyof CmFollowup
-    const next = !local[key]
-    setLocal(prev => ({
-      ...prev,
-      [key]: next,
-      [dateKey]: next ? new Date().toISOString().split('T')[0] : null,
-    }))
+    const next    = !local[key]
+    setLocal(prev => ({ ...prev, [key]: next, [dateKey]: next ? new Date().toISOString().split('T')[0] : null }))
     start(() => toggleCmMessage(followup.id, num, next))
   }
 
@@ -198,97 +303,74 @@ function Ligne({
     [4, local.message_4, local.message_4_date],
     [5, local.message_5, local.message_5_date],
   ]
-
-  const progress = msgs.filter(([,done]) => done).length
+  const progress = msgs.filter(([, done]) => done).length
 
   return (
-    <tr className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${pending ? 'opacity-70' : ''}`}>
-      {/* Client */}
-      <td className="px-4 py-3">
-        <div className="font-medium text-sm text-white">{local.client_name}</div>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-[11px] text-gray-500">
-            {new Date(local.created_at).toLocaleDateString('fr-CA', { day: '2-digit', month: 'short', year: 'numeric' })}
-          </span>
-          {local.csm_client_id && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20">CSM</span>
-          )}
-          {local.cash_entry_id && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">Vente</span>
-          )}
-        </div>
-      </td>
+    <>
+      {/* ── Vue mobile : carte ─────────────────────────── */}
+      <div className="md:hidden">
+        <Carte followup={followup} isPrivileged={isPrivileged}
+          local={local} setLocal={setLocal} pending={pending} start={start} />
+      </div>
 
-      {/* Messages 1–5 */}
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          {msgs.map(([num, done, date]) => (
-            <MsgCircle
-              key={num}
-              num={num}
-              done={done}
-              date={date}
-              onClick={() => toggleMsg(num)}
-              disabled={pending}
-            />
-          ))}
-          <span className="ml-2 text-[11px] text-gray-500 tabular-nums">{progress}/5</span>
-        </div>
-      </td>
-
-      {/* Statut */}
-      <td className="px-4 py-3">
-        <StatusBadge status={local.status} onClick={cycleStatus} disabled={pending} />
-      </td>
-
-      {/* Notes */}
-      <td className="px-4 py-3 max-w-[200px]">
-        {editNotes ? (
-          <div className="flex gap-1.5">
-            <input
-              autoFocus
-              value={notesVal}
-              onChange={e => setNotesVal(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && saveNotes()}
-              className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white
-                focus:outline-none focus:border-violet-500"
-            />
-            <button onClick={saveNotes} disabled={pending}
-              className="px-2 py-1 bg-violet-600 hover:bg-violet-700 text-white text-xs rounded transition-colors">
-              OK
-            </button>
-            <button onClick={() => { setNotes(false); setNotesVal(local.notes ?? '') }}
-              className="px-2 py-1 text-gray-500 hover:text-white text-xs rounded transition-colors">
-              <X className="w-3.5 h-3.5" />
-            </button>
+      {/* ── Vue desktop : ligne de tableau ─────────────── */}
+      <tr className={`hidden md:table-row border-b border-white/5 hover:bg-white/[0.02] transition-colors ${pending ? 'opacity-70' : ''}`}>
+        <td className="px-4 py-3">
+          <div className="font-medium text-sm text-white">{local.client_name}</div>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <span className="text-[11px] text-gray-500">{fmtDate(local.created_at)}</span>
+            {local.csm_client_id && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20">CSM</span>
+            )}
+            {local.cash_entry_id && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">Vente</span>
+            )}
           </div>
-        ) : (
-          <button
-            onClick={() => setNotes(true)}
-            className="text-left text-xs text-gray-400 hover:text-white transition-colors truncate block w-full"
-            title={local.notes ?? 'Ajouter une note'}
-          >
-            {local.notes
-              ? <span className="truncate">{local.notes}</span>
-              : <span className="italic text-gray-600">+ note</span>
-            }
-          </button>
-        )}
-      </td>
-
-      {/* Actions */}
-      <td className="px-4 py-3">
-        {isPrivileged && (
-          <button
-            onClick={handleDelete}
-            disabled={pending}
-            className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </td>
-    </tr>
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1.5">
+            {msgs.map(([num, done, date]) => (
+              <MsgCircle key={num} num={num} done={done} date={date}
+                onClick={() => toggleMsg(num)} disabled={pending} />
+            ))}
+            <span className="ml-1 text-[11px] text-gray-500 tabular-nums">{progress}/5</span>
+          </div>
+        </td>
+        <td className="px-4 py-3">
+          <StatusBadge status={local.status} onClick={cycleStatus} disabled={pending} />
+        </td>
+        <td className="px-4 py-3 max-w-[200px]">
+          {editNotes ? (
+            <div className="flex gap-1.5">
+              <input autoFocus value={notesVal}
+                onChange={e => setNotesVal(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveNotes()}
+                className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white
+                  focus:outline-none focus:border-violet-500"
+              />
+              <button onClick={saveNotes} disabled={pending}
+                className="px-2 py-1 bg-violet-600 text-white text-xs rounded">OK</button>
+              <button onClick={() => { setNotes(false); setNotesVal(local.notes ?? '') }}
+                className="px-1 text-gray-500"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          ) : (
+            <button onClick={() => setNotes(true)}
+              className="text-left text-xs text-gray-400 hover:text-white transition-colors truncate block w-full"
+              title={local.notes ?? 'Note'}>
+              {local.notes ? local.notes : <span className="italic text-gray-600">+ note</span>}
+            </button>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          {isPrivileged && (
+            <button onClick={handleDelete} disabled={pending}
+              className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </td>
+      </tr>
+    </>
   )
 }
 
@@ -297,13 +379,13 @@ function Ligne({
 export default function CmView({
   followups, isPrivileged,
 }: {
-  followups:    CmFollowup[]
-  isPrivileged: boolean
+  followups:     CmFollowup[]
+  isPrivileged:  boolean
   currentUserId: string
 }) {
   const [showModal, setShowModal] = useState(false)
-  const [search,   setSearch]    = useState('')
-  const [filtre,   setFiltre]    = useState<'tous' | CmStatus>('tous')
+  const [search,    setSearch]   = useState('')
+  const [filtre,    setFiltre]   = useState<'tous' | CmStatus>('tous')
 
   const filtered = useMemo(() => {
     let list = followups
@@ -316,94 +398,89 @@ export default function CmView({
   }, [followups, filtre, search])
 
   const kpis = useMemo(() => ({
-    total:   followups.length,
+    total:         followups.length,
     en_cours:      followups.filter(f => f.status === 'en_cours').length,
     pas_reponse_1: followups.filter(f => f.status === 'pas_reponse_1').length,
     pas_reponse_2: followups.filter(f => f.status === 'pas_reponse_2').length,
-    complets: followups.filter(f => f.message_5).length,
   }), [followups])
 
   return (
     <div className="min-h-screen bg-[#0d0f1a] text-white">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
 
-        {/* ── En-tête ────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-6">
+        {/* ── En-tête ─────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <h1 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-pink-400" />
               Community Manager
             </h1>
-            <p className="text-sm text-gray-500 mt-0.5">Suivi des messages clients</p>
+            <p className="text-xs text-gray-500 mt-0.5">Suivi des messages clients</p>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
+          <button onClick={() => setShowModal(true)}
             className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700
-              text-white text-sm font-medium rounded-lg transition-colors"
-          >
+              text-white text-sm font-medium rounded-lg transition-colors">
             <Plus className="w-4 h-4" />
-            Ajouter un client
+            <span className="hidden sm:inline">Ajouter un client</span>
+            <span className="sm:hidden">Ajouter</span>
           </button>
         </div>
 
-        {/* ── KPIs ───────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {/* ── KPIs ────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           {[
-            { label: 'Total',          value: kpis.total,          cls: 'text-white'        },
-            { label: 'En cours',       value: kpis.en_cours,       cls: 'text-blue-400'     },
-            { label: 'Pas de rép. 1',  value: kpis.pas_reponse_1,  cls: 'text-amber-400'    },
-            { label: 'Pas de rép. 2',  value: kpis.pas_reponse_2,  cls: 'text-red-400'      },
+            { label: 'Total',         value: kpis.total,          cls: 'text-white'     },
+            { label: 'En cours',      value: kpis.en_cours,       cls: 'text-blue-400'  },
+            { label: 'Pas de rép. 1', value: kpis.pas_reponse_1,  cls: 'text-amber-400' },
+            { label: 'Pas de rép. 2', value: kpis.pas_reponse_2,  cls: 'text-red-400'   },
           ].map(k => (
-            <div key={k.label} className="bg-white/[0.04] border border-white/8 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">{k.label}</p>
+            <div key={k.label} className="bg-white/[0.04] border border-white/8 rounded-xl p-3 md:p-4">
+              <p className="text-[11px] text-gray-500 mb-1">{k.label}</p>
               <p className={`text-2xl font-bold ${k.cls}`}>{k.value}</p>
             </div>
           ))}
         </div>
 
-        {/* ── Filtres & recherche ────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        {/* ── Recherche + filtres ──────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row gap-2 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher un client…"
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher…"
               className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2
                 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 transition-colors"
             />
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 flex-wrap">
             {FILTER_OPTS.map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => setFiltre(opt.key)}
+              <button key={opt.key} onClick={() => setFiltre(opt.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
-                  ${filtre === opt.key
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
-                  }`}
-              >
+                  ${filtre === opt.key ? 'bg-violet-600 text-white' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}>
                 {opt.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* ── Table ──────────────────────────────────────────────── */}
-        <div className="bg-white/[0.03] border border-white/8 rounded-2xl overflow-hidden">
+        {/* ── Vue mobile : cartes ──────────────────────────────────── */}
+        <div className="md:hidden space-y-3">
+          {filtered.length === 0 ? (
+            <p className="text-center text-sm text-gray-500 py-12">
+              {search || filtre !== 'tous' ? 'Aucun résultat' : 'Aucun client — cliquer sur « Ajouter »'}
+            </p>
+          ) : (
+            filtered.map(f => <Ligne key={f.id} followup={f} isPrivileged={isPrivileged} />)
+          )}
+        </div>
+
+        {/* ── Vue desktop : tableau ────────────────────────────────── */}
+        <div className="hidden md:block bg-white/[0.03] border border-white/8 rounded-2xl overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/8">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Client / Inscription</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Messages
-                  <span className="ml-1 text-[10px] text-gray-600 normal-case font-normal">(cliquer pour cocher)</span>
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Statut
-                  <span className="ml-1 text-[10px] text-gray-600 normal-case font-normal">(cliquer pour changer)</span>
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Client</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Messages</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Statut</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Notes</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -412,17 +489,14 @@ export default function CmView({
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-12 text-center text-sm text-gray-500">
-                    {search || filtre !== 'tous' ? 'Aucun résultat' : 'Aucun client — cliquer sur « Ajouter un client »'}
+                    {search || filtre !== 'tous' ? 'Aucun résultat' : 'Aucun client'}
                   </td>
                 </tr>
               ) : (
-                filtered.map(f => (
-                  <Ligne key={f.id} followup={f} isPrivileged={isPrivileged} />
-                ))
+                filtered.map(f => <Ligne key={f.id} followup={f} isPrivileged={isPrivileged} />)
               )}
             </tbody>
           </table>
-
           {filtered.length > 0 && (
             <div className="px-4 py-3 border-t border-white/5 text-xs text-gray-600">
               {filtered.length} client{filtered.length > 1 ? 's' : ''}
@@ -432,7 +506,6 @@ export default function CmView({
         </div>
 
       </div>
-
       {showModal && <ModalAjout onClose={() => setShowModal(false)} />}
     </div>
   )
