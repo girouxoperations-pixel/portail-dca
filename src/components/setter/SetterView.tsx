@@ -54,10 +54,12 @@ interface SetterEntry {
   attempts:     number
   contacts:     number
   rdv_booked:   number
+  rdv_agenda:   number
   showed:       number
   no_show:      number
   disqualified: number
   cancelled:    number
+  deals:        number
   notes:        string | null
 }
 
@@ -67,10 +69,12 @@ const INPUT_CLS =
   'w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500'
 
 const CHAMPS_ACTIVITE = [
-  { name: 'attempts',     label: 'Tentatives'   },
-  { name: 'contacts',     label: 'Contacts'      },
-  { name: 'rdv_booked',   label: 'RDV Bookés'   },
-  { name: 'showed',       label: 'Présentés'     },
+  { name: 'attempts',   label: 'Tentatives'        },
+  { name: 'contacts',   label: 'Contacts'           },
+  { name: 'rdv_booked', label: 'RDV Bookés'        },
+  { name: 'rdv_agenda', label: 'RDV/DAY à l\'agenda' },
+  { name: 'showed',     label: 'Présentés'          },
+  { name: 'deals',      label: 'Deals'              },
 ] as const
 
 const CHAMPS_PERTES = [
@@ -241,15 +245,18 @@ export default function SetterView({ entrees, deals, recurrents, userId, prenom 
     const attempts     = rows.reduce((s, e) => s + e.attempts,     0)
     const contacts     = rows.reduce((s, e) => s + e.contacts,     0)
     const rdv          = rows.reduce((s, e) => s + e.rdv_booked,   0)
+    const rdv_agenda   = rows.reduce((s, e) => s + e.rdv_agenda,   0)
     const showed       = rows.reduce((s, e) => s + e.showed,       0)
     const no_show      = rows.reduce((s, e) => s + e.no_show,      0)
     const disqualified = rows.reduce((s, e) => s + e.disqualified, 0)
     const cancelled    = rows.reduce((s, e) => s + e.cancelled,    0)
+    const deals        = rows.reduce((s, e) => s + e.deals,        0)
     return {
-      attempts, contacts, rdv, showed, no_show, disqualified, cancelled,
+      attempts, contacts, rdv, rdv_agenda, showed, no_show, disqualified, cancelled, deals,
       contactRate: pct(contacts, attempts),
       bookRate:    pct(rdv, contacts),
       showRate:    pct(showed, rdv),
+      dealRate:    pct(deals, showed),
     }
   }
 
@@ -293,10 +300,12 @@ export default function SetterView({ entrees, deals, recurrents, userId, prenom 
   }, [recurrents, filteredOccs])
 
   const chartData = useMemo(() => [
-    { name: 'Tentatives', current: kpis.attempts, prev: kpisPrev.attempts },
-    { name: 'Contacts',   current: kpis.contacts, prev: kpisPrev.contacts },
-    { name: 'RDV',        current: kpis.rdv,       prev: kpisPrev.rdv       },
-    { name: 'Présentés',  current: kpis.showed,   prev: kpisPrev.showed   },
+    { name: 'Tentatives',  current: kpis.attempts,   prev: kpisPrev.attempts   },
+    { name: 'Contacts',    current: kpis.contacts,   prev: kpisPrev.contacts   },
+    { name: 'RDV',         current: kpis.rdv,         prev: kpisPrev.rdv         },
+    { name: 'Agenda',      current: kpis.rdv_agenda,  prev: kpisPrev.rdv_agenda  },
+    { name: 'Présentés',   current: kpis.showed,     prev: kpisPrev.showed     },
+    { name: 'Deals',       current: kpis.deals,      prev: kpisPrev.deals      },
   ], [kpis, kpisPrev])
 
   const trendData = useMemo(() => {
@@ -317,10 +326,11 @@ export default function SetterView({ entrees, deals, recurrents, userId, prenom 
   }, [entrees])
 
   const funnelSteps = [
-    { label: 'Tentatives', value: kpis.attempts, pct: 100,                                     convRate: 100 },
-    { label: 'Contacts',   value: kpis.contacts, pct: pct(kpis.contacts, kpis.attempts),       convRate: pct(kpis.contacts, kpis.attempts) },
-    { label: 'RDV',        value: kpis.rdv,       pct: pct(kpis.rdv,      kpis.attempts),       convRate: pct(kpis.rdv,      kpis.contacts) },
-    { label: 'Présentés',  value: kpis.showed,   pct: pct(kpis.showed,   kpis.attempts),       convRate: pct(kpis.showed,   kpis.rdv) },
+    { label: 'Tentatives', value: kpis.attempts,   pct: 100,                                   convRate: 100 },
+    { label: 'Contacts',   value: kpis.contacts,   pct: pct(kpis.contacts,   kpis.attempts),   convRate: pct(kpis.contacts,   kpis.attempts) },
+    { label: 'RDV',        value: kpis.rdv,         pct: pct(kpis.rdv,         kpis.attempts),   convRate: pct(kpis.rdv,         kpis.contacts) },
+    { label: 'Présentés',  value: kpis.showed,     pct: pct(kpis.showed,     kpis.attempts),   convRate: pct(kpis.showed,     kpis.rdv) },
+    { label: 'Deals',      value: kpis.deals,      pct: pct(kpis.deals,      kpis.attempts),   convRate: pct(kpis.deals,      kpis.showed) },
   ]
 
   return (
@@ -376,22 +386,30 @@ export default function SetterView({ entrees, deals, recurrents, userId, prenom 
       {/* KPIs activité */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Activité</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-            <MetricCard label="Tentatives"      value={kpis.attempts}           icon={Phone}         color="violet" sub={`${filtrees.length} jour${filtrees.length !== 1 ? 's' : ''} saisi${filtrees.length !== 1 ? 's' : ''}`} />
+            <MetricCard label="Tentatives"         value={kpis.attempts}            icon={Phone}         color="violet" sub={`${filtrees.length} jour${filtrees.length !== 1 ? 's' : ''} saisi${filtrees.length !== 1 ? 's' : ''}`} />
             <DeltaBadge current={kpis.attempts} prev={kpisPrev.attempts} />
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-            <MetricCard label="Taux de contact" value={`${kpis.contactRate} %`} icon={TrendingUp}    color="blue"   sub={`${kpis.contacts} / ${kpis.attempts}`} />
+            <MetricCard label="Taux de contact"    value={`${kpis.contactRate} %`}  icon={TrendingUp}    color="blue"   sub={`${kpis.contacts} / ${kpis.attempts}`} />
             <DeltaBadge current={kpis.contactRate} prev={kpisPrev.contactRate} />
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-            <MetricCard label="RDV Bookés"      value={kpis.rdv}                icon={CalendarCheck} color="green"  sub={`Taux book : ${kpis.bookRate} %`} />
+            <MetricCard label="RDV Bookés"         value={kpis.rdv}                  icon={CalendarCheck} color="green"  sub={`Taux book : ${kpis.bookRate} %`} />
             <DeltaBadge current={kpis.rdv} prev={kpisPrev.rdv} />
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-            <MetricCard label="Taux de show"    value={`${kpis.showRate} %`}    icon={TrendingUp}    color="amber"  sub={`${kpis.showed} / ${kpis.rdv} RDV`} />
+            <MetricCard label="RDV/DAY à l'agenda" value={kpis.rdv_agenda}           icon={CalendarCheck} color="blue"   sub="Slots planifiés dans le calendrier" />
+            <DeltaBadge current={kpis.rdv_agenda} prev={kpisPrev.rdv_agenda} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Taux de show"       value={`${kpis.showRate} %`}      icon={TrendingUp}    color="amber"  sub={`${kpis.showed} / ${kpis.rdv} RDV`} />
             <DeltaBadge current={kpis.showRate} prev={kpisPrev.showRate} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Deals"              value={kpis.deals}                icon={DollarSign}    color="green"  sub={`Taux deal : ${kpis.dealRate} %`} />
+            <DeltaBadge current={kpis.deals} prev={kpisPrev.deals} />
           </div>
         </div>
       </div>
@@ -497,9 +515,11 @@ export default function SetterView({ entrees, deals, recurrents, userId, prenom 
                   <th className="px-4 py-2.5 text-right">Contacts</th>
                   <th className="px-4 py-2.5 text-right">Contact %</th>
                   <th className="px-4 py-2.5 text-right">RDV</th>
+                  <th className="px-4 py-2.5 text-right">Agenda</th>
                   <th className="px-4 py-2.5 text-right">Book %</th>
                   <th className="px-4 py-2.5 text-right">Présentés</th>
                   <th className="px-4 py-2.5 text-right">Show %</th>
+                  <th className="px-4 py-2.5 text-right">Deals</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
                   <th className="px-4 py-2.5 text-right">Disq.</th>
                   <th className="px-4 py-2.5 text-right">Annulés</th>
@@ -519,6 +539,7 @@ export default function SetterView({ entrees, deals, recurrents, userId, prenom 
                       <PctBadge value={pct(e.contacts, e.attempts)} />
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{e.rdv_booked}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-blue-700 font-medium">{e.rdv_agenda}</td>
                     <td className="px-4 py-3 text-right">
                       <PctBadge value={pct(e.rdv_booked, e.contacts)} />
                     </td>
@@ -526,6 +547,7 @@ export default function SetterView({ entrees, deals, recurrents, userId, prenom 
                     <td className="px-4 py-3 text-right">
                       <PctBadge value={pct(e.showed, e.rdv_booked)} bold />
                     </td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{e.deals > 0 ? e.deals : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-400">{e.no_show}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-400">{e.disqualified}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-400">{e.cancelled}</td>
@@ -549,9 +571,11 @@ export default function SetterView({ entrees, deals, recurrents, userId, prenom 
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.contacts}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.contactRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.rdv}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{kpis.rdv_agenda}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.bookRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.showed}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.showRate} bold /></td>
+                  <td className="px-4 py-3 text-right tabular-nums text-green-700 font-semibold">{kpis.deals}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-red-400">{kpis.no_show}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.disqualified}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.cancelled}</td>

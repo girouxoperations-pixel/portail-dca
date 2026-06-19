@@ -26,10 +26,12 @@ interface SetterEntry {
   attempts:     number
   contacts:     number
   rdv_booked:   number
+  rdv_agenda:   number
   showed:       number
   no_show:      number
   disqualified: number
   cancelled:    number
+  deals:        number
   notes:        string | null
 }
 
@@ -79,15 +81,18 @@ function computeKpis(rows: SetterEntry[]) {
   const attempts     = rows.reduce((s, e) => s + e.attempts,     0)
   const contacts     = rows.reduce((s, e) => s + e.contacts,     0)
   const rdv          = rows.reduce((s, e) => s + e.rdv_booked,   0)
+  const rdv_agenda   = rows.reduce((s, e) => s + e.rdv_agenda,   0)
   const showed       = rows.reduce((s, e) => s + e.showed,       0)
   const no_show      = rows.reduce((s, e) => s + e.no_show,      0)
   const disqualified = rows.reduce((s, e) => s + e.disqualified, 0)
   const cancelled    = rows.reduce((s, e) => s + e.cancelled,    0)
+  const deals        = rows.reduce((s, e) => s + e.deals,        0)
   return {
-    attempts, contacts, rdv, showed, no_show, disqualified, cancelled,
+    attempts, contacts, rdv, rdv_agenda, showed, no_show, disqualified, cancelled, deals,
     contactRate: pct(contacts, attempts),
     bookRate:    pct(rdv, contacts),
     showRate:    pct(showed, rdv),
+    dealRate:    pct(deals, showed),
   }
 }
 
@@ -125,10 +130,12 @@ function ModalAjout({ setters, onClose }: { setters: Profil[]; onClose: () => vo
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Activité</p>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { name: 'attempts',   label: 'Tentatives'  },
-              { name: 'contacts',   label: 'Contacts'     },
-              { name: 'rdv_booked', label: 'RDV Bookés'  },
-              { name: 'showed',     label: 'Présentés'    },
+              { name: 'attempts',   label: 'Tentatives'           },
+              { name: 'contacts',   label: 'Contacts'              },
+              { name: 'rdv_booked', label: 'RDV Bookés'           },
+              { name: 'rdv_agenda', label: "RDV/DAY à l'agenda"   },
+              { name: 'showed',     label: 'Présentés'             },
+              { name: 'deals',      label: 'Deals'                 },
             ].map(f => (
               <div key={f.name} className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-gray-700">{f.label}</label>
@@ -204,10 +211,12 @@ function ModalModifier({ entry, setterName, onClose }: {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Activité</p>
           <div className="grid grid-cols-2 gap-3">
             {([
-              { name: 'attempts',   label: 'Tentatives', value: entry.attempts   },
-              { name: 'contacts',   label: 'Contacts',    value: entry.contacts   },
-              { name: 'rdv_booked', label: 'RDV Bookés', value: entry.rdv_booked },
-              { name: 'showed',     label: 'Présentés',   value: entry.showed     },
+              { name: 'attempts',   label: 'Tentatives',         value: entry.attempts   },
+              { name: 'contacts',   label: 'Contacts',            value: entry.contacts   },
+              { name: 'rdv_booked', label: 'RDV Bookés',         value: entry.rdv_booked },
+              { name: 'rdv_agenda', label: "RDV/DAY à l'agenda", value: entry.rdv_agenda },
+              { name: 'showed',     label: 'Présentés',           value: entry.showed     },
+              { name: 'deals',      label: 'Deals',               value: entry.deals      },
             ] as const).map(f => (
               <div key={f.name} className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-gray-700">{f.label}</label>
@@ -291,21 +300,23 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
 
   const statsParSetter = useMemo(() => {
     const agg = new Map<string, {
-      attempts: number; contacts: number; rdv: number;
-      showed: number; no_show: number; disqualified: number; cancelled: number
+      attempts: number; contacts: number; rdv: number; rdv_agenda: number;
+      showed: number; no_show: number; disqualified: number; cancelled: number; deals: number
     }>()
     for (const e of filtreePeriode) {
       const cur = agg.get(e.user_id) ?? {
-        attempts: 0, contacts: 0, rdv: 0, showed: 0, no_show: 0, disqualified: 0, cancelled: 0,
+        attempts: 0, contacts: 0, rdv: 0, rdv_agenda: 0, showed: 0, no_show: 0, disqualified: 0, cancelled: 0, deals: 0,
       }
       agg.set(e.user_id, {
         attempts:     cur.attempts     + e.attempts,
         contacts:     cur.contacts     + e.contacts,
         rdv:          cur.rdv          + e.rdv_booked,
+        rdv_agenda:   cur.rdv_agenda   + e.rdv_agenda,
         showed:       cur.showed       + e.showed,
         no_show:      cur.no_show      + e.no_show,
         disqualified: cur.disqualified + e.disqualified,
         cancelled:    cur.cancelled    + e.cancelled,
+        deals:        cur.deals        + e.deals,
       })
     }
     return Array.from(agg.entries())
@@ -314,10 +325,12 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
   }, [filtreePeriode, profileMap])
 
   const chartData = useMemo(() => [
-    { name: 'Tentatives', current: kpis.attempts,  prev: kpisPrev.attempts  },
-    { name: 'Contacts',   current: kpis.contacts,  prev: kpisPrev.contacts  },
-    { name: 'RDV',        current: kpis.rdv,        prev: kpisPrev.rdv        },
-    { name: 'Présentés',  current: kpis.showed,    prev: kpisPrev.showed    },
+    { name: 'Tentatives', current: kpis.attempts,   prev: kpisPrev.attempts   },
+    { name: 'Contacts',   current: kpis.contacts,   prev: kpisPrev.contacts   },
+    { name: 'RDV',        current: kpis.rdv,         prev: kpisPrev.rdv         },
+    { name: 'Agenda',     current: kpis.rdv_agenda,  prev: kpisPrev.rdv_agenda  },
+    { name: 'Présentés',  current: kpis.showed,     prev: kpisPrev.showed     },
+    { name: 'Deals',      current: kpis.deals,      prev: kpisPrev.deals      },
   ], [kpis, kpisPrev])
 
   function handleDelete(id: string) {
@@ -458,9 +471,11 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
                   <th className="px-4 py-2.5 text-right">Contacts</th>
                   <th className="px-4 py-2.5 text-right">Contact %</th>
                   <th className="px-4 py-2.5 text-right">RDV</th>
+                  <th className="px-4 py-2.5 text-right">Agenda</th>
                   <th className="px-4 py-2.5 text-right">Book %</th>
                   <th className="px-4 py-2.5 text-right">Présentés</th>
                   <th className="px-4 py-2.5 text-right">Show %</th>
+                  <th className="px-4 py-2.5 text-right">Deals</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
                   <th className="px-4 py-2.5 text-right">Disq.</th>
                   <th className="px-4 py-2.5 text-right">Annulés</th>
@@ -478,9 +493,11 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.contacts}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(s.contacts, s.attempts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{s.rdv}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-blue-700">{s.rdv_agenda}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(s.rdv, s.contacts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.showed}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(s.showed, s.rdv)} bold /></td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{s.deals > 0 ? s.deals : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-400">{s.no_show}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.disqualified}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.cancelled}</td>
@@ -494,9 +511,11 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.contacts}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.contactRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.rdv}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{kpis.rdv_agenda}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.bookRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.showed}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.showRate} bold /></td>
+                  <td className="px-4 py-3 text-right tabular-nums text-green-700 font-semibold">{kpis.deals}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-red-400">{kpis.no_show}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.disqualified}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.cancelled}</td>
@@ -531,9 +550,11 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
                   <th className="px-4 py-2.5 text-right">Contacts</th>
                   <th className="px-4 py-2.5 text-right">Contact %</th>
                   <th className="px-4 py-2.5 text-right">RDV</th>
+                  <th className="px-4 py-2.5 text-right">Agenda</th>
                   <th className="px-4 py-2.5 text-right">Book %</th>
                   <th className="px-4 py-2.5 text-right">Présentés</th>
                   <th className="px-4 py-2.5 text-right">Show %</th>
+                  <th className="px-4 py-2.5 text-right">Deals</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
                   <th className="px-4 py-2.5 text-left">Notes</th>
                   {isAdmin && <th className="px-4 py-2.5" />}
@@ -550,9 +571,11 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{e.contacts}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(e.contacts, e.attempts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{e.rdv_booked}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-blue-700">{e.rdv_agenda}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(e.rdv_booked, e.contacts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{e.showed}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(e.showed, e.rdv_booked)} bold /></td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{e.deals > 0 ? e.deals : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-400">{e.no_show}</td>
                     <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
                     {isAdmin && (

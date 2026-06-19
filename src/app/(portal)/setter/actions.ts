@@ -26,10 +26,12 @@ function parseFields(formData: FormData) {
     attempts:     Number(formData.get('attempts')     ?? 0),
     contacts:     Number(formData.get('contacts')     ?? 0),
     rdv_booked:   Number(formData.get('rdv_booked')   ?? 0),
+    rdv_agenda:   Number(formData.get('rdv_agenda')   ?? 0),
     showed:       Number(formData.get('showed')       ?? 0),
     no_show:      Number(formData.get('no_show')      ?? 0),
     disqualified: Number(formData.get('disqualified') ?? 0),
     cancelled:    Number(formData.get('cancelled')    ?? 0),
+    deals:        Number(formData.get('deals')        ?? 0),
     notes:        (formData.get('notes') as string) || null,
   }
 }
