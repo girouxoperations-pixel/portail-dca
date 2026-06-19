@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo, useOptimistic } from 'react'
 import { Plus, Pencil, Phone, TrendingUp, Target, CheckCircle2, Wallet, DollarSign, ArrowUp, ArrowDown, Minus, Zap, RefreshCw, UserSearch, Trash2, AlertCircle, Clock, Circle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { ajouterEntree, modifierEntree, creerDealCloser, marquerRecuCloser } from '@/app/(portal)/closer/actions'
+import { ajouterEntree, modifierEntree, creerDealCloser } from '@/app/(portal)/closer/actions'
 import { addProspectFollowup, toggleProspectFollowup, deleteProspectFollowup, setProspectStatut, batchAddFollowups } from '@/app/(portal)/todo/actions'
 import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
@@ -488,57 +488,23 @@ function ModalDeal({
   )
 }
 
-// ── Ligne occurrence récurrente (avec action Marquer reçu) ───────────
+// ── Ligne occurrence récurrente (lecture seule pour le closer) ────────
 
 function RecuOccRow({ occ }: { occ: RecurringOcc & { client_name: string } }) {
-  const [amount, setAmount]       = useState(String(occ.montant_attendu))
-  const [pending, startTransition] = useTransition()
-  const [err, setErr]             = useState<string | null>(null)
-
-  function handleMarquer() {
-    const val = Number(amount)
-    if (isNaN(val) || val <= 0) return
-    setErr(null)
-    startTransition(async () => {
-      try {
-        await marquerRecuCloser(occ.id, val)
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : 'Erreur')
-      }
-    })
-  }
-
   return (
     <tr className={cn('transition-colors', occ.recu ? 'bg-green-50/30' : 'hover:bg-gray-50/50')}>
       <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(occ.date_attendue, MOIS_COURT)}</td>
       <td className="px-4 py-3 font-medium text-gray-800">{occ.client_name}</td>
       <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(occ.montant_attendu)}</td>
       <td className="px-4 py-3">
-        {occ.recu ? (
-          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 ring-1 ring-green-200">
-            <CheckCircle2 size={10} />Reçu
-          </span>
-        ) : (
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              min="0"
-              step="0.01"
-              className="w-24 px-2 py-1 rounded border border-gray-200 text-xs text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500"
-            />
-            <button
-              onClick={handleMarquer}
-              disabled={pending}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
-            >
-              <CheckCircle2 size={11} />
-              {pending ? '…' : 'Marquer reçu'}
-            </button>
-          </div>
-        )}
-        {err && <p className="text-[10px] text-red-500 mt-1">{err}</p>}
+        {occ.recu
+          ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 ring-1 ring-green-200">
+              <CheckCircle2 size={10} />Reçu
+            </span>
+          : <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+              En attente
+            </span>
+        }
       </td>
       <td className="px-4 py-3 text-right tabular-nums">
         {occ.recu

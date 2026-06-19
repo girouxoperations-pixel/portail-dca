@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useOptimistic, useTransition } from 'react'
-import Link from 'next/link'
 import {
   CheckCircle2, Circle, Clock, AlertCircle,
   DollarSign, MessageSquare, UserSearch, Plus, Trash2, X,
@@ -9,7 +8,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { SuiviTask, VersementTask, ProspectTask } from './types'
 import { todayStr, weekEnd, classifyTask, dollar, fmtDate } from './types'
-import { toggleSuiviMessage, addProspectFollowup, toggleProspectFollowup, deleteProspectFollowup } from './actions'
+import { toggleSuiviMessage, addProspectFollowup, toggleProspectFollowup, deleteProspectFollowup, noterRecuCloser } from './actions'
 
 interface Props {
   suiviTasks:     SuiviTask[]
@@ -40,24 +39,25 @@ export default function CloserTodoView({ suiviTasks, versementTasks, prospectTas
     return tab === 'today' ? (p === 'today' || p === 'overdue') : p === tab
   })
 
-  // Badge counts: only pending (not done) items
+  // Badge counts: only pending (not done, not noted by closer)
+  const vPending = (t: VersementTask) => !t.done && !t.closerNoted
   const counts = {
     today:
       suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'today').length +
-      versementTasks.filter(t => !t.done && (periodOf(t.dueDate, false) === 'today' || periodOf(t.dueDate, false) === 'overdue')).length +
+      versementTasks.filter(t => vPending(t) && (periodOf(t.dueDate, false) === 'today' || periodOf(t.dueDate, false) === 'overdue')).length +
       prospectTasks.filter(t => { const p = periodOf(t.followupDate, t.done); return p === 'today' || p === 'overdue' }).length,
     week:
       suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'week').length +
-      versementTasks.filter(t => !t.done && periodOf(t.dueDate, false) === 'week').length +
+      versementTasks.filter(t => vPending(t) && periodOf(t.dueDate, false) === 'week').length +
       prospectTasks.filter(t => periodOf(t.followupDate, t.done) === 'week').length,
     overdue:
       suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'overdue').length +
-      versementTasks.filter(t => !t.done && periodOf(t.dueDate, false) === 'overdue').length +
+      versementTasks.filter(t => vPending(t) && periodOf(t.dueDate, false) === 'overdue').length +
       prospectTasks.filter(t => periodOf(t.followupDate, t.done) === 'overdue').length,
   }
 
   const overdueS = suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'overdue').length
-  const overdueV = versementTasks.filter(t => !t.done && periodOf(t.dueDate, false) === 'overdue').length
+  const overdueV = versementTasks.filter(t => vPending(t) && periodOf(t.dueDate, false) === 'overdue').length
   const overdueP = prospectTasks.filter(t => periodOf(t.followupDate, t.done) === 'overdue').length
   const todayAll = counts.today
 
@@ -67,11 +67,11 @@ export default function CloserTodoView({ suiviTasks, versementTasks, prospectTas
   }
 
   const overdueSuivis     = suiviTasks.filter(t => periodOf(t.dueDate, t.done) === 'overdue')
-  const overdueVersements = versementTasks.filter(t => !t.done && periodOf(t.dueDate, false) === 'overdue')
+  const overdueVersements = versementTasks.filter(t => vPending(t) && periodOf(t.dueDate, false) === 'overdue')
   const overdueProspects  = prospectTasks.filter(t => periodOf(t.followupDate, t.done) === 'overdue')
   const todayItems = {
     suivis:     suiviTasks.filter(t => { const p = periodOf(t.dueDate, t.done); return p === 'today' }),
-    versements: versementTasks.filter(t => { const p = periodOf(t.dueDate, false); return !t.done && (p === 'today' || p === 'overdue') }),
+    versements: versementTasks.filter(t => { const p = periodOf(t.dueDate, false); return vPending(t) && (p === 'today' || p === 'overdue') }),
     prospects:  prospectTasks.filter(t => { const p = periodOf(t.followupDate, t.done); return p === 'today' || p === 'overdue' }),
   }
 
@@ -257,9 +257,9 @@ export default function CloserTodoView({ suiviTasks, versementTasks, prospectTas
               <div className="space-y-2">
                 {versements.map(t => <VersementRow key={t.occurrenceId} task={t} today={today} />)}
               </div>
-              {versements.some(t => !t.done) && (
+              {versements.some(t => !t.done && !t.closerNoted) && (
                 <p className="text-[11px] text-gray-400 mt-2 ml-1">
-                  Marquer reçu depuis <Link href="/recurrents" className="text-violet-500 hover:underline">Récurrents →</Link>
+                  Coche un versement pour le noter personnellement. La validation officielle est faite par l'admin.
                 </p>
               )}
             </section>
@@ -457,34 +457,54 @@ function SuiviRow({ task: t, today }: { task: SuiviTask; today: string }) {
   )
 }
 
-// ── Versement row — shows done state when collected ───────────────────
+// ── Versement row — closer can personally note; admin/CSM confirms ────
 function VersementRow({ task: t, today }: { task: VersementTask; today: string }) {
-  const isOverdue = !t.done && t.dueDate < today
+  const [optimisticNoted, setOptimistic] = useOptimistic(t.closerNoted)
+  const [, startTransition] = useTransition()
+
+  const effectiveDone = t.done || optimisticNoted
+  const isOverdue = !effectiveDone && t.dueDate < today
+
+  function toggle() {
+    if (t.done) return
+    const next = !optimisticNoted
+    startTransition(async () => {
+      setOptimistic(next)
+      await noterRecuCloser(t.occurrenceId, next)
+    })
+  }
+
   return (
-    <Link
-      href="/recurrents"
+    <div
+      onClick={toggle}
+      role="button"
       className={cn(
         'flex items-center gap-3 p-3.5 rounded-xl border transition-all',
-        t.done     ? 'bg-green-50 border-green-100'
-        : isOverdue ? 'bg-orange-50 border-orange-200 hover:bg-orange-100'
+        t.done            ? 'bg-green-50 border-green-100'
+        : optimisticNoted ? 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+        : isOverdue       ? 'bg-orange-50 border-orange-200 hover:bg-orange-100'
         : 'bg-white border-gray-100 hover:border-gray-200',
+        !t.done && 'cursor-pointer',
       )}
     >
       {t.done
         ? <CheckCircle2 size={20} className="text-green-500 shrink-0" />
-        : <DollarSign   size={20} className={isOverdue ? 'text-orange-500 shrink-0' : 'text-gray-300 shrink-0'} />
+        : optimisticNoted
+          ? <CheckCircle2 size={20} className="text-gray-400 shrink-0" />
+          : <DollarSign   size={20} className={isOverdue ? 'text-orange-500 shrink-0' : 'text-gray-300 shrink-0'} />
       }
       <div className="flex-1 min-w-0">
-        <p className={cn('text-sm font-medium', t.done ? 'text-gray-400 line-through' : 'text-gray-800')}>
+        <p className={cn('text-sm font-medium', effectiveDone ? 'text-gray-400 line-through' : 'text-gray-800')}>
           {t.clientName}
         </p>
         <p className="text-xs text-gray-400 mt-0.5">{fmtDate(t.dueDate)}</p>
       </div>
-      <span className={cn('text-sm font-semibold shrink-0', t.done ? 'text-gray-400' : 'text-gray-700')}>
+      <span className={cn('text-sm font-semibold shrink-0', effectiveDone ? 'text-gray-400' : 'text-gray-700')}>
         {dollar(t.montant)}
       </span>
-      {t.done    && <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0">Reçu ✓</span>}
-      {isOverdue && <span className="text-[10px] font-semibold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full shrink-0">En retard</span>}
-    </Link>
+      {t.done              && <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0">Reçu ✓</span>}
+      {optimisticNoted && !t.done && <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full shrink-0">Noté ✓</span>}
+      {isOverdue           && <span className="text-[10px] font-semibold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full shrink-0">En retard</span>}
+    </div>
   )
 }

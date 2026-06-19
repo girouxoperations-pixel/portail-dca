@@ -16,7 +16,8 @@ export interface VersementTask {
   clientName:   string
   montant:      number
   dueDate:      string
-  done:         boolean
+  done:         boolean       // occ.recu — set by admin/CSM only
+  closerNoted:  boolean       // occ.closer_noted — personal tracking by closer
   closerId:     string | null
   closerName?:  string
 }

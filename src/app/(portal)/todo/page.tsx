@@ -111,7 +111,7 @@ function buildSuiviTasks(followups: RawFollowup[], profileMap: Map<string, strin
 }
 
 type RawOccurrence = {
-  id: string; date_attendue: string; montant_attendu: number; recu: boolean
+  id: string; date_attendue: string; montant_attendu: number; recu: boolean; closer_noted: boolean
   recurring_deals: { client_name: string; closer_id: string | null; profiles?: { full_name: string | null } | null } | null
 }
 
@@ -121,7 +121,7 @@ function buildVersementTasks(occurrences: RawOccurrence[], profileMap: Map<strin
     const closerName = profileMap
       ? (deal.closer_id ? (profileMap.get(deal.closer_id) ?? 'Inconnu') : null)
       : ((deal.profiles as { full_name: string | null } | null)?.full_name ?? null)
-    return { type: 'versement' as const, occurrenceId: o.id, clientName: deal.client_name, montant: o.montant_attendu, dueDate: o.date_attendue, done: o.recu, closerId: deal.closer_id, closerName: closerName ?? undefined }
+    return { type: 'versement' as const, occurrenceId: o.id, clientName: deal.client_name, montant: o.montant_attendu, dueDate: o.date_attendue, done: o.recu, closerNoted: o.closer_noted, closerId: deal.closer_id, closerName: closerName ?? undefined }
   })
 }
 

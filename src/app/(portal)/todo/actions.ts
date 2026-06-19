@@ -107,6 +107,33 @@ export async function batchAddFollowups(items: { closer_id: string; prospect_nam
   revalidatePath('/todo')
 }
 
+// ── Closer personal recurring note (no cash entry) ──────────────────
+export async function noterRecuCloser(occurrenceId: string, noted: boolean) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non authentifié')
+
+  const db = createAdminClient()
+
+  const { data: occ } = await db
+    .from('recurring_occurrences')
+    .select('recurring_deals(closer_id)')
+    .eq('id', occurrenceId)
+    .single()
+
+  if (!occ?.recurring_deals) throw new Error('Introuvable')
+  const deal = occ.recurring_deals as unknown as { closer_id: string | null }
+  if (deal.closer_id !== user.id) throw new Error('Non autorisé')
+
+  const { error } = await db
+    .from('recurring_occurrences')
+    .update({ closer_noted: noted })
+    .eq('id', occurrenceId)
+
+  if (error) throw error
+  revalidatePath('/todo')
+}
+
 // ── Toggle suivi message ─────────────────────────────────────────────
 export async function toggleSuiviMessage(
   followupId: string,
