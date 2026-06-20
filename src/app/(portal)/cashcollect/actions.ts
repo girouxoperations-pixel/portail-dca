@@ -39,22 +39,24 @@ export async function creerCashCollect(formData: FormData) {
   const closedBy       = (formData.get('closed_by') as string) || null
   const setBy          = (formData.get('set_by') as string) || null
   const notes          = (formData.get('notes') as string) || null
+  const onboardingDate = (formData.get('onboarding_date') as string) || null
 
   // 1. Insert cash entry
   const { data: cashEntry, error: cashErr } = await db
     .from('cash_entries')
     .insert({
-      entry_date: entryDate,
-      client_name: clientName,
+      entry_date:      entryDate,
+      client_name:     clientName,
       montant_courant: montantCourant,
       collected,
       methode,
-      closed_by: closedBy,
-      set_by: setBy,
+      closed_by:       closedBy,
+      set_by:          setBy,
+      onboarding_date: onboardingDate,
       month,
       year,
       notes,
-      created_by: userId,
+      created_by:      userId,
     })
     .select('id')
     .single()

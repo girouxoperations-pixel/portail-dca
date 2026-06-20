@@ -274,9 +274,15 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Nom du client</label>
-          <input name="client_name" placeholder="Marie Tremblay" className={INPUT_CLS} />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Nom du client</label>
+            <input name="client_name" placeholder="Marie Tremblay" className={INPUT_CLS} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Date d&apos;onboarding</label>
+            <input name="onboarding_date" type="date" className={INPUT_CLS} />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
