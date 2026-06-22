@@ -726,7 +726,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
       const occ = d.recurring_occurrences.find(o => o.mois === mois && o.annee === annee)
       if (occ) rows.push({ occ, deal: d })
     }
-    return rows.sort((a, b) => a.deal.client_name.localeCompare(b.deal.client_name, 'fr'))
+    return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
   }, [deals, mois, annee])
 
   const nbRecus   = occsMois.filter(r => r.occ.recu).length
