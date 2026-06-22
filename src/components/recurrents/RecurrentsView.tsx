@@ -51,7 +51,7 @@ interface Deal {
   recurring_occurrences: Occurrence[]
 }
 
-type Filtre = 'retard' | 'semaine' | 'mois' | 'tout'
+type Filtre = 'retard' | 'semaine' | 'mois' | 'par_mois' | 'tout'
 
 interface Props {
   deals:         Deal[]
@@ -659,7 +659,7 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
 // ── Vue principale ─────────────────────────────────────────────────────
 
 function toValidFiltre(s: string | undefined): Filtre {
-  if (s === 'semaine' || s === 'mois' || s === 'tout') return s
+  if (s === 'semaine' || s === 'mois' || s === 'par_mois' || s === 'tout') return s
   return 'retard'
 }
 
@@ -773,10 +773,11 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
       {/* ── Filtres rapides ── */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
         {([
-          { key: 'retard',  label: 'En retard',     count: enRetard.length      },
-          { key: 'semaine', label: 'Cette semaine',  count: occsSemaine.length   },
-          { key: 'mois',    label: 'Ce mois',        count: curMoisFilter.length },
-          { key: 'tout',    label: 'Tout voir',      count: 0                    },
+          { key: 'retard',    label: 'En retard',     count: enRetard.length      },
+          { key: 'semaine',   label: 'Cette semaine',  count: occsSemaine.length   },
+          { key: 'mois',      label: 'Ce mois',        count: curMoisFilter.length },
+          { key: 'par_mois',  label: 'Par mois',       count: occsMois.length      },
+          { key: 'tout',      label: 'Tout voir',      count: 0                    },
         ] as const).map(f => (
           <button
             key={f.key}
@@ -919,6 +920,88 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Vue par mois (filtre = par_mois) ── */}
+      {filtre === 'par_mois' && (
+        <div className="space-y-4">
+          {/* Sélecteur de mois */}
+          <div className="bg-white rounded-xl border border-violet-100 shadow-sm p-4 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navMois(-1)}
+                className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:border-gray-300 transition-colors"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-base font-bold text-gray-900 min-w-[160px] text-center">{moisLabel}</span>
+              <button
+                onClick={() => navMois(+1)}
+                className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:border-gray-300 transition-colors"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide">À recevoir</p>
+                <p className="text-sm font-bold text-amber-600">
+                  {nbAttente} · {dollar(occsMois.filter(r => !r.occ.recu).reduce((s, r) => s + r.occ.montant_attendu, 0))}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide">Reçus</p>
+                <p className="text-sm font-bold text-green-600">{nbRecus} · {dollar(totalMois)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-400 uppercase tracking-wide">Total mois</p>
+                <p className="text-sm font-bold text-gray-800">
+                  {dollar(occsMois.reduce((s, r) => s + r.occ.montant_attendu, 0))}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Liste des clients */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-50">
+              <h3 className="text-sm font-semibold text-gray-800">
+                Clients récurrents — {moisLabel}
+              </h3>
+            </div>
+            {occsMois.length === 0 ? (
+              <div className="px-5 py-14 text-center">
+                <RefreshCw size={28} className="text-gray-200 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">Aucun deal récurrent pour ce mois</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50/80 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                      <th className="px-4 py-2.5 text-left">Client · Équipe</th>
+                      <th className="px-4 py-2.5 text-left">Date de contact</th>
+                      <th className="px-4 py-2.5 text-right">Montant ($)</th>
+                      <th className="px-4 py-2.5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {occsMois.map(({ occ, deal }) => (
+                      <OccurrenceRow
+                        key={occ.id}
+                        occ={occ}
+                        deal={deal}
+                        profileMap={profileMap}
+                        profiles={profiles}
+                        isAdmin={isAdmin}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
