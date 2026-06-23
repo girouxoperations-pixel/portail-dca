@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown, Zap, RefreshCw, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown, Zap, RefreshCw, X, ChevronDown, ChevronUp, RefreshCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  creerCashCollect, modifierCashEntry, supprimerCashCollect,
+  creerCashCollect, modifierCashEntry, supprimerCashCollect, ajouterVersementNouveauRecurrent,
 } from '@/app/(portal)/cashcollect/actions'
+import { encaisserProchainVersement } from '@/app/(portal)/recurrents/actions'
 import { MOIS_FR, MOIS_COURT, PALIERS, dollar, currentMonthKey, formatDate, getPalier } from '@/lib/constants'
 import MetricCard  from '@/components/ui/MetricCard'
 import MonthFilter from '@/components/ui/MonthFilter'
@@ -508,6 +509,190 @@ function ModalModifier({ entry, closers, setters, onClose }: { entry: CashEntry;
   )
 }
 
+// ── Modal versement récurrent ─────────────────────────────────────────
+
+interface RecurringDeal {
+  id: string
+  client_name: string
+  montant_mensuel: number
+  closer_id: string | null
+  setter_id: string | null
+}
+
+function ModalVersementRecurrent({ closers, setters, recurringDeals, onClose }: {
+  closers:       Profil[]
+  setters:       Profil[]
+  recurringDeals: RecurringDeal[]
+  onClose:       () => void
+}) {
+  const [mode, setMode]           = useState<'existant' | 'nouveau'>('existant')
+  const [selectedDeal, setSelectedDeal] = useState<RecurringDeal | null>(recurringDeals[0] ?? null)
+  const [montant, setMontant]     = useState(selectedDeal?.montant_mensuel ?? 0)
+  const [pending, startT]         = useTransition()
+  const [error, setError]         = useState<string | null>(null)
+  const [success, setSuccess]     = useState(false)
+  const today = new Date().toISOString().slice(0, 10)
+
+  function handleSelectDeal(id: string) {
+    const d = recurringDeals.find(r => r.id === id) ?? null
+    setSelectedDeal(d)
+    setMontant(d?.montant_mensuel ?? 0)
+  }
+
+  function handleExistant() {
+    if (!selectedDeal) return
+    startT(async () => {
+      try {
+        await encaisserProchainVersement(selectedDeal.id, montant)
+        setSuccess(true)
+        setTimeout(() => { onClose() }, 1000)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Erreur')
+      }
+    })
+  }
+
+  function handleNouveau(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    startT(async () => {
+      try {
+        await ajouterVersementNouveauRecurrent(fd)
+        setSuccess(true)
+        setTimeout(() => { onClose() }, 1000)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur')
+      }
+    })
+  }
+
+  if (success) {
+    return (
+      <Modal titre="Versement récurrent" onClose={onClose}>
+        <div className="p-10 text-center">
+          <p className="text-green-600 font-semibold text-sm">Versement enregistré ✓</p>
+        </div>
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal titre="Versement récurrent" onClose={onClose} scrollable>
+      {/* Toggle mode */}
+      <div className="px-6 pt-5 pb-4">
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+          {(['existant', 'nouveau'] as const).map((m, i) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              className={cn(
+                'flex-1 py-2.5 font-medium transition-colors',
+                i > 0 && 'border-l border-gray-200',
+                mode === m ? 'bg-violet-600 text-white' : 'text-gray-500 hover:bg-gray-50',
+              )}
+            >
+              {m === 'existant' ? 'Deal existant' : 'Nouveau client'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Existant */}
+      {mode === 'existant' && (
+        <div className="px-6 pb-6 space-y-4">
+          {recurringDeals.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">Aucun deal récurrent actif</p>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Client récurrent</label>
+                <select
+                  value={selectedDeal?.id ?? ''}
+                  onChange={e => handleSelectDeal(e.target.value)}
+                  className={INPUT_CLS}
+                >
+                  {recurringDeals.map(d => (
+                    <option key={d.id} value={d.id}>{d.client_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Montant reçu ($)</label>
+                <input
+                  type="number" min="0" step="0.01"
+                  value={montant}
+                  onChange={e => setMontant(Number(e.target.value))}
+                  className={INPUT_CLS}
+                />
+              </div>
+              {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+              <div className="flex justify-end gap-3 pt-1">
+                <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">Annuler</button>
+                <button
+                  type="button"
+                  onClick={handleExistant}
+                  disabled={pending || !selectedDeal}
+                  className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+                >
+                  {pending ? 'Enregistrement…' : 'Encaisser'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Nouveau */}
+      {mode === 'nouveau' && (
+        <form onSubmit={handleNouveau} className="px-6 pb-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Date</label>
+              <input name="entry_date" type="date" defaultValue={today} required className={INPUT_CLS} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Montant reçu ($)</label>
+              <input name="montant" type="number" min="0" step="0.01" required defaultValue="0" className={INPUT_CLS} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Nom du client</label>
+            <input name="client_name" required placeholder="Marie Tremblay" className={INPUT_CLS} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Closer</label>
+              <select name="closed_by" className={INPUT_CLS}>
+                <option value="">— Aucun —</option>
+                {closers.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Setter</label>
+              <select name="set_by" className={INPUT_CLS}>
+                <option value="">— Aucun —</option>
+                {setters.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Notes (optionnel)</label>
+            <input name="notes" placeholder="Remarques…" className={INPUT_CLS} />
+          </div>
+          {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          <div className="flex justify-end gap-3 pt-1">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">Annuler</button>
+            <button type="submit" disabled={pending} className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+              {pending ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  )
+}
+
 // ── DealRow ───────────────────────────────────────────────────────────
 
 function DealRow({ e, profileMap, pending, isAdmin, onEdit, onDelete }: {
@@ -560,18 +745,20 @@ function isRecurring(e: CashEntry, recurringIds: Set<string>) {
 }
 
 export default function CashCollectView({
-  entrees, closers, setters, isAdmin, recurringCashIds,
+  entrees, closers, setters, isAdmin, recurringCashIds, recurringDeals,
 }: {
   entrees:          CashEntry[]
   closers:          Profil[]
   setters:          Profil[]
   isAdmin:          boolean
   recurringCashIds: string[]
+  recurringDeals:   RecurringDeal[]
 }) {
-  const [moisSelect, setMoisSelect] = useState(currentMonthKey)
-  const [modal,      setModal]      = useState<ModalState>(null)
-  const [sortBy,     setSortBy]     = useState<'date' | 'type'>('date')
-  const [pending, startTransition]  = useTransition()
+  const [moisSelect, setMoisSelect]   = useState(currentMonthKey)
+  const [modal,      setModal]        = useState<ModalState>(null)
+  const [versRecOpen, setVersRecOpen] = useState(false)
+  const [sortBy,     setSortBy]       = useState<'date' | 'type'>('date')
+  const [pending, startTransition]    = useTransition()
 
   const recurringIds = useMemo(() => new Set(recurringCashIds), [recurringCashIds])
 
@@ -659,13 +846,22 @@ export default function CashCollectView({
         titre="Cash Collect"
         subtitle="Suivi des encaissements et bonus automatiques"
         action={
-          <button
-            onClick={() => setModal({ type: 'add' })}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            <Plus size={15} />
-            Nouveau deal
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setVersRecOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-violet-200 text-violet-700 hover:bg-violet-50 text-sm font-medium rounded-lg transition-colors"
+            >
+              <RefreshCcw size={15} />
+              Versement récurrent
+            </button>
+            <button
+              onClick={() => setModal({ type: 'add' })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <Plus size={15} />
+              Nouveau deal
+            </button>
+          </div>
         }
       />
 
@@ -929,6 +1125,14 @@ export default function CashCollectView({
       )}
       {modal?.type === 'edit' && (
         <ModalModifier entry={modal.entry} closers={closers} setters={setters} onClose={() => setModal(null)} />
+      )}
+      {versRecOpen && (
+        <ModalVersementRecurrent
+          closers={closers}
+          setters={setters}
+          recurringDeals={recurringDeals}
+          onClose={() => setVersRecOpen(false)}
+        />
       )}
     </div>
   )

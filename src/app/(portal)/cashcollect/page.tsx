@@ -27,6 +27,7 @@ export default async function CashCollectPage() {
     { data: closers },
     { data: setters },
     { data: recOccs },
+    { data: recurringDeals },
   ] = await Promise.all([
     db.from('cash_entries')
       .select('*')
@@ -37,6 +38,10 @@ export default async function CashCollectPage() {
     db.from('recurring_occurrences')
       .select('cash_entry_id')
       .not('cash_entry_id', 'is', null),
+    db.from('recurring_deals')
+      .select('id, client_name, montant_mensuel, closer_id, setter_id')
+      .eq('actif', true)
+      .order('client_name', { ascending: true }),
   ])
 
   const recurringCashIds = (recOccs ?? [])
@@ -50,6 +55,7 @@ export default async function CashCollectPage() {
       setters={setters  ?? []}
       isAdmin={role === 'admin'}
       recurringCashIds={recurringCashIds}
+      recurringDeals={recurringDeals ?? []}
     />
   )
 }

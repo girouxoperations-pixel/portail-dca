@@ -218,6 +218,94 @@ export async function modifierCollecte(id: string, collected: number) {
   revalidatePath('/payes')
 }
 
+// ── Versement récurrent hors tableau ─────────────────────────────────
+// Crée deal + occurrence reçue + cash entry + paye entry en un coup
+export async function ajouterVersementNouveauRecurrent(formData: FormData) {
+  const { userId } = await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const entryDate  = formData.get('entry_date') as string
+  const clientName = (formData.get('client_name') as string) || 'Client'
+  const closedBy   = (formData.get('closed_by') as string) || null
+  const setBy      = (formData.get('set_by') as string) || null
+  const montant    = Number(formData.get('montant'))
+  const notes      = (formData.get('notes') as string) || null
+  const [year, month] = entryDate.split('-').map(Number)
+
+  // 1. Créer le deal récurrent
+  const { data: deal, error: dealErr } = await db
+    .from('recurring_deals')
+    .insert({
+      client_name:     clientName,
+      closer_id:       closedBy,
+      setter_id:       setBy,
+      montant_mensuel: montant,
+      date_debut:      entryDate,
+      notes,
+      created_by:      userId,
+    })
+    .select('id')
+    .single()
+
+  if (dealErr || !deal) throw new Error(dealErr?.message ?? 'Erreur deal')
+
+  // 2. Cash entry
+  const { data: cashEntry, error: cashErr } = await db
+    .from('cash_entries')
+    .insert({
+      entry_date:      entryDate,
+      client_name:     clientName,
+      montant_courant: 0,
+      collected:       montant,
+      closed_by:       closedBy,
+      set_by:          setBy,
+      close_type:      'recurring',
+      month,
+      year,
+      notes:           notes ?? `Versement récurrent — ${clientName}`,
+      created_by:      userId,
+    })
+    .select('id')
+    .single()
+
+  if (cashErr || !cashEntry) throw new Error(cashErr?.message ?? 'Erreur cash entry')
+
+  // 3. Paye entry
+  await db.from('paye_entries').insert({
+    cash_entry_id:     cashEntry.id,
+    period_label:      periodLabel(entryDate),
+    month,
+    year,
+    client_name:       clientName,
+    closer_id:         closedBy,
+    setter_id:         setBy,
+    montant:           0,
+    commission:        Math.round(montant * TAUX_CLOSER * 100) / 100,
+    commission_setter: Math.round(montant * TAUX_SETTER * 100) / 100,
+    statut:            'En attente',
+    notes:             'Versement récurrent',
+    created_by:        userId,
+  })
+
+  // 4. Occurrence reçue liée au cash entry
+  await db.from('recurring_occurrences').insert({
+    recurring_deal_id: deal.id,
+    mois:              month,
+    annee:             year,
+    date_attendue:     entryDate,
+    montant_attendu:   montant,
+    recu:              true,
+    montant_recu:      montant,
+    date_recue:        entryDate,
+    cash_entry_id:     cashEntry.id,
+  })
+
+  revalidatePath('/cashcollect')
+  revalidatePath('/recurrents')
+  revalidatePath('/dashboard')
+  revalidatePath('/payes')
+}
+
 export async function supprimerCashCollect(id: string) {
   await requireRole(['admin'])
   const db = createAdminClient()
