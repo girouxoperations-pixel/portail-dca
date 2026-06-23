@@ -15,7 +15,7 @@ import PageHeader      from '@/components/layout/PageHeader'
 import {
   creerRecurringDeal, marquerRecu, marquerRecuAvecSolde, annulerRecu,
   desactiverDeal, reactiverDeal, encaisserProchainVersement,
-  modifierRecurringDeal,
+  modifierRecurringDeal, setMethodePaiement,
 } from '@/app/(portal)/recurrents/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -191,6 +191,51 @@ function ModalNouveauDeal({ profiles, onClose }: {
   )
 }
 
+// ── Badge méthode de paiement (avec quick-set) ───────────────────────
+
+function MethodeBadge({ dealId, methode }: { dealId: string; methode: string | null }) {
+  const [pending, startTransition] = useTransition()
+
+  function set(m: string) {
+    startTransition(async () => { await setMethodePaiement(dealId, m) })
+  }
+
+  if (methode) {
+    return (
+      <button
+        onClick={() => set(methode === 'carte' ? 'virement' : 'carte')}
+        disabled={pending}
+        title="Cliquer pour changer"
+        className={cn(
+          'text-[10px] font-semibold px-1.5 py-0.5 rounded transition-opacity disabled:opacity-50',
+          methode === 'carte' ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+        )}
+      >
+        {methode === 'carte' ? '💳 Carte' : '🏦 Virement'}
+      </button>
+    )
+  }
+
+  return (
+    <span className="flex items-center gap-1">
+      <button
+        onClick={() => set('carte')} disabled={pending}
+        className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors disabled:opacity-50"
+        title="Carte de crédit"
+      >
+        💳
+      </button>
+      <button
+        onClick={() => set('virement')} disabled={pending}
+        className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 hover:bg-emerald-50 hover:text-emerald-700 transition-colors disabled:opacity-50"
+        title="Virement"
+      >
+        🏦
+      </button>
+    </span>
+  )
+}
+
 // ── Ligne d'occurrence ────────────────────────────────────────────────
 
 function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
@@ -289,16 +334,7 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
             {closerNom && <span className="text-[11px] text-violet-700 font-medium">{closerNom}</span>}
             {closerNom && setterNom && <span className="text-gray-300 text-[10px]">·</span>}
             {setterNom && <span className="text-[11px] text-blue-600">{setterNom}</span>}
-            {deal.methode_paiement && (
-              <span className={cn(
-                'text-[10px] font-semibold px-1.5 py-0.5 rounded',
-                deal.methode_paiement === 'carte'
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'bg-emerald-50 text-emerald-700',
-              )}>
-                {deal.methode_paiement === 'carte' ? '💳 Carte' : '🏦 Virement'}
-              </span>
-            )}
+            <MethodeBadge dealId={deal.id} methode={deal.methode_paiement} />
           </div>
         </td>
 
@@ -560,16 +596,7 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
                 {dollar(reste)} restant
               </span>
             )}
-            {deal.methode_paiement && (
-              <span className={cn(
-                'text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                deal.methode_paiement === 'carte'
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'bg-emerald-50 text-emerald-700',
-              )}>
-                {deal.methode_paiement === 'carte' ? '💳 Carte' : '🏦 Virement'}
-              </span>
-            )}
+            <MethodeBadge dealId={deal.id} methode={deal.methode_paiement} />
           </div>
         </div>
 
@@ -1327,14 +1354,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {d.methode_paiement ? (
-                            <span className={cn(
-                              'text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                              d.methode_paiement === 'carte' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-700',
-                            )}>
-                              {d.methode_paiement === 'carte' ? '💳 Carte' : '🏦 Virement'}
-                            </span>
-                          ) : <span className="text-gray-300 text-xs">—</span>}
+                          <MethodeBadge dealId={d.id} methode={d.methode_paiement} />
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={cn(

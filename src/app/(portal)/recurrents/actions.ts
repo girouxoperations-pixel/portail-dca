@@ -146,6 +146,14 @@ export async function ajouterOccurrencesEnLot(
   revalidatePath(`/recurrents/${dealId}`)
 }
 
+export async function setMethodePaiement(dealId: string, methode: string | null) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+  await db.from('recurring_deals').update({ methode_paiement: methode }).eq('id', dealId)
+  revalidatePath('/recurrents')
+  revalidatePath(`/recurrents/${dealId}`)
+}
+
 export async function modifierDateOccurrence(occurrenceId: string, newDate: string) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()
