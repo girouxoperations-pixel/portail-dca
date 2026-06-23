@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
+import Link from 'next/link'
 import {
   Plus, ChevronLeft, ChevronRight, CheckCircle2,
   ChevronDown, ChevronUp, RefreshCw, X, Pencil,
@@ -473,11 +474,18 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setEditOpen(v => !v)}
-              className="text-sm font-semibold text-gray-900 truncate hover:text-violet-600 transition-colors text-left"
+            <Link
+              href={`/recurrents/${deal.id}`}
+              className="text-sm font-semibold text-gray-900 truncate hover:text-violet-600 transition-colors"
             >
               {deal.client_name}
+            </Link>
+            <button
+              onClick={() => setEditOpen(v => !v)}
+              className="text-gray-300 hover:text-violet-500 transition-colors shrink-0"
+              title="Modifier"
+            >
+              <Pencil size={11} />
             </button>
             {!deal.actif && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 uppercase">
