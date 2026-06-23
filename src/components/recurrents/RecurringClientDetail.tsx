@@ -11,6 +11,7 @@ import { dollar, MOIS_FR, formatDate } from '@/lib/constants'
 import Badge from '@/components/ui/Badge'
 import {
   marquerRecu, annulerRecu, modifierRecurringDeal, ajouterPaiementManuel,
+  modifierDateOccurrence,
 } from '@/app/(portal)/recurrents/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -53,8 +54,11 @@ const INPUT = 'w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focu
 // ── Ligne occurrence ──────────────────────────────────────────────────
 
 function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) {
-  const [amount, setAmount]        = useState(String(occ.montant_attendu))
-  const [pending, startTransition] = useTransition()
+  const [amount, setAmount]          = useState(String(occ.montant_attendu))
+  const [editDate, setEditDate]      = useState(false)
+  const [newDate, setNewDate]        = useState(occ.date_attendue)
+  const [pending, startTransition]   = useTransition()
+  const [datePending, startDateTrans] = useTransition()
 
   const today   = new Date(); today.setHours(0, 0, 0, 0)
   const dueDate = new Date(occ.date_attendue + 'T00:00:00')
@@ -77,6 +81,14 @@ function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) 
     startTransition(async () => { await annulerRecu(occ.id) })
   }
 
+  function handleSaveDate() {
+    if (!newDate || newDate === occ.date_attendue) { setEditDate(false); return }
+    startDateTrans(async () => {
+      await modifierDateOccurrence(occ.id, newDate)
+      setEditDate(false)
+    })
+  }
+
   return (
     <tr className={cn(
       'border-b border-gray-50 text-sm',
@@ -86,7 +98,37 @@ function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) 
         <div className="font-medium text-gray-800">
           {MOIS_FR[occ.mois - 1]} {occ.annee}
         </div>
-        <div className="text-[11px] text-gray-400 mt-0.5">{formatDate(occ.date_attendue)}</div>
+        {!occ.recu && editDate ? (
+          <div className="flex items-center gap-1.5 mt-1">
+            <input
+              type="date" value={newDate}
+              onChange={e => setNewDate(e.target.value)}
+              className="px-1.5 py-0.5 rounded border border-violet-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-400"
+            />
+            <button
+              onClick={handleSaveDate} disabled={datePending}
+              className="text-[10px] font-semibold px-2 py-0.5 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50"
+            >
+              {datePending ? '…' : 'OK'}
+            </button>
+            <button onClick={() => setEditDate(false)} className="text-gray-300 hover:text-gray-500">
+              <X size={11} />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[11px] text-gray-400">{formatDate(occ.date_attendue)}</span>
+            {!occ.recu && (
+              <button
+                onClick={() => setEditDate(true)}
+                className="text-gray-200 hover:text-violet-400 transition-colors"
+                title="Modifier la date"
+              >
+                <Pencil size={10} />
+              </button>
+            )}
+          </div>
+        )}
       </td>
 
       <td className="px-5 py-3 text-right tabular-nums text-gray-600">

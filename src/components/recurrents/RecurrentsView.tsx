@@ -91,6 +91,7 @@ function ModalNouveauDeal({ profiles, onClose }: {
         versements_total:  Number(fd.get('versements_total') ?? 3),
         notes:             (fd.get('notes') as string) || null,
         methode_paiement:  (fd.get('methode_paiement') as string) || null,
+        frequence:         (fd.get('frequence') as string) || null,
       })
       onClose()
     })
@@ -134,12 +135,21 @@ function ModalNouveauDeal({ profiles, onClose }: {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Nb de versements</label>
-            <select name="versements_total" defaultValue="3" className={INPUT}>
-              <option value="2">2 versements</option>
-              <option value="3">3 versements</option>
+            <label className="text-sm font-medium text-gray-700">Fréquence</label>
+            <select name="frequence" defaultValue="mensuel" className={INPUT}>
+              <option value="mensuel">Mensuel</option>
+              <option value="hebdomadaire">Hebdomadaire (chaque semaine)</option>
             </select>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Nombre de versements</label>
+          <input
+            name="versements_total" type="number" min="1" step="1"
+            defaultValue="3" required className={INPUT}
+            placeholder="ex: 3, 12, 52…"
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-4">

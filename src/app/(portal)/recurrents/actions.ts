@@ -28,27 +28,37 @@ export async function creerRecurringDeal(data: {
   versements_total:   number
   notes:              string | null
   methode_paiement:   string | null
+  frequence:          string | null
 }) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()
 
+  const { frequence, ...dealData } = data
   const { data: deal, error } = await db
     .from('recurring_deals')
-    .insert({ ...data, created_by: userId })
+    .insert({ ...dealData, created_by: userId })
     .select('id')
     .single()
 
   if (error) throw new Error(error.message)
 
-  const count = data.versements_total ?? 3
+  const count   = data.versements_total ?? 3
   const start   = new Date(data.date_debut + 'T00:00:00')
   const baseDay = start.getDate()
+  const hebdo   = frequence === 'hebdomadaire'
+
   const occs = Array.from({ length: count }, (_, i) => {
-    const d = new Date(start)
-    d.setDate(1)
-    d.setMonth(d.getMonth() + i)
-    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
-    d.setDate(Math.min(baseDay, lastDay))
+    let d: Date
+    if (hebdo) {
+      d = new Date(start)
+      d.setDate(d.getDate() + i * 7)
+    } else {
+      d = new Date(start)
+      d.setDate(1)
+      d.setMonth(d.getMonth() + i)
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+      d.setDate(Math.min(baseDay, lastDay))
+    }
     return {
       recurring_deal_id: deal.id,
       mois:              d.getMonth() + 1,
@@ -60,6 +70,29 @@ export async function creerRecurringDeal(data: {
 
   await db.from('recurring_occurrences').insert(occs)
   revalidatePath('/recurrents')
+}
+
+export async function modifierDateOccurrence(occurrenceId: string, newDate: string) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { data: occ } = await db
+    .from('recurring_occurrences')
+    .select('recurring_deal_id')
+    .eq('id', occurrenceId)
+    .single()
+
+  const d = new Date(newDate + 'T00:00:00')
+  const { error } = await db.from('recurring_occurrences').update({
+    date_attendue: newDate,
+    mois:          d.getMonth() + 1,
+    annee:         d.getFullYear(),
+  }).eq('id', occurrenceId)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/recurrents')
+  if (occ) revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
 }
 
 export async function marquerRecu(occurrenceId: string, montantRecu: number) {
