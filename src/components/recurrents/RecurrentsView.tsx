@@ -747,7 +747,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
       }
     }
     return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
-  }, [deals])
+  }, [filteredDeals])
 
   // Occurrences cette semaine (7 jours à partir d'aujourd'hui, non reçues)
   const occsSemaine = useMemo(() => {
@@ -764,7 +764,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
       }
     }
     return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
-  }, [deals])
+  }, [filteredDeals])
 
   // Occurrences pour le mois sélectionné (tous deals actifs)
   const occsMois = useMemo(() => {
@@ -775,7 +775,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
       if (occ) rows.push({ occ, deal: d })
     }
     return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
-  }, [deals, mois, annee])
+  }, [filteredDeals, mois, annee])
 
   const nbRecus   = occsMois.filter(r => r.occ.recu).length
   const nbAttente = occsMois.length - nbRecus
@@ -795,7 +795,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
       }
     }
     return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
-  }, [deals])
+  }, [filteredDeals])
 
   const actifsDeals   = filteredDeals.filter(d => d.actif)
   const inactifsDeals = filteredDeals.filter(d => !d.actif)
