@@ -404,7 +404,7 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
   profiles:   Profile[]
   isAdmin:    boolean
 }) {
-  const [ouvert, setOuvert]        = useState(false)
+  const [ouvert, setOuvert]        = useState(true)
   const [editOpen, setEditOpen]    = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -433,6 +433,8 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
   const reçues         = deal.recurring_occurrences.filter(o => o.recu)
   const total          = reçues.reduce((s, o) => s + (o.montant_recu ?? 0), 0)
   const nTotal         = deal.versements_total ?? deal.recurring_occurrences.length
+  const totalAttendu   = nTotal * deal.montant_mensuel
+  const reste          = Math.max(0, totalAttendu - total)
   const versProgress   = `${reçues.length}/${nTotal} versement${nTotal > 1 ? 's' : ''}`
   const hasNextVers    = reçues.length < nTotal
   const nextVersNum    = reçues.length + 1
@@ -483,16 +485,31 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {dollar(deal.montant_mensuel)}/versement
-            {closerNom && ` · ${closerNom}`}
-            {setterNom && ` + ${setterNom}`}
-            {' · '}
-            <span className={reçues.length === nTotal ? 'text-green-600 font-medium' : 'text-violet-600 font-medium'}>
-              {versProgress} reçu{reçues.length > 1 ? 's' : ''}
+          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+            <span className="text-xs text-gray-400">
+              {dollar(deal.montant_mensuel)}/versement
+              {closerNom && ` · ${closerNom}`}
+              {setterNom && ` + ${setterNom}`}
             </span>
-            {reçues.length > 0 && ` · ${dollar(total)} collecté`}
-          </p>
+            <span className={cn(
+              'text-[11px] font-semibold px-2 py-0.5 rounded-full',
+              reçues.length === nTotal
+                ? 'bg-green-100 text-green-700'
+                : 'bg-violet-100 text-violet-700',
+            )}>
+              {versProgress}
+            </span>
+            {reçues.length > 0 && (
+              <span className="text-[11px] text-green-700 font-medium">
+                {dollar(total)} reçu
+              </span>
+            )}
+            {reste > 0 && (
+              <span className="text-[11px] text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded-full">
+                {dollar(reste)} restant
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -621,7 +638,10 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {deal.recurring_occurrences.map((o, idx) => (
+              {deal.recurring_occurrences
+                .slice()
+                .sort((a, b) => a.date_attendue.localeCompare(b.date_attendue))
+                .map((o, idx) => (
                 <tr key={o.id} className={cn('hover:bg-gray-50/50', o.recu && 'bg-green-50/30')}>
                   <td className="px-5 py-2 font-medium text-gray-700">
                     #{idx + 1} <span className="text-gray-400 font-normal text-[11px]">({MOIS_FR[o.mois - 1]} {o.annee})</span>
@@ -646,6 +666,20 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t border-gray-200 bg-gray-50/80 text-xs font-semibold">
+                <td className="px-5 py-2 text-gray-500">Total</td>
+                <td className="px-4 py-2 text-right tabular-nums text-gray-600">{dollar(totalAttendu)}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-green-700">{dollar(total)}</td>
+                <td className="px-4 py-2" />
+                <td className="px-4 py-2">
+                  {reste > 0
+                    ? <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full text-[11px]">{dollar(reste)} restant</span>
+                    : <span className="text-green-700 text-[11px]">Complété ✓</span>
+                  }
+                </td>
+              </tr>
+            </tfoot>
           </table>
           {deal.notes && (
             <p className="px-5 py-2 text-[11px] text-gray-400 italic border-t border-gray-50">{deal.notes}</p>
