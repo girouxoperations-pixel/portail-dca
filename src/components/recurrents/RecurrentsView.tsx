@@ -254,9 +254,9 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
       )}>
         <td className="px-4 py-3">
           <div className="flex items-center gap-1.5">
-            <button onClick={() => setEditOpen(v => !v)} className="font-medium text-gray-800 text-sm hover:text-violet-600 transition-colors text-left">
+            <Link href={`/recurrents/${deal.id}`} className="font-medium text-gray-800 text-sm hover:text-violet-600 transition-colors">
               {deal.client_name}
-            </button>
+            </Link>
             <button onClick={() => setEditOpen(v => !v)} className="text-gray-300 hover:text-violet-500 transition-colors">
               <Pencil size={11} />
             </button>
