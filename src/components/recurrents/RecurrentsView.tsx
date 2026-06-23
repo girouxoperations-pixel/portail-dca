@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import Link from 'next/link'
 import {
   Plus, ChevronLeft, ChevronRight, CheckCircle2,
-  ChevronDown, ChevronUp, RefreshCw, X, Pencil,
+  ChevronDown, ChevronUp, RefreshCw, X, Pencil, Search,
 } from 'lucide-react'
 import { cn }          from '@/lib/utils'
 import { dollar, MOIS_FR, formatDate } from '@/lib/constants'
@@ -712,11 +712,17 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
   const [modalOuvert, setModalOuvert] = useState(false)
   const [showInactifs, setShowInactifs] = useState(false)
   const [filtre, setFiltre]  = useState<Filtre>(() => toValidFiltre(initialFiltre))
+  const [search, setSearch]  = useState('')
 
   const profileMap = useMemo(
     () => new Map(profiles.map(p => [p.id, p.full_name ?? 'Inconnu'])),
     [profiles],
   )
+
+  const filteredDeals = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return q ? deals.filter(d => d.client_name.toLowerCase().includes(q)) : deals
+  }, [deals, search])
 
   const moisLabel = `${MOIS_FR[mois - 1]} ${annee}`
 
@@ -733,7 +739,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
   const enRetard = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0]
     const rows: { occ: Occurrence; deal: Deal }[] = []
-    for (const d of deals) {
+    for (const d of filteredDeals) {
       if (!d.actif) continue
       for (const occ of d.recurring_occurrences) {
         if (!occ.recu && occ.date_attendue < todayStr)
@@ -750,7 +756,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
     weekEndDate.setDate(now.getDate() + 7)
     const weekEndStr = weekEndDate.toISOString().split('T')[0]
     const rows: { occ: Occurrence; deal: Deal }[] = []
-    for (const d of deals) {
+    for (const d of filteredDeals) {
       if (!d.actif) continue
       for (const occ of d.recurring_occurrences) {
         if (!occ.recu && occ.date_attendue >= todayStr && occ.date_attendue <= weekEndStr)
@@ -763,7 +769,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
   // Occurrences pour le mois sélectionné (tous deals actifs)
   const occsMois = useMemo(() => {
     const rows: { occ: Occurrence; deal: Deal }[] = []
-    for (const d of deals) {
+    for (const d of filteredDeals) {
       if (!d.actif) continue
       const occ = d.recurring_occurrences.find(o => o.mois === mois && o.annee === annee)
       if (occ) rows.push({ occ, deal: d })
@@ -781,7 +787,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
     const curM = now.getMonth() + 1
     const curY = now.getFullYear()
     const rows: { occ: Occurrence; deal: Deal }[] = []
-    for (const d of deals) {
+    for (const d of filteredDeals) {
       if (!d.actif) continue
       for (const occ of d.recurring_occurrences) {
         if (!occ.recu && occ.mois === curM && occ.annee === curY && occ.date_attendue >= todayStr)
@@ -791,8 +797,8 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
     return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
   }, [deals])
 
-  const actifsDeals   = deals.filter(d => d.actif)
-  const inactifsDeals = deals.filter(d => !d.actif)
+  const actifsDeals   = filteredDeals.filter(d => d.actif)
+  const inactifsDeals = filteredDeals.filter(d => !d.actif)
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -811,6 +817,26 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
           </button>
         }
       />
+
+      {/* ── Recherche ── */}
+      <div className="relative max-w-sm">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Rechercher une cliente…"
+          className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
 
       {/* ── Filtres rapides ── */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">

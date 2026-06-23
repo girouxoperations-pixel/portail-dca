@@ -146,6 +146,7 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
   }
 
   revalidatePath('/recurrents')
+  revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
   revalidatePath('/dashboard')
   revalidatePath('/cashcollect')
   revalidatePath('/payes')
@@ -360,6 +361,112 @@ export async function encaisserProchainVersement(dealId: string, montant: number
 
   revalidatePath('/recurrents')
   revalidatePath('/cash')
+  revalidatePath('/payes')
+}
+
+export async function ajouterPaiementManuel(
+  dealId: string,
+  occurrenceId: string | null,
+  montant: number,
+  dateRecue: string,
+) {
+  const { userId } = await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { data: deal } = await db
+    .from('recurring_deals')
+    .select('client_name, closer_id, setter_id, montant_mensuel')
+    .eq('id', dealId)
+    .single()
+
+  if (!deal) throw new Error('Deal introuvable')
+
+  const [yearStr, monthStr] = dateRecue.split('-')
+  const year  = Number(yearStr)
+  const month = Number(monthStr)
+  const label = periodLabel(dateRecue)
+
+  const commission       = Math.round(montant * TAUX_CLOSER * 100) / 100
+  const commissionSetter = Math.round(montant * TAUX_SETTER * 100) / 100
+
+  const { data: cashEntry, error: cashErr } = await db
+    .from('cash_entries')
+    .insert({
+      entry_date:      dateRecue,
+      client_name:     deal.client_name,
+      montant_courant: montant,
+      collected:       montant,
+      closed_by:       deal.closer_id,
+      set_by:          deal.setter_id,
+      close_type:      'recurring',
+      month,
+      year,
+      notes:           `Versement récurrent — ${deal.client_name}`,
+      created_by:      userId,
+    })
+    .select('id')
+    .single()
+
+  if (cashErr || !cashEntry) throw new Error(cashErr?.message ?? 'Erreur cash entry')
+
+  const { data: payeEntry, error: payeErr } = await db
+    .from('paye_entries')
+    .insert({
+      cash_entry_id:     cashEntry.id,
+      period_label:      label,
+      month,
+      year,
+      client_name:       deal.client_name,
+      closer_id:         deal.closer_id,
+      setter_id:         deal.setter_id,
+      montant:           montant,
+      commission,
+      commission_setter: commissionSetter,
+      statut:            'En attente',
+      notes:             'Versement récurrent (manuel)',
+      created_by:        userId,
+    })
+    .select('id')
+    .single()
+
+  if (payeErr) throw new Error(payeErr.message)
+
+  if (occurrenceId) {
+    await db.from('recurring_occurrences').update({
+      recu:          true,
+      date_recue:    dateRecue,
+      montant_recu:  montant,
+      cash_entry_id: cashEntry.id,
+      paye_entry_id: payeEntry.id,
+    }).eq('id', occurrenceId)
+  } else {
+    const d = new Date(dateRecue + 'T00:00:00')
+    await db.from('recurring_occurrences').insert({
+      recurring_deal_id: dealId,
+      mois:              d.getMonth() + 1,
+      annee:             d.getFullYear(),
+      date_attendue:     dateRecue,
+      montant_attendu:   deal.montant_mensuel,
+      recu:              true,
+      montant_recu:      montant,
+      date_recue:        dateRecue,
+      cash_entry_id:     cashEntry.id,
+      paye_entry_id:     payeEntry.id,
+    })
+  }
+
+  // Auto-désactiver si toutes les occurrences sont reçues
+  const { data: allOccs } = await db
+    .from('recurring_occurrences')
+    .select('recu')
+    .eq('recurring_deal_id', dealId)
+  if (allOccs && allOccs.every(o => o.recu)) {
+    await db.from('recurring_deals').update({ actif: false }).eq('id', dealId)
+  }
+
+  revalidatePath('/recurrents')
+  revalidatePath(`/recurrents/${dealId}`)
+  revalidatePath('/cashcollect')
   revalidatePath('/payes')
 }
 

@@ -4,13 +4,13 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft, CheckCircle2, Clock, AlertCircle,
-  User, Calendar, DollarSign, Pencil, X,
+  User, Calendar, DollarSign, Pencil, X, Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dollar, MOIS_FR, formatDate } from '@/lib/constants'
 import Badge from '@/components/ui/Badge'
 import {
-  marquerRecu, annulerRecu, modifierRecurringDeal,
+  marquerRecu, annulerRecu, modifierRecurringDeal, ajouterPaiementManuel,
 } from '@/app/(portal)/recurrents/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -168,8 +168,12 @@ export default function RecurringClientDetail({
   profiles: Profile[]
   isAdmin:  boolean
 }) {
-  const [editOpen, setEditOpen]    = useState(false)
-  const [pending, startTransition] = useTransition()
+  const [editOpen, setEditOpen]       = useState(false)
+  const [payOpen, setPayOpen]         = useState(false)
+  const [pending, startTransition]    = useTransition()
+  const [payPending, startPayTrans]   = useTransition()
+
+  const today = new Date().toISOString().split('T')[0]
 
   const profileMap = new Map(profiles.map(p => [p.id, p.full_name ?? 'Inconnu']))
   const closers    = profiles.filter(p => p.roles?.includes('closer'))
@@ -346,12 +350,81 @@ export default function RecurringClientDetail({
 
       {/* Historique des paiements */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-50">
-          <h2 className="text-sm font-semibold text-gray-900">Historique des paiements</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {dollar(deal.montant_mensuel)} × {nTotal} versements = {dollar(totalAttendu)} total
-          </p>
+        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Historique des paiements</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {dollar(deal.montant_mensuel)} × {nTotal} versements = {dollar(totalAttendu)} total
+            </p>
+          </div>
+          <button
+            onClick={() => setPayOpen(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors shrink-0"
+          >
+            <Plus size={12} />
+            Ajouter un paiement
+          </button>
         </div>
+
+        {/* Panneau ajout paiement */}
+        {payOpen && (
+          <div className="border-b border-violet-100 bg-violet-50/30 px-5 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Nouveau paiement</p>
+              <button onClick={() => setPayOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={14} /></button>
+            </div>
+            <form
+              onSubmit={e => {
+                e.preventDefault()
+                const fd = new FormData(e.currentTarget)
+                const occId = (fd.get('occurrence_id') as string) || null
+                const montant = Number(fd.get('montant'))
+                const dateRecue = fd.get('date_recue') as string
+                if (!montant || !dateRecue) return
+                startPayTrans(async () => {
+                  await ajouterPaiementManuel(deal.id, occId, montant, dateRecue)
+                  setPayOpen(false)
+                })
+              }}
+              className="grid grid-cols-3 gap-3 items-end"
+            >
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Versement concerné</label>
+                <select name="occurrence_id" className={INPUT}>
+                  <option value="">— Nouveau (hors planning) —</option>
+                  {occs.filter(o => !o.recu).map(o => (
+                    <option key={o.id} value={o.id}>
+                      {MOIS_FR[o.mois - 1]} {o.annee} — {dollar(o.montant_attendu)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Montant reçu ($)</label>
+                <input
+                  name="montant" type="number" step="0.01" min="0"
+                  defaultValue={deal.montant_mensuel}
+                  required
+                  className={INPUT}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Date reçu</label>
+                <input name="date_recue" type="date" defaultValue={today} required className={INPUT} />
+              </div>
+              <div className="col-span-3 flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setPayOpen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Annuler</button>
+                <button
+                  type="submit" disabled={payPending}
+                  className="px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {payPending ? 'Enregistrement…' : 'Enregistrer le paiement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
 
         {occs.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-gray-400">Aucun versement enregistré</div>
