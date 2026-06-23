@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   Plus, ChevronLeft, ChevronRight, CheckCircle2,
   ChevronDown, ChevronUp, RefreshCw, X, Pencil, Search,
+  LayoutList, LayoutGrid,
 } from 'lucide-react'
 import { cn }          from '@/lib/utils'
 import { dollar, MOIS_FR, formatDate } from '@/lib/constants'
@@ -711,6 +712,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
   const [annee, setAnnee]    = useState(now.getFullYear())
   const [modalOuvert, setModalOuvert] = useState(false)
   const [showInactifs, setShowInactifs] = useState(false)
+  const [tableView, setTableView]      = useState(false)
   const [filtre, setFiltre]  = useState<Filtre>(() => toValidFiltre(initialFiltre))
   const [search, setSearch]  = useState('')
 
@@ -1197,12 +1199,124 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
 
       {/* ── Deals actifs ── */}
       <div>
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Deals récurrents actifs ({actifsDeals.length})
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Deals récurrents actifs ({actifsDeals.length})
+          </h3>
+          <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg">
+            <button
+              onClick={() => setTableView(false)}
+              className={cn('p-1.5 rounded-md transition-colors', !tableView ? 'bg-white shadow-sm text-violet-700' : 'text-gray-400 hover:text-gray-600')}
+              title="Vue cartes"
+            >
+              <LayoutGrid size={14} />
+            </button>
+            <button
+              onClick={() => setTableView(true)}
+              className={cn('p-1.5 rounded-md transition-colors', tableView ? 'bg-white shadow-sm text-violet-700' : 'text-gray-400 hover:text-gray-600')}
+              title="Vue tableau"
+            >
+              <LayoutList size={14} />
+            </button>
+          </div>
+        </div>
+
         {actifsDeals.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-10 text-center">
             <p className="text-sm text-gray-400">Aucun deal actif</p>
+          </div>
+        ) : tableView ? (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50/80 text-xs font-medium text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-4 py-2.5 text-left">Cliente</th>
+                    <th className="px-4 py-2.5 text-left">Closer · Setter</th>
+                    <th className="px-4 py-2.5 text-center">Versements</th>
+                    <th className="px-4 py-2.5 text-right">Attendu</th>
+                    <th className="px-4 py-2.5 text-right">Reçu</th>
+                    <th className="px-4 py-2.5 text-right">Restant</th>
+                    <th className="px-4 py-2.5 text-center">Progression</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {actifsDeals.map(d => {
+                    const reçues      = d.recurring_occurrences.filter(o => o.recu)
+                    const nTotal      = d.versements_total ?? d.recurring_occurrences.length
+                    const totalReçu   = reçues.reduce((s, o) => s + (o.montant_recu ?? 0), 0)
+                    const totalAtt    = nTotal * d.montant_mensuel
+                    const reste       = Math.max(0, totalAtt - totalReçu)
+                    const pct         = totalAtt > 0 ? Math.round((totalReçu / totalAtt) * 100) : 0
+                    const closerNom   = d.closer_id ? (profileMap.get(d.closer_id) ?? '—') : null
+                    const setterNom   = d.setter_id ? (profileMap.get(d.setter_id) ?? '—') : null
+                    return (
+                      <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-4 py-3">
+                          <Link href={`/recurrents/${d.id}`} className="font-medium text-gray-900 hover:text-violet-600 transition-colors">
+                            {d.client_name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            {closerNom && <span className="text-violet-700 font-medium">{closerNom}</span>}
+                            {closerNom && setterNom && <span className="text-gray-300">·</span>}
+                            {setterNom && <span className="text-blue-600">{setterNom}</span>}
+                            {!closerNom && !setterNom && <span className="text-gray-300">—</span>}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={cn(
+                            'text-[11px] font-semibold px-2 py-0.5 rounded-full',
+                            reçues.length === nTotal ? 'bg-green-100 text-green-700' : 'bg-violet-100 text-violet-700',
+                          )}>
+                            {reçues.length}/{nTotal}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-500 text-xs">{dollar(totalAtt)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700 text-xs">{dollar(totalReçu)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-xs">
+                          {reste > 0
+                            ? <span className="font-semibold text-amber-700">{dollar(reste)}</span>
+                            : <span className="text-green-600 font-medium">Complété ✓</span>
+                          }
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[60px]">
+                              <div
+                                className={cn('h-full rounded-full', pct === 100 ? 'bg-green-500' : 'bg-violet-500')}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] text-gray-400 tabular-nums w-8 text-right">{pct}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-gray-200 bg-gray-50 text-xs font-semibold">
+                    <td className="px-4 py-2.5 text-gray-500" colSpan={3}>Total ({actifsDeals.length} clientes)</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">
+                      {dollar(actifsDeals.reduce((s, d) => s + (d.versements_total ?? d.recurring_occurrences.length) * d.montant_mensuel, 0))}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-green-700">
+                      {dollar(actifsDeals.reduce((s, d) => s + d.recurring_occurrences.filter(o => o.recu).reduce((ss, o) => ss + (o.montant_recu ?? 0), 0), 0))}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-amber-700">
+                      {dollar(actifsDeals.reduce((s, d) => {
+                        const reçu = d.recurring_occurrences.filter(o => o.recu).reduce((ss, o) => ss + (o.montant_recu ?? 0), 0)
+                        const att  = (d.versements_total ?? d.recurring_occurrences.length) * d.montant_mensuel
+                        return s + Math.max(0, att - reçu)
+                      }, 0))}
+                    </td>
+                    <td className="px-4 py-2.5" />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
