@@ -72,6 +72,80 @@ export async function creerRecurringDeal(data: {
   revalidatePath('/recurrents')
 }
 
+export async function supprimerOccurrence(occurrenceId: string) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { data: occ } = await db
+    .from('recurring_occurrences')
+    .select('recu, recurring_deal_id')
+    .eq('id', occurrenceId)
+    .single()
+
+  if (!occ) throw new Error('Occurrence introuvable')
+  if (occ.recu) throw new Error('Impossible de supprimer un versement déjà reçu')
+
+  await db.from('recurring_occurrences').delete().eq('id', occurrenceId)
+
+  revalidatePath('/recurrents')
+  revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
+}
+
+export async function ajouterOccurrencesEnLot(
+  dealId: string,
+  data: {
+    date_debut:       string
+    versements:       number
+    montant:          number
+    frequence:        'mensuel' | 'hebdomadaire'
+  },
+) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const start   = new Date(data.date_debut + 'T00:00:00')
+  const baseDay = start.getDate()
+  const hebdo   = data.frequence === 'hebdomadaire'
+
+  const occs = Array.from({ length: data.versements }, (_, i) => {
+    let d: Date
+    if (hebdo) {
+      d = new Date(start)
+      d.setDate(d.getDate() + i * 7)
+    } else {
+      d = new Date(start)
+      d.setDate(1)
+      d.setMonth(d.getMonth() + i)
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+      d.setDate(Math.min(baseDay, lastDay))
+    }
+    return {
+      recurring_deal_id: dealId,
+      mois:              d.getMonth() + 1,
+      annee:             d.getFullYear(),
+      date_attendue:     d.toISOString().split('T')[0],
+      montant_attendu:   data.montant,
+    }
+  })
+
+  const { error } = await db.from('recurring_occurrences').insert(occs)
+  if (error) throw new Error(error.message)
+
+  // Update versements_total to reflect new reality
+  const { data: allOccs } = await db
+    .from('recurring_occurrences')
+    .select('id')
+    .eq('recurring_deal_id', dealId)
+  if (allOccs) {
+    await db.from('recurring_deals')
+      .update({ versements_total: allOccs.length, actif: true })
+      .eq('id', dealId)
+  }
+
+  revalidatePath('/recurrents')
+  revalidatePath(`/recurrents/${dealId}`)
+}
+
 export async function modifierDateOccurrence(occurrenceId: string, newDate: string) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()

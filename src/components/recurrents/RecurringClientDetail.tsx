@@ -11,7 +11,7 @@ import { dollar, MOIS_FR, formatDate } from '@/lib/constants'
 import Badge from '@/components/ui/Badge'
 import {
   marquerRecu, annulerRecu, modifierRecurringDeal, ajouterPaiementManuel,
-  modifierDateOccurrence,
+  modifierDateOccurrence, supprimerOccurrence, ajouterOccurrencesEnLot,
 } from '@/app/(portal)/recurrents/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -178,14 +178,29 @@ function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) 
 
       <td className="px-5 py-3 text-right">
         {!occ.recu ? (
-          <button
-            onClick={handleMarquer}
-            disabled={pending}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 ml-auto"
-          >
-            <CheckCircle2 size={12} />
-            {pending ? '…' : 'Marquer reçu'}
-          </button>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={handleMarquer}
+              disabled={pending}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              <CheckCircle2 size={12} />
+              {pending ? '…' : 'Marquer reçu'}
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  if (!confirm('Supprimer ce versement du planning ?')) return
+                  startTransition(async () => { await supprimerOccurrence(occ.id) })
+                }}
+                disabled={pending}
+                className="text-[11px] text-gray-300 hover:text-red-400 transition-colors"
+                title="Supprimer cette occurrence"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
         ) : isAdmin ? (
           <button
             onClick={handleAnnuler}
@@ -211,10 +226,12 @@ export default function RecurringClientDetail({
   profiles: Profile[]
   isAdmin:  boolean
 }) {
-  const [editOpen, setEditOpen]       = useState(false)
-  const [payOpen, setPayOpen]         = useState(false)
-  const [pending, startTransition]    = useTransition()
-  const [payPending, startPayTrans]   = useTransition()
+  const [editOpen, setEditOpen]         = useState(false)
+  const [payOpen, setPayOpen]           = useState(false)
+  const [addOccsOpen, setAddOccsOpen]   = useState(false)
+  const [pending, startTransition]      = useTransition()
+  const [payPending, startPayTrans]     = useTransition()
+  const [addPending, startAddTrans]     = useTransition()
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -281,8 +298,17 @@ export default function RecurringClientDetail({
               <button
                 onClick={() => setEditOpen(v => !v)}
                 className="text-gray-300 hover:text-violet-500 transition-colors ml-1"
+                title="Modifier l'entente"
               >
                 <Pencil size={13} />
+              </button>
+              <button
+                onClick={() => setAddOccsOpen(v => !v)}
+                className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors ml-1"
+                title="Ajouter des versements au planning"
+              >
+                <Plus size={10} />
+                Versements
               </button>
             </div>
 
@@ -403,6 +429,62 @@ export default function RecurringClientDetail({
             <button type="submit" disabled={pending}
               className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
               {pending ? 'Enregistrement…' : 'Sauvegarder'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Panneau — Ajouter des versements au planning */}
+      {addOccsOpen && (
+        <form
+          onSubmit={e => {
+            e.preventDefault()
+            const fd = new FormData(e.currentTarget)
+            const versements = Number(fd.get('versements'))
+            const montant    = Number(fd.get('montant'))
+            const date_debut = fd.get('date_debut') as string
+            const frequence  = fd.get('frequence') as 'mensuel' | 'hebdomadaire'
+            if (!versements || !montant || !date_debut) return
+            startAddTrans(async () => {
+              await ajouterOccurrencesEnLot(deal.id, { date_debut, versements, montant, frequence })
+              setAddOccsOpen(false)
+            })
+          }}
+          className="bg-white rounded-xl border border-violet-100 shadow-sm p-5 space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-violet-700">Ajouter des versements au planning</p>
+              <p className="text-xs text-gray-400 mt-0.5">Les versements déjà reçus ne sont pas touchés</p>
+            </div>
+            <button type="button" onClick={() => setAddOccsOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={15} /></button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Fréquence</label>
+              <select name="frequence" defaultValue="hebdomadaire" className={INPUT}>
+                <option value="mensuel">Mensuel</option>
+                <option value="hebdomadaire">Hebdomadaire (chaque semaine)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Nombre de versements</label>
+              <input name="versements" type="number" min="1" step="1" defaultValue="4" required className={INPUT} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Date du 1er versement</label>
+              <input name="date_debut" type="date" defaultValue={today} required className={INPUT} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Montant / versement ($)</label>
+              <input name="montant" type="number" step="0.01" min="0" defaultValue={deal.montant_mensuel} required className={INPUT} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setAddOccsOpen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Annuler</button>
+            <button type="submit" disabled={addPending}
+              className="px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+              {addPending ? 'Ajout…' : 'Ajouter au planning'}
             </button>
           </div>
         </form>
