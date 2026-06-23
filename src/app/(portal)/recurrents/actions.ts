@@ -20,13 +20,14 @@ async function requireRole(roles: string[]) {
 }
 
 export async function creerRecurringDeal(data: {
-  client_name:      string
-  closer_id:        string | null
-  setter_id:        string | null
-  montant_mensuel:  number
-  date_debut:       string
-  versements_total: number
-  notes:            string | null
+  client_name:        string
+  closer_id:          string | null
+  setter_id:          string | null
+  montant_mensuel:    number
+  date_debut:         string
+  versements_total:   number
+  notes:              string | null
+  methode_paiement:   string | null
 }) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()
@@ -471,12 +472,13 @@ export async function ajouterPaiementManuel(
 }
 
 export async function modifierRecurringDeal(id: string, data: {
-  client_name:      string
-  closer_id:        string | null
-  setter_id:        string | null
-  montant_mensuel:  number
-  versements_total: number | null
-  notes:            string | null
+  client_name:       string
+  closer_id:         string | null
+  setter_id:         string | null
+  montant_mensuel:   number
+  versements_total:  number | null
+  notes:             string | null
+  methode_paiement:  string | null
 }) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()

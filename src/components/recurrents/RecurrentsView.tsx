@@ -50,6 +50,7 @@ interface Deal {
   versements_total:      number | null
   actif:                 boolean
   notes:                 string | null
+  methode_paiement:      string | null
   recurring_occurrences: Occurrence[]
 }
 
@@ -82,13 +83,14 @@ function ModalNouveauDeal({ profiles, onClose }: {
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
       await creerRecurringDeal({
-        client_name:      fd.get('client_name') as string,
-        closer_id:        (fd.get('closer_id') as string) || null,
-        setter_id:        (fd.get('setter_id') as string) || null,
-        montant_mensuel:  Number(fd.get('montant_mensuel')),
-        date_debut:       fd.get('date_debut') as string,
-        versements_total: Number(fd.get('versements_total') ?? 3),
-        notes:            (fd.get('notes') as string) || null,
+        client_name:       fd.get('client_name') as string,
+        closer_id:         (fd.get('closer_id') as string) || null,
+        setter_id:         (fd.get('setter_id') as string) || null,
+        montant_mensuel:   Number(fd.get('montant_mensuel')),
+        date_debut:        fd.get('date_debut') as string,
+        versements_total:  Number(fd.get('versements_total') ?? 3),
+        notes:             (fd.get('notes') as string) || null,
+        methode_paiement:  (fd.get('methode_paiement') as string) || null,
       })
       onClose()
     })
@@ -140,9 +142,19 @@ function ModalNouveauDeal({ profiles, onClose }: {
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Date du 1er versement</label>
-          <input name="date_debut" type="date" required className={INPUT} />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Date du 1er versement</label>
+            <input name="date_debut" type="date" required className={INPUT} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Méthode de paiement</label>
+            <select name="methode_paiement" className={INPUT}>
+              <option value="">— Non spécifié —</option>
+              <option value="carte">💳 Carte de crédit</option>
+              <option value="virement">🏦 Virement</option>
+            </select>
+          </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -203,6 +215,7 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
         montant_mensuel:  Number(fd.get('montant_mensuel')),
         versements_total: fd.get('versements_total') ? Number(fd.get('versements_total')) : null,
         notes:            (fd.get('notes') as string) || null,
+        methode_paiement: (fd.get('methode_paiement') as string) || null,
       })
       setEditOpen(false)
     })
@@ -262,10 +275,20 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
               <Pencil size={11} />
             </button>
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             {closerNom && <span className="text-[11px] text-violet-700 font-medium">{closerNom}</span>}
             {closerNom && setterNom && <span className="text-gray-300 text-[10px]">·</span>}
             {setterNom && <span className="text-[11px] text-blue-600">{setterNom}</span>}
+            {deal.methode_paiement && (
+              <span className={cn(
+                'text-[10px] font-semibold px-1.5 py-0.5 rounded',
+                deal.methode_paiement === 'carte'
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'bg-emerald-50 text-emerald-700',
+              )}>
+                {deal.methode_paiement === 'carte' ? '💳 Carte' : '🏦 Virement'}
+              </span>
+            )}
           </div>
         </td>
 
@@ -379,6 +402,14 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
                   </select>
                 </div>
                 <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Méthode de paiement</label>
+                  <select name="methode_paiement" defaultValue={deal.methode_paiement ?? ''} className={INPUT + ' text-sm'}>
+                    <option value="">— Non spécifié —</option>
+                    <option value="carte">💳 Carte de crédit</option>
+                    <option value="virement">🏦 Virement</option>
+                  </select>
+                </div>
+                <div>
                   <label className="text-xs text-gray-500 mb-1 block">Notes</label>
                   <input name="notes" defaultValue={deal.notes ?? ''} className={INPUT + ' text-sm'} />
                 </div>
@@ -427,6 +458,7 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
         montant_mensuel:  Number(fd.get('montant_mensuel')),
         versements_total: fd.get('versements_total') ? Number(fd.get('versements_total')) : null,
         notes:            (fd.get('notes') as string) || null,
+        methode_paiement: (fd.get('methode_paiement') as string) || null,
       })
       setEditOpen(false)
     })
@@ -516,6 +548,16 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
             {reste > 0 && (
               <span className="text-[11px] text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded-full">
                 {dollar(reste)} restant
+              </span>
+            )}
+            {deal.methode_paiement && (
+              <span className={cn(
+                'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                deal.methode_paiement === 'carte'
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'bg-emerald-50 text-emerald-700',
+              )}>
+                {deal.methode_paiement === 'carte' ? '💳 Carte' : '🏦 Virement'}
               </span>
             )}
           </div>
@@ -617,6 +659,14 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
                 <option value="">—</option>
                 <option value="2">2</option>
                 <option value="3">3</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Méthode de paiement</label>
+              <select name="methode_paiement" defaultValue={deal.methode_paiement ?? ''} className={INPUT + ' text-sm'}>
+                <option value="">— Non spécifié —</option>
+                <option value="carte">💳 Carte de crédit</option>
+                <option value="virement">🏦 Virement</option>
               </select>
             </div>
             <div>
@@ -1233,6 +1283,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
                   <tr className="bg-gray-50/80 text-xs font-medium text-gray-400 uppercase tracking-wide border-b border-gray-100">
                     <th className="px-4 py-2.5 text-left">Cliente</th>
                     <th className="px-4 py-2.5 text-left">Closer · Setter</th>
+                    <th className="px-4 py-2.5 text-center">Méthode</th>
                     <th className="px-4 py-2.5 text-center">Versements</th>
                     <th className="px-4 py-2.5 text-right">Attendu</th>
                     <th className="px-4 py-2.5 text-right">Reçu</th>
@@ -1264,6 +1315,16 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
                             {setterNom && <span className="text-blue-600">{setterNom}</span>}
                             {!closerNom && !setterNom && <span className="text-gray-300">—</span>}
                           </div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {d.methode_paiement ? (
+                            <span className={cn(
+                              'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                              d.methode_paiement === 'carte' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-700',
+                            )}>
+                              {d.methode_paiement === 'carte' ? '💳 Carte' : '🏦 Virement'}
+                            </span>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={cn(
@@ -1298,7 +1359,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-gray-200 bg-gray-50 text-xs font-semibold">
-                    <td className="px-4 py-2.5 text-gray-500" colSpan={3}>Total ({actifsDeals.length} clientes)</td>
+                    <td className="px-4 py-2.5 text-gray-500" colSpan={4}>Total ({actifsDeals.length} clientes)</td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">
                       {dollar(actifsDeals.reduce((s, d) => s + (d.versements_total ?? d.recurring_occurrences.length) * d.montant_mensuel, 0))}
                     </td>

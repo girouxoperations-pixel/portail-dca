@@ -38,6 +38,7 @@ interface Deal {
   versements_total:      number | null
   actif:                 boolean
   notes:                 string | null
+  methode_paiement:      string | null
   recurring_occurrences: Occurrence[]
 }
 
@@ -201,6 +202,7 @@ export default function RecurringClientDetail({
         montant_mensuel:  Number(fd.get('montant_mensuel')),
         versements_total: fd.get('versements_total') ? Number(fd.get('versements_total')) : null,
         notes:            (fd.get('notes') as string) || null,
+        methode_paiement: (fd.get('methode_paiement') as string) || null,
       })
       setEditOpen(false)
     })
@@ -263,6 +265,14 @@ export default function RecurringClientDetail({
                 <DollarSign size={13} className="text-gray-400" />
                 {dollar(deal.montant_mensuel)} / versement
               </span>
+              {deal.methode_paiement && (
+                <span className={cn(
+                  'flex items-center text-xs font-semibold px-2 py-0.5 rounded-full',
+                  deal.methode_paiement === 'carte' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-700',
+                )}>
+                  {deal.methode_paiement === 'carte' ? '💳 Carte de crédit' : '🏦 Virement'}
+                </span>
+              )}
             </div>
 
             {deal.notes && (
@@ -331,6 +341,14 @@ export default function RecurringClientDetail({
               <select name="versements_total" defaultValue={deal.versements_total ?? ''} className={INPUT}>
                 <option value="">—</option>
                 {[2, 3, 4, 5, 6, 12].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Méthode de paiement</label>
+              <select name="methode_paiement" defaultValue={deal.methode_paiement ?? ''} className={INPUT}>
+                <option value="">— Non spécifié —</option>
+                <option value="carte">💳 Carte de crédit</option>
+                <option value="virement">🏦 Virement</option>
               </select>
             </div>
             <div>
