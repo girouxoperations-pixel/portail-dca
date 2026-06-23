@@ -150,7 +150,7 @@ export default function ClosersTable({ rows, history }: Props) {
               <td className="px-4 py-3 text-right tabular-nums">{totals.pitch}</td>
               <td className="px-4 py-3 text-right"><PctBadge value={pct(totals.pitch, totals.show)} /></td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.closes}</td>
-              <td className="px-4 py-3 text-right"><PctBadge value={pct(totals.closes, totals.show)} /></td>
+              <td className="px-4 py-3 text-right"><PctBadge value={pct(totals.closes, totals.pitch)} /></td>
               <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totals.cash)}</td>
               <td className="px-4 py-3 text-right tabular-nums">{dollar(totals.revenue)}</td>
               <td className="px-3 py-3" />

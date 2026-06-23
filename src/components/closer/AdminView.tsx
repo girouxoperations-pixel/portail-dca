@@ -86,7 +86,7 @@ function computeKpis(rows: CloserEntry[]) {
     scheduled, shows, pitches, closes, cash_collected, revenue,
     showRate:  pct(shows, scheduled),
     pitchRate: pct(pitches, shows),
-    closeRate: pct(closes, shows),
+    closeRate: pct(closes, pitches),
   }
 }
 
@@ -449,7 +449,7 @@ export default function AdminView({ entrees, closers, isAdmin }: {
             <DeltaBadge current={kpis.pitchRate} prev={kpisPrev.pitchRate} />
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-            <MetricCard label="Close rate" value={`${kpis.closeRate} %`}   icon={CheckCircle2} color="green"  sub={`${kpis.closes} closes`} />
+            <MetricCard label="Close rate" value={`${kpis.closeRate} %`}   icon={CheckCircle2} color="green"  sub={`${kpis.closes} / ${kpis.pitches} pitches`} />
             <DeltaBadge current={kpis.closeRate} prev={kpisPrev.closeRate} />
           </div>
         </div>
@@ -535,7 +535,7 @@ export default function AdminView({ entrees, closers, isAdmin }: {
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.pitches}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(s.pitches, s.shows)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{s.closes}</td>
-                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.closes, s.shows)} bold /></td>
+                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.closes, s.pitches)} bold /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-blue-700 font-medium">{dollar(s.cash_collected)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{dollar(s.revenue)}</td>
                   </tr>

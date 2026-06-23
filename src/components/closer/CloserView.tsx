@@ -760,7 +760,7 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
       scheduled, shows, pitches, closes, cash_collected, revenue,
       showRate:  pct(shows, scheduled),
       pitchRate: pct(pitches, shows),
-      closeRate: pct(closes, shows),
+      closeRate: pct(closes, pitches),
     }
   }
 
@@ -912,7 +912,7 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
                 <DeltaBadge current={kpis.pitchRate} prev={kpisPrev.pitchRate} />
               </div>
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-                <MetricCard label="Close rate" value={`${kpis.closeRate} %`} icon={CheckCircle2} color="green"  sub={`${kpis.closes} closes`} />
+                <MetricCard label="Close rate" value={`${kpis.closeRate} %`} icon={CheckCircle2} color="green"  sub={`${kpis.closes} / ${kpis.pitches} pitches`} />
                 <DeltaBadge current={kpis.closeRate} prev={kpisPrev.closeRate} />
               </div>
             </div>
@@ -1018,7 +1018,7 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
                         <td className="px-4 py-3 text-right tabular-nums text-gray-600">{e.pitch_calls}</td>
                         <td className="px-4 py-3 text-right"><PctBadge value={pct(e.pitch_calls, e.show_calls)} /></td>
                         <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{e.closes}</td>
-                        <td className="px-4 py-3 text-right"><PctBadge value={pct(e.closes, e.show_calls)} bold /></td>
+                        <td className="px-4 py-3 text-right"><PctBadge value={pct(e.closes, e.pitch_calls)} bold /></td>
                         <td className="px-4 py-3 text-right tabular-nums text-blue-700 font-medium">
                           {e.cash_collected > 0 ? dollar(e.cash_collected) : <span className="text-gray-300">—</span>}
                         </td>

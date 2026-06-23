@@ -787,7 +787,7 @@ export default async function DashboardPage({
       closes:   s.closes,
       showPct:  pct(s.shows, s.scheduled),
       pitchPct: pct(s.pitches, s.shows),
-      closePct: pct(s.closes, s.shows),
+      closePct: pct(s.closes, s.pitches),
       cash:     s.cash,
       revenue:  s.revenue,
     }))
