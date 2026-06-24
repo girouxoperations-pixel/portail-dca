@@ -11,7 +11,7 @@ import ExportCsvButton from '@/components/ui/ExportCsvButton'
 import type { CsmClient } from './types'
 import { computeDueDates, today, formatDate } from './types'
 import {
-  updateMeeting, updateMissed, toggleText, updateStatus, marquerRemboursement, updateOnboardingDate,
+  updateMeeting, updateMissed, toggleText, updateStatus, marquerRemboursement, updateOnboardingDate, updateEmailAvis,
 } from './actions'
 
 type StatusFilter = 'tous' | 'active' | 'paused' | 'completed' | 'dropped' | 'refund'
@@ -213,6 +213,63 @@ function TextCell({ clientId, field, done, dueDate, actualDate, today: todayStr,
         {formatDate(displayDate)}
       </button>
       {info && <p className="text-[9px] text-gray-400 mt-0.5 leading-tight">{info}</p>}
+    </td>
+  )
+}
+
+// ── Email avis badge ─────────────────────────────────────────────────
+
+type EmailAvis = '1er_avis' | '2e_avis' | '3e_avis' | 'mise_en_demeure'
+
+const EMAIL_CONFIG: Record<EmailAvis, { label: string; cls: string }> = {
+  '1er_avis':        { label: '1er avis',        cls: 'bg-yellow-100 text-yellow-700' },
+  '2e_avis':         { label: '2e avis',          cls: 'bg-orange-100 text-orange-700' },
+  '3e_avis':         { label: '3e avis',          cls: 'bg-red-100 text-red-600'      },
+  'mise_en_demeure': { label: 'Mise en demeure',  cls: 'bg-red-700 text-white'         },
+}
+
+function EmailCell({ clientId, avis }: { clientId: string; avis: EmailAvis | null }) {
+  const [open, setOpen]   = useState(false)
+  const [pending, startT] = useTransition()
+  const cfg = avis ? EMAIL_CONFIG[avis] : null
+
+  function handleSelect(key: EmailAvis | null) {
+    startT(async () => { await updateEmailAvis(clientId, key); setOpen(false) })
+  }
+
+  return (
+    <td className="px-2 py-2 text-center relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={cn(
+          'text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5 mx-auto',
+          cfg ? cfg.cls : 'bg-gray-100 text-gray-400',
+        )}
+      >
+        {cfg ? cfg.label : '—'}
+        <ChevronDown size={8} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-40">
+          <button
+            disabled={pending}
+            onClick={() => handleSelect(null)}
+            className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 transition-colors"
+          >
+            — Aucun
+          </button>
+          {(Object.entries(EMAIL_CONFIG) as [EmailAvis, typeof EMAIL_CONFIG[EmailAvis]][]).map(([key, c]) => (
+            <button
+              key={key}
+              disabled={pending}
+              onClick={() => handleSelect(key)}
+              className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50', avis === key && 'font-semibold')}
+            >
+              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', c.cls)}>{c.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </td>
   )
 }
@@ -474,7 +531,8 @@ export default function CsmClientList({ clients }: Props) {
                   <th className="px-2 py-2.5 text-center">C.C</th>
                   <th className="px-2 py-2.5 text-center">Opp C</th>
                   {/* Meta */}
-                  <th className="px-2 py-2.5 text-center border-l border-gray-100">Statut</th>
+                  <th className="px-2 py-2.5 text-center border-l border-gray-100">Email</th>
+                  <th className="px-2 py-2.5 text-center">Statut</th>
                   <th className="px-2 py-2.5 text-center">Paie</th>
                 </tr>
               </thead>
@@ -557,6 +615,9 @@ export default function CsmClientList({ clients }: Props) {
                       <CheckCell done={c.quiz_closer_done} />
                       <CheckCell done={c.cert_closer_done} green />
                       <CheckCell done={c.opportunity_closer} />
+
+                      {/* Email avis */}
+                      <EmailCell clientId={c.id} avis={c.email_avis ?? null} />
 
                       {/* Status inline */}
                       <StatusCell clientId={c.id} status={c.status} />

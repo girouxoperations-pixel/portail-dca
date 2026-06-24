@@ -95,6 +95,15 @@ export async function updateMissed(clientId: string, num: 1 | 2 | 3 | 4, missed:
   revalidatePath(`/csm/${clientId}`)
 }
 
+// ── Email avis ──────────────────────────────────────────────────────
+export async function updateEmailAvis(clientId: string, avis: string | null) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_clients').update({ email_avis: avis }).eq('id', clientId)
+  if (error) throw error
+  revalidatePath('/csm')
+}
+
 // ── Status ──────────────────────────────────────────────────────────
 export async function updateStatus(clientId: string, status: string) {
   await verifyAdminOrCsm()
