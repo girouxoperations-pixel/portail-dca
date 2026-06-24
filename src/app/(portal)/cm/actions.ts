@@ -16,7 +16,7 @@ async function requireCm() {
   const userRoles = (profil?.roles ?? []) as string[]
   if (!profil || !userRoles.some((r: string) => ALLOWED.includes(r))) throw new Error('Non autorisé')
 
-  const isPrivileged = userRoles.some(r => ['admin', 'csm'].includes(r))
+  const isPrivileged = userRoles.some(r => ['admin', 'csm', 'cm'].includes(r))
   return { userId: user.id, isPrivileged }
 }
 
