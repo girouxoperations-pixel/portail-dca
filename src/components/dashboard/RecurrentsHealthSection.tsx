@@ -8,13 +8,14 @@ import { dollar } from '@/lib/constants'
 import { marquerRecu } from '@/app/(portal)/recurrents/actions'
 
 export interface RecurrentsOcc {
-  id:             string
-  date_attendue:  string
-  montant_attendu: number
-  mois:           number
-  annee:          number
-  clientName:     string
-  closerName?:    string
+  id:               string
+  date_attendue:    string
+  montant_attendu:  number
+  mois:             number
+  annee:            number
+  clientName:       string
+  closerName?:      string
+  methodePaiement?: string | null
 }
 
 interface Props {
@@ -37,17 +38,24 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
   if (done) {
     return (
       <tr className="bg-green-50/60">
-        <td colSpan={5} className="px-4 py-2.5 text-xs text-green-700 flex items-center gap-1.5">
+        <td colSpan={6} className="px-4 py-2.5 text-xs text-green-700 flex items-center gap-1.5">
           <CheckCircle2 size={13} className="text-green-500" /> {occ.clientName} — {dollar(occ.montant_attendu)} marqué reçu
         </td>
       </tr>
     )
   }
 
+  const methodeLabel = occ.methodePaiement === 'carte'
+    ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">💳 Carte</span>
+    : occ.methodePaiement === 'virement'
+    ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">🏦 Virement</span>
+    : <span className="text-[10px] text-gray-300">—</span>
+
   return (
     <tr className="hover:bg-gray-50/60 transition-colors">
       <td className="px-4 py-2.5 font-medium text-gray-800">{occ.clientName}</td>
       <td className="px-4 py-2.5 text-gray-500">{occ.closerName ?? '—'}</td>
+      <td className="px-4 py-2.5">{methodeLabel}</td>
       <td className="px-4 py-2.5 text-gray-500">{fmtDate(occ.date_attendue)}</td>
       <td className="px-4 py-2.5 text-right font-semibold text-gray-800 tabular-nums">{dollar(occ.montant_attendu)}</td>
       <td className="px-4 py-2.5 text-right">
@@ -75,6 +83,7 @@ function OccTable({ occs, accentCls }: { occs: RecurrentsOcc[]; accentCls: strin
           <tr className={cn('text-xs font-semibold uppercase tracking-wide', accentCls)}>
             <th className="px-4 py-2.5 text-left">Client</th>
             <th className="px-4 py-2.5 text-left">Closer</th>
+            <th className="px-4 py-2.5 text-left">Méthode</th>
             <th className="px-4 py-2.5 text-left">Date attendue</th>
             <th className="px-4 py-2.5 text-right">Montant</th>
             <th className="px-4 py-2.5 text-right">Action</th>
@@ -85,7 +94,7 @@ function OccTable({ occs, accentCls }: { occs: RecurrentsOcc[]; accentCls: strin
         </tbody>
         <tfoot>
           <tr className="border-t border-gray-100 bg-gray-50/60">
-            <td colSpan={4} className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</td>
+            <td colSpan={5} className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</td>
             <td className="px-4 py-2.5 text-right font-bold text-gray-800 tabular-nums">
               {dollar(sorted.reduce((s, o) => s + o.montant_attendu, 0))}
             </td>

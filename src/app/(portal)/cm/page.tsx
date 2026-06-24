@@ -16,7 +16,7 @@ export default async function CmPage() {
   const userRoles = (profil.roles ?? []) as string[]
   if (!userRoles.some(r => ['admin', 'csm', 'cm'].includes(r))) redirect('/dashboard')
 
-  const isPrivileged = userRoles.some(r => ['admin', 'csm'].includes(r))
+  const isPrivileged = userRoles.some(r => ['admin', 'csm', 'cm'].includes(r))
   const db = createAdminClient()
 
   const query = db

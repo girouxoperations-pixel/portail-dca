@@ -611,7 +611,7 @@ export default async function DashboardPage({
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
     db.from('recurring_occurrences')
-      .select('id, date_attendue, montant_attendu, recu, mois, annee, recurring_deals(client_name, closer_id)')
+      .select('id, date_attendue, montant_attendu, recu, mois, annee, recurring_deals(client_name, closer_id, methode_paiement)')
       .eq('recu', false),
   ])
 
@@ -709,15 +709,16 @@ export default async function DashboardPage({
 
   function toHealthOcc(o: typeof occs[number]): RecurrentsOcc {
     const raw  = o.recurring_deals as unknown
-    const deal = (Array.isArray(raw) ? raw[0] : raw) as { client_name: string; closer_id: string | null } | null
+    const deal = (Array.isArray(raw) ? raw[0] : raw) as { client_name: string; closer_id: string | null; methode_paiement: string | null } | null
     return {
-      id:              o.id,
-      date_attendue:   o.date_attendue,
-      montant_attendu: o.montant_attendu,
-      mois:            o.mois,
-      annee:           o.annee,
-      clientName:      deal?.client_name ?? '—',
-      closerName:      deal?.closer_id ? (profileMap.get(deal.closer_id) ?? undefined) : undefined,
+      id:               o.id,
+      date_attendue:    o.date_attendue,
+      montant_attendu:  o.montant_attendu,
+      mois:             o.mois,
+      annee:            o.annee,
+      clientName:       deal?.client_name ?? '—',
+      closerName:       deal?.closer_id ? (profileMap.get(deal.closer_id) ?? undefined) : undefined,
+      methodePaiement:  deal?.methode_paiement ?? null,
     }
   }
 

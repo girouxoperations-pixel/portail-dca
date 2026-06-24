@@ -158,9 +158,9 @@ function ModalNouveauDeal({ profiles, onClose }: {
             <input name="date_debut" type="date" required className={INPUT} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700">Méthode de paiement</label>
-            <select name="methode_paiement" className={INPUT}>
-              <option value="">— Non spécifié —</option>
+            <label className="text-sm font-medium text-gray-700">Méthode de paiement <span className="text-red-500">*</span></label>
+            <select name="methode_paiement" required className={INPUT}>
+              <option value="" disabled>— Choisir —</option>
               <option value="carte">💳 Carte de crédit</option>
               <option value="virement">🏦 Virement</option>
             </select>
