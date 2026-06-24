@@ -808,8 +808,8 @@ export default function CashView({
         <button className={tabCls('hebdo')}   onClick={() => setTab('hebdo')}>Perf hebdo</button>
       </div>
 
-      {/* Period filter + KPIs — entrées + stats + pjour tabs only */}
-      {tab !== 'hebdo' && <><div className="flex items-center gap-2 flex-wrap">
+      {/* Period filter + KPIs — entrées + stats tabs only */}
+      {(tab === 'entrees' || tab === 'stats') && <><div className="flex items-center gap-2 flex-wrap">
         {PRESETS.map(p => {
           const active = filterStart === p.start && filterEnd === p.end
           return (
@@ -1033,7 +1033,7 @@ export default function CashView({
 
       {/* ── Tab Par jour ────────────────────────────────────────── */}
       {tab === 'pjour' && (() => {
-        const year = Number(filterStart.slice(0, 4))
+        const year = yearNow
 
         function weekOfYear(dateStr: string): number {
           const d = new Date(dateStr + 'T12:00')
@@ -1043,10 +1043,10 @@ export default function CashView({
           return Math.min(52, Math.max(1, Math.ceil((dayOfYear + 1) / 7)))
         }
 
-        // Build counts[week][dow]
+        // Build counts[week][dow] — use ALL entries for the year, not just the filtered period
         const counts: Record<number, Record<number, number>> = {}
         for (let w = 1; w <= 52; w++) counts[w] = {}
-        const deals = filtrees.filter(e => !recurringIds.has(e.id))
+        const deals = entrees.filter(e => !recurringIds.has(e.id) && e.close_type !== 'recurring')
         deals.forEach(e => {
           const w = weekOfYear(e.entry_date)
           if (!w) return
