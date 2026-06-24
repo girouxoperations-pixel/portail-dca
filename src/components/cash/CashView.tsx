@@ -603,7 +603,7 @@ export default function CashView({
   const yearNow   = new Date().getFullYear()
   const monthNow  = new Date().getMonth()
 
-  const [tab, setTab]               = useState<'entrees' | 'stats' | 'hebdo'>('entrees')
+  const [tab, setTab]               = useState<'entrees' | 'stats' | 'hebdo' | 'pjour'>('entrees')
   const [filterStart, setFilterStart] = useState(`${yearNow}-01-01`)
   const [filterEnd, setFilterEnd]     = useState(today)
   const [modalEntry, setModalEntry]   = useState<CashEntry | null | 'new'>(null)
@@ -742,6 +742,32 @@ export default function CashView({
     startTransition(async () => { await supprimerCash(id) })
   }
 
+  // ── Deals par jour de semaine × mois ─────────────────────────
+  const DAY_ROWS = [
+    { label: 'Lundi',     days: [1] },
+    { label: 'Mardi',     days: [2] },
+    { label: 'Mercredi',  days: [3] },
+    { label: 'Jeudi',     days: [4] },
+    { label: 'Vendredi',  days: [5] },
+    { label: 'Weekend',   days: [0, 6] },
+  ]
+
+  const dealsParJour = useMemo(() => {
+    const deals = filtrees.filter(e => !recurringIds.has(e.id))
+    const monthSet = new Set<string>()
+    deals.forEach(e => monthSet.add(e.entry_date.slice(0, 7)))
+    const months = Array.from(monthSet).sort()
+    // counts[month][dow] = nb deals
+    const counts: Record<string, Record<number, number>> = {}
+    months.forEach(m => { counts[m] = {} })
+    deals.forEach(e => {
+      const m   = e.entry_date.slice(0, 7)
+      const dow = new Date(e.entry_date + 'T12:00').getDay()
+      counts[m][dow] = (counts[m][dow] ?? 0) + 1
+    })
+    return { months, counts }
+  }, [filtrees, recurringIds])
+
   const tabCls = (t: typeof tab) => cn(
     'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
     tab === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
@@ -778,10 +804,11 @@ export default function CashView({
       <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
         <button className={tabCls('entrees')} onClick={() => setTab('entrees')}>Entrées</button>
         <button className={tabCls('stats')}   onClick={() => setTab('stats')}>Stats</button>
+        <button className={tabCls('pjour')}   onClick={() => setTab('pjour')}>Par jour</button>
         <button className={tabCls('hebdo')}   onClick={() => setTab('hebdo')}>Perf hebdo</button>
       </div>
 
-      {/* Period filter + KPIs — entrées + stats tabs only */}
+      {/* Period filter + KPIs — entrées + stats + pjour tabs only */}
       {tab !== 'hebdo' && <><div className="flex items-center gap-2 flex-wrap">
         {PRESETS.map(p => {
           const active = filterStart === p.start && filterEnd === p.end
@@ -1003,6 +1030,104 @@ export default function CashView({
 
         </div>
       )}
+
+      {/* ── Tab Par jour ────────────────────────────────────────── */}
+      {tab === 'pjour' && (() => {
+        const { months, counts } = dealsParJour
+        const moisFr = (ym: string) => {
+          const [y, m] = ym.split('-')
+          return new Date(Number(y), Number(m) - 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
+        }
+
+        // Compute cell value for a row + month
+        function cellVal(days: number[], month: string) {
+          return days.reduce((s, d) => s + (counts[month]?.[d] ?? 0), 0)
+        }
+
+        // Max value for heatmap
+        const allVals: number[] = []
+        DAY_ROWS.forEach(row => months.forEach(m => allVals.push(cellVal(row.days, m))))
+        const maxVal = Math.max(1, ...allVals)
+
+        function heatCls(v: number) {
+          if (v === 0) return 'text-gray-300'
+          const pct = v / maxVal
+          if (pct >= 0.8) return 'bg-violet-600 text-white font-bold'
+          if (pct >= 0.6) return 'bg-violet-400 text-white font-semibold'
+          if (pct >= 0.4) return 'bg-violet-200 text-violet-900 font-semibold'
+          if (pct >= 0.2) return 'bg-violet-100 text-violet-700'
+          return 'bg-violet-50 text-violet-500'
+        }
+
+        // Monthly totals
+        const monthTotals = months.map(m =>
+          DAY_ROWS.reduce((s, row) => s + cellVal(row.days, m), 0)
+        )
+
+        return (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-50">
+              <h3 className="text-sm font-semibold text-gray-900">Deals par jour de semaine</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Nouvelles deals uniquement (hors récurrents) — couleur = intensité relative</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-2.5 text-left min-w-[90px]">Jour</th>
+                    {months.map(m => (
+                      <th key={m} className="px-3 py-2.5 text-center min-w-[52px]">{moisFr(m)}</th>
+                    ))}
+                    <th className="px-3 py-2.5 text-center border-l border-gray-100 text-violet-400">Moy.</th>
+                    <th className="px-3 py-2.5 text-center font-bold text-gray-600">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {DAY_ROWS.map(row => {
+                    const vals   = months.map(m => cellVal(row.days, m))
+                    const total  = vals.reduce((s, v) => s + v, 0)
+                    const avg    = months.length > 0 ? (total / months.length) : 0
+                    return (
+                      <tr key={row.label} className="hover:bg-gray-50/40 transition-colors">
+                        <td className="px-4 py-2.5 font-medium text-gray-700">{row.label}</td>
+                        {vals.map((v, i) => (
+                          <td key={months[i]} className="px-3 py-2.5 text-center">
+                            <span className={cn('inline-block w-7 h-7 leading-7 rounded-md text-xs text-center', v === 0 ? '' : heatCls(v))}>
+                              {v === 0 ? <span className="text-gray-200">—</span> : v}
+                            </span>
+                          </td>
+                        ))}
+                        <td className="px-3 py-2.5 text-center border-l border-gray-100">
+                          <span className="text-xs font-semibold text-violet-600 tabular-nums">{avg.toFixed(1)}</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="text-sm font-bold text-gray-800 tabular-nums">{total}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-100 bg-gray-50/60 font-semibold">
+                    <td className="px-4 py-2.5 text-xs text-gray-500 uppercase tracking-wide">Total</td>
+                    {monthTotals.map((t, i) => (
+                      <td key={months[i]} className="px-3 py-2.5 text-center text-sm font-bold text-gray-800 tabular-nums">{t}</td>
+                    ))}
+                    <td className="px-3 py-2.5 text-center border-l border-gray-100">
+                      <span className="text-xs font-semibold text-violet-600 tabular-nums">
+                        {months.length > 0 ? (monthTotals.reduce((s, t) => s + t, 0) / months.length).toFixed(1) : '—'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-sm font-bold text-violet-700 tabular-nums">
+                      {monthTotals.reduce((s, t) => s + t, 0)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Tab Perf hebdo ─────────────────────────────────────── */}
       {tab === 'hebdo' && (
