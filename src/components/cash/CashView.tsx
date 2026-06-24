@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import React, { useState, useTransition, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown,
   Zap, Clock, ChevronDown, ChevronRight, RefreshCw, BarChart3,
@@ -1033,93 +1033,191 @@ export default function CashView({
 
       {/* ── Tab Par jour ────────────────────────────────────────── */}
       {tab === 'pjour' && (() => {
-        const { months, counts } = dealsParJour
-        const moisFr = (ym: string) => {
-          const [y, m] = ym.split('-')
-          return new Date(Number(y), Number(m) - 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
+        const year = Number(filterStart.slice(0, 4))
+
+        function weekOfYear(dateStr: string): number {
+          const d = new Date(dateStr + 'T12:00')
+          if (d.getFullYear() !== year) return 0
+          const jan1 = new Date(year, 0, 1)
+          const dayOfYear = Math.floor((d.getTime() - jan1.getTime()) / 86400000)
+          return Math.min(52, Math.max(1, Math.ceil((dayOfYear + 1) / 7)))
         }
 
-        // Compute cell value for a row + month
-        function cellVal(days: number[], month: string) {
-          return days.reduce((s, d) => s + (counts[month]?.[d] ?? 0), 0)
+        // Build counts[week][dow]
+        const counts: Record<number, Record<number, number>> = {}
+        for (let w = 1; w <= 52; w++) counts[w] = {}
+        const deals = filtrees.filter(e => !recurringIds.has(e.id))
+        deals.forEach(e => {
+          const w = weekOfYear(e.entry_date)
+          if (!w) return
+          const dow = new Date(e.entry_date + 'T12:00').getDay()
+          counts[w][dow] = (counts[w][dow] ?? 0) + 1
+        })
+
+        const QUARTERS = [
+          { label: 'T1', weeks: Array.from({ length: 13 }, (_, i) => i + 1)  },
+          { label: 'T2', weeks: Array.from({ length: 13 }, (_, i) => i + 14) },
+          { label: 'T3', weeks: Array.from({ length: 13 }, (_, i) => i + 27) },
+          { label: 'T4', weeks: Array.from({ length: 13 }, (_, i) => i + 40) },
+        ]
+
+        function cellVal(days: number[], w: number) {
+          return days.reduce((s, d) => s + (counts[w]?.[d] ?? 0), 0)
         }
 
-        // Max value for heatmap
-        const allVals: number[] = []
-        DAY_ROWS.forEach(row => months.forEach(m => allVals.push(cellVal(row.days, m))))
-        const maxVal = Math.max(1, ...allVals)
+        const todayWk = weekOfYear(new Date().toISOString().split('T')[0]) || 52
+
+        // Max for heatmap (only past/current weeks)
+        let maxVal = 1
+        DAY_ROWS.forEach(row => {
+          for (let w = 1; w <= todayWk; w++) {
+            const v = cellVal(row.days, w)
+            if (v > maxVal) maxVal = v
+          }
+        })
 
         function heatCls(v: number) {
-          if (v === 0) return 'text-gray-300'
           const pct = v / maxVal
-          if (pct >= 0.8) return 'bg-violet-600 text-white font-bold'
-          if (pct >= 0.6) return 'bg-violet-400 text-white font-semibold'
-          if (pct >= 0.4) return 'bg-violet-200 text-violet-900 font-semibold'
-          if (pct >= 0.2) return 'bg-violet-100 text-violet-700'
-          return 'bg-violet-50 text-violet-500'
+          if (pct >= 0.75) return 'bg-violet-600 text-white'
+          if (pct >= 0.50) return 'bg-violet-400 text-white'
+          if (pct >= 0.25) return 'bg-violet-200 text-violet-900'
+          return 'bg-violet-100 text-violet-700'
         }
 
-        // Monthly totals
-        const monthTotals = months.map(m =>
-          DAY_ROWS.reduce((s, row) => s + cellVal(row.days, m), 0)
-        )
+        const grandTotal = deals.filter(e => weekOfYear(e.entry_date) > 0).length
 
         return (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-50">
-              <h3 className="text-sm font-semibold text-gray-900">Deals par jour de semaine</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Nouvelles deals uniquement (hors récurrents) — couleur = intensité relative</p>
+            <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Deals par semaine — {year}</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Nouvelles deals uniquement · couleur = intensité relative · T1–T4 = trimestres</p>
+              </div>
+              <span className="text-2xl font-bold tabular-nums text-violet-700">{grandTotal}</span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="text-[11px] border-collapse">
                 <thead>
-                  <tr className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-2.5 text-left min-w-[90px]">Jour</th>
-                    {months.map(m => (
-                      <th key={m} className="px-3 py-2.5 text-center min-w-[52px]">{moisFr(m)}</th>
+                  {/* Trimestre labels */}
+                  <tr className="bg-gray-50/80 border-b border-gray-100">
+                    <th className="sticky left-0 z-10 bg-gray-50 px-3 py-1.5 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wide min-w-[80px]">Jour</th>
+                    {QUARTERS.map(q => (
+                      <React.Fragment key={q.label}>
+                        <th colSpan={13} className="px-2 py-1.5 text-center text-[10px] font-bold text-violet-600 uppercase tracking-widest border-l-2 border-violet-200">
+                          {q.label} — Semaines {q.weeks[0]}–{q.weeks[12]}
+                        </th>
+                        <th className="px-2 py-1.5 text-center text-[10px] font-bold text-violet-500 bg-violet-50 border-l border-violet-100">MOY</th>
+                      </React.Fragment>
                     ))}
-                    <th className="px-3 py-2.5 text-center border-l border-gray-100 text-violet-400">Moy.</th>
-                    <th className="px-3 py-2.5 text-center font-bold text-gray-600">Total</th>
+                    <th className="px-2 py-1.5 text-center text-[10px] font-bold text-gray-500 border-l-2 border-gray-200">MOY</th>
+                    <th className="px-2 py-1.5 text-center text-[10px] font-bold text-gray-600 border-l border-gray-100">TOTAL</th>
+                  </tr>
+                  {/* Week numbers */}
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="sticky left-0 z-10 bg-gray-50 px-3 py-1" />
+                    {QUARTERS.map(q => (
+                      <React.Fragment key={q.label}>
+                        {q.weeks.map(w => (
+                          <th key={w} className={cn(
+                            'px-0 py-1 text-center w-7 font-medium',
+                            w === q.weeks[0] ? 'border-l-2 border-violet-200' : '',
+                            w > todayWk ? 'text-gray-200' : 'text-gray-400',
+                          )}>
+                            {w}
+                          </th>
+                        ))}
+                        <th className="w-9 border-l border-violet-100 bg-violet-50" />
+                      </React.Fragment>
+                    ))}
+                    <th className="border-l-2 border-gray-200" />
+                    <th className="border-l border-gray-100" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {DAY_ROWS.map(row => {
-                    const vals   = months.map(m => cellVal(row.days, m))
-                    const total  = vals.reduce((s, v) => s + v, 0)
-                    const avg    = months.length > 0 ? (total / months.length) : 0
+                    const allWeekVals = Array.from({ length: 52 }, (_, i) => cellVal(row.days, i + 1))
+                    const rowTotal    = allWeekVals.slice(0, todayWk).reduce((s, v) => s + v, 0)
+                    const rowAvg      = todayWk > 0 ? rowTotal / todayWk : 0
+
                     return (
-                      <tr key={row.label} className="hover:bg-gray-50/40 transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-gray-700">{row.label}</td>
-                        {vals.map((v, i) => (
-                          <td key={months[i]} className="px-3 py-2.5 text-center">
-                            <span className={cn('inline-block w-7 h-7 leading-7 rounded-md text-xs text-center', v === 0 ? '' : heatCls(v))}>
-                              {v === 0 ? <span className="text-gray-200">—</span> : v}
-                            </span>
-                          </td>
-                        ))}
-                        <td className="px-3 py-2.5 text-center border-l border-gray-100">
-                          <span className="text-xs font-semibold text-violet-600 tabular-nums">{avg.toFixed(1)}</span>
+                      <tr key={row.label} className="hover:bg-violet-50/20 transition-colors">
+                        <td className="sticky left-0 z-10 bg-white px-3 py-1.5 font-semibold text-gray-700 border-r border-gray-50 whitespace-nowrap">
+                          {row.label}
                         </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span className="text-sm font-bold text-gray-800 tabular-nums">{total}</span>
+                        {QUARTERS.map(q => {
+                          const qVals       = q.weeks.map(w => cellVal(row.days, w))
+                          const qWeeksDone  = q.weeks.filter(w => w <= todayWk).length
+                          const qTotal      = qVals.slice(0, qWeeksDone).reduce((s, v) => s + v, 0)
+                          const qAvg        = qWeeksDone > 0 ? qTotal / qWeeksDone : 0
+
+                          return (
+                            <React.Fragment key={q.label}>
+                              {q.weeks.map((w, i) => {
+                                const v        = qVals[i]
+                                const isFuture = w > todayWk
+                                return (
+                                  <td key={w} className={cn('text-center py-1 w-7', w === q.weeks[0] ? 'border-l-2 border-violet-200' : '')}>
+                                    {isFuture ? (
+                                      <span className="text-gray-100">·</span>
+                                    ) : v === 0 ? (
+                                      <span className="text-gray-200 text-[10px]">0</span>
+                                    ) : (
+                                      <span className={cn('inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold', heatCls(v))}>
+                                        {v}
+                                      </span>
+                                    )}
+                                  </td>
+                                )
+                              })}
+                              <td className="text-center py-1 w-9 border-l border-violet-100 bg-violet-50/40 font-semibold text-violet-700">
+                                {qAvg > 0 ? qAvg.toFixed(1) : <span className="text-gray-200">—</span>}
+                              </td>
+                            </React.Fragment>
+                          )
+                        })}
+                        <td className="text-center py-1 border-l-2 border-gray-200 font-semibold text-violet-600 px-2">
+                          {rowAvg > 0 ? rowAvg.toFixed(1) : <span className="text-gray-200">—</span>}
+                        </td>
+                        <td className="text-center py-1 border-l border-gray-100 font-bold text-gray-800 px-2 tabular-nums">
+                          {rowTotal > 0 ? rowTotal : <span className="text-gray-200">0</span>}
                         </td>
                       </tr>
                     )
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-gray-100 bg-gray-50/60 font-semibold">
-                    <td className="px-4 py-2.5 text-xs text-gray-500 uppercase tracking-wide">Total</td>
-                    {monthTotals.map((t, i) => (
-                      <td key={months[i]} className="px-3 py-2.5 text-center text-sm font-bold text-gray-800 tabular-nums">{t}</td>
-                    ))}
-                    <td className="px-3 py-2.5 text-center border-l border-gray-100">
-                      <span className="text-xs font-semibold text-violet-600 tabular-nums">
-                        {months.length > 0 ? (monthTotals.reduce((s, t) => s + t, 0) / months.length).toFixed(1) : '—'}
-                      </span>
+                  <tr className="border-t-2 border-gray-200 bg-gray-50">
+                    <td className="sticky left-0 z-10 bg-gray-50 px-3 py-2 text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-100">Total</td>
+                    {QUARTERS.map(q => {
+                      const qWkTotals  = q.weeks.map(w => DAY_ROWS.reduce((s, row) => s + cellVal(row.days, w), 0))
+                      const qDone      = q.weeks.filter(w => w <= todayWk).length
+                      const qSum       = qWkTotals.slice(0, qDone).reduce((s, v) => s + v, 0)
+                      const qAvg       = qDone > 0 ? qSum / qDone : 0
+                      return (
+                        <React.Fragment key={q.label}>
+                          {q.weeks.map((w, i) => {
+                            const v = qWkTotals[i]
+                            return (
+                              <td key={w} className={cn(
+                                'text-center py-2 font-bold tabular-nums',
+                                w === q.weeks[0] ? 'border-l-2 border-violet-200' : '',
+                                w > todayWk ? 'text-gray-100' : v === 0 ? 'text-gray-300' : 'text-gray-700',
+                              )}>
+                                {w > todayWk ? '·' : v}
+                              </td>
+                            )
+                          })}
+                          <td className="text-center py-2 border-l border-violet-100 bg-violet-50/50 font-bold text-violet-700">
+                            {qAvg > 0 ? qAvg.toFixed(1) : '—'}
+                          </td>
+                        </React.Fragment>
+                      )
+                    })}
+                    <td className="text-center py-2 border-l-2 border-gray-200 font-bold text-violet-600 px-2 tabular-nums">
+                      {todayWk > 0 ? (grandTotal / todayWk).toFixed(1) : '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-center text-sm font-bold text-violet-700 tabular-nums">
-                      {monthTotals.reduce((s, t) => s + t, 0)}
+                    <td className="text-center py-2 border-l border-gray-100 font-bold text-violet-700 px-2 tabular-nums">
+                      {grandTotal}
                     </td>
                   </tr>
                 </tfoot>
