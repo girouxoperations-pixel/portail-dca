@@ -219,13 +219,14 @@ function TextCell({ clientId, field, done, dueDate, actualDate, today: todayStr,
 
 // ── Email avis badge ─────────────────────────────────────────────────
 
-type EmailAvis = '1er_avis' | '2e_avis' | '3e_avis' | 'mise_en_demeure'
+type EmailAvis = '1er_avis' | '2e_avis' | '3e_avis' | 'mise_en_demeure' | 'out'
 
 const EMAIL_CONFIG: Record<EmailAvis, { label: string; cls: string }> = {
   '1er_avis':        { label: '1er avis',        cls: 'bg-yellow-100 text-yellow-700' },
   '2e_avis':         { label: '2e avis',          cls: 'bg-orange-100 text-orange-700' },
   '3e_avis':         { label: '3e avis',          cls: 'bg-red-100 text-red-600'      },
   'mise_en_demeure': { label: 'Mise en demeure',  cls: 'bg-red-700 text-white'         },
+  'out':             { label: 'Out',               cls: 'bg-gray-800 text-white'        },
 }
 
 function EmailCell({ clientId, avis }: { clientId: string; avis: EmailAvis | null }) {
