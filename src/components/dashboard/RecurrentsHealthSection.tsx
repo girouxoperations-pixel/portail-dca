@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Clock, Calendar, Zap, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Clock, Calendar, Zap, ChevronRight, CheckCircle2, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dollar } from '@/lib/constants'
-import { marquerRecu } from '@/app/(portal)/recurrents/actions'
+import { marquerRecu, marquerRecuAvecSolde, modifierDateOccurrence } from '@/app/(portal)/recurrents/actions'
 
 export interface RecurrentsOcc {
   id:               string
@@ -32,8 +32,42 @@ function fmtDate(d: string) {
 }
 
 function OccRow({ occ }: { occ: RecurrentsOcc }) {
-  const [pending, start] = useTransition()
-  const [done, setDone]  = useState(false)
+  const [pending, start]            = useTransition()
+  const [done, setDone]             = useState(false)
+  const [showDiff, setShowDiff]     = useState(false)
+  const [amount, setAmount]         = useState(String(occ.montant_attendu))
+  const [dateSolde, setDateSolde]   = useState('')
+  const [editDate, setEditDate]     = useState(false)
+  const [newDate, setNewDate]       = useState(occ.date_attendue)
+  const [datePending, startDateTrans] = useTransition()
+
+  const montantSolde = Math.max(0, occ.montant_attendu - Number(amount))
+  const isPartial    = showDiff && Number(amount) > 0 && Number(amount) < occ.montant_attendu
+
+  function handleSaveDate() {
+    if (!newDate || newDate === occ.date_attendue) { setEditDate(false); return }
+    startDateTrans(async () => {
+      await modifierDateOccurrence(occ.id, newDate)
+      setEditDate(false)
+    })
+  }
+
+  function handleMarquerExact() {
+    start(async () => { await marquerRecu(occ.id, occ.montant_attendu); setDone(true) })
+  }
+
+  function handleMarquerDiff() {
+    const val = Number(amount)
+    if (isNaN(val) || val <= 0) return
+    start(async () => {
+      if (isPartial && dateSolde) {
+        await marquerRecuAvecSolde(occ.id, val, montantSolde, dateSolde)
+      } else {
+        await marquerRecu(occ.id, val)
+      }
+      setDone(true)
+    })
+  }
 
   if (done) {
     return (
@@ -56,16 +90,89 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
       <td className="px-4 py-2.5 font-medium text-gray-800">{occ.clientName}</td>
       <td className="px-4 py-2.5 text-gray-500">{occ.closerName ?? '—'}</td>
       <td className="px-4 py-2.5">{methodeLabel}</td>
-      <td className="px-4 py-2.5 text-gray-500">{fmtDate(occ.date_attendue)}</td>
-      <td className="px-4 py-2.5 text-right font-semibold text-gray-800 tabular-nums">{dollar(occ.montant_attendu)}</td>
+
+      {/* Date avec édition inline */}
+      <td className="px-4 py-2.5 text-gray-500">
+        {editDate ? (
+          <div className="flex items-center gap-1">
+            <input
+              type="date" value={newDate} onChange={e => setNewDate(e.target.value)} autoFocus
+              className="px-1.5 py-0.5 rounded border border-violet-300 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+            />
+            <button onClick={handleSaveDate} disabled={datePending}
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+            >OK</button>
+            <button onClick={() => { setEditDate(false); setNewDate(occ.date_attendue) }}
+              className="text-[10px] text-gray-400 hover:text-gray-600"
+            >✕</button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <span>{fmtDate(occ.date_attendue)}</span>
+            <button onClick={() => setEditDate(true)} className="text-gray-300 hover:text-violet-500 transition-colors">
+              <Pencil size={10} />
+            </button>
+          </div>
+        )}
+      </td>
+
+      {/* Montant — input si diff ouvert */}
       <td className="px-4 py-2.5 text-right">
-        <button
-          disabled={pending}
-          onClick={() => start(async () => { await marquerRecu(occ.id, occ.montant_attendu); setDone(true) })}
-          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition-colors disabled:opacity-50"
-        >
-          {pending ? '…' : <><CheckCircle2 size={11} /> Reçu</>}
-        </button>
+        {showDiff ? (
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                min="0" step="0.01" autoFocus
+                className="w-24 px-2 py-0.5 rounded border border-violet-300 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-violet-500"
+              />
+              <span className="text-[10px] text-gray-400 whitespace-nowrap">/ {dollar(occ.montant_attendu)}</span>
+            </div>
+            {isPartial && (
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-amber-600 whitespace-nowrap">Solde {dollar(montantSolde)} le</span>
+                <input type="date" value={dateSolde} onChange={e => setDateSolde(e.target.value)}
+                  className="px-1 py-0.5 rounded border border-amber-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50 text-amber-800"
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="font-semibold text-gray-800 tabular-nums">{dollar(occ.montant_attendu)}</span>
+        )}
+      </td>
+
+      {/* Action */}
+      <td className="px-4 py-2.5 text-right">
+        {!showDiff ? (
+          <div className="flex flex-col items-end gap-1">
+            <button
+              disabled={pending} onClick={handleMarquerExact}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-50"
+            >
+              {pending ? '…' : <><CheckCircle2 size={11} /> Reçu — {dollar(occ.montant_attendu)}</>}
+            </button>
+            <button onClick={() => setShowDiff(true)} className="text-[11px] text-gray-400 hover:text-violet-600 transition-colors">
+              Montant différent ▾
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-end gap-1.5">
+            <button
+              onClick={handleMarquerDiff}
+              disabled={pending || (isPartial && !dateSolde)}
+              title={isPartial && !dateSolde ? 'Entrez une date pour le solde restant' : undefined}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition-colors disabled:opacity-50"
+            >
+              <CheckCircle2 size={11} />
+              {pending ? '…' : isPartial ? 'Partiel + solde' : 'Confirmer'}
+            </button>
+            <button
+              onClick={() => { setShowDiff(false); setAmount(String(occ.montant_attendu)); setDateSolde('') }}
+              className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+            >Annuler ✕</button>
+          </div>
+        )}
       </td>
     </tr>
   )

@@ -245,11 +245,14 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   profiles:   Profile[]
   isAdmin:    boolean
 }) {
-  const [showDiff, setShowDiff]    = useState(false)
-  const [amount, setAmount]        = useState(String(occ.montant_attendu))
-  const [dateSolde, setDateSolde]  = useState('')
-  const [editOpen, setEditOpen]    = useState(false)
-  const [pending, startTransition] = useTransition()
+  const [showDiff, setShowDiff]       = useState(false)
+  const [amount, setAmount]           = useState(String(occ.montant_attendu))
+  const [dateSolde, setDateSolde]     = useState('')
+  const [editOpen, setEditOpen]       = useState(false)
+  const [editDate, setEditDate]       = useState(false)
+  const [newDate, setNewDate]         = useState(occ.date_attendue)
+  const [pending, startTransition]    = useTransition()
+  const [datePending, startDateTrans] = useTransition()
 
   const montantSolde = Math.max(0, occ.montant_attendu - Number(amount))
   const isPartial    = showDiff && !occ.recu && Number(amount) > 0 && Number(amount) < occ.montant_attendu
@@ -263,6 +266,14 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
     setShowDiff(false)
     setAmount(String(occ.montant_attendu))
     setDateSolde('')
+  }
+
+  function handleSaveDate() {
+    if (!newDate || newDate === occ.date_attendue) { setEditDate(false); return }
+    startDateTrans(async () => {
+      await modifierDateOccurrence(occ.id, newDate)
+      setEditDate(false)
+    })
   }
 
   const closers = profiles.filter(p => p.role === 'closer')
@@ -360,10 +371,33 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
         {/* Date de contact */}
         <td className="px-4 py-3">
           {!occ.recu ? (
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-semibold text-gray-800">{formatDate(occ.date_attendue)}</span>
-              {urgencyBadge}
-            </div>
+            editDate ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+                  autoFocus
+                  className="px-1.5 py-0.5 rounded border border-violet-300 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+                />
+                <button
+                  onClick={handleSaveDate} disabled={datePending}
+                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+                >OK</button>
+                <button
+                  onClick={() => { setEditDate(false); setNewDate(occ.date_attendue) }}
+                  className="text-[10px] text-gray-400 hover:text-gray-600"
+                >✕</button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-semibold text-gray-800">{formatDate(occ.date_attendue)}</span>
+                  <button onClick={() => setEditDate(true)} className="text-gray-300 hover:text-violet-500 transition-colors">
+                    <Pencil size={10} />
+                  </button>
+                </div>
+                {urgencyBadge}
+              </div>
+            )
           ) : (
             <span className="text-xs text-gray-400">{formatDate(occ.date_attendue)}</span>
           )}
