@@ -16,6 +16,7 @@ import {
   creerRecurringDeal, marquerRecu, marquerRecuAvecSoldes, annulerRecu,
   desactiverDeal, reactiverDeal, encaisserProchainVersement,
   modifierRecurringDeal, setMethodePaiement, modifierDateOccurrence,
+  annulerDealAvecRaison,
 } from '@/app/(portal)/recurrents/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -51,6 +52,8 @@ interface Deal {
   actif:                 boolean
   notes:                 string | null
   methode_paiement:      string | null
+  annule_le:             string | null
+  raison_annulation:     string | null
   recurring_occurrences: Occurrence[]
 }
 
@@ -712,6 +715,9 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
   const [encaisserOpen, setEncaisserOpen]   = useState(false)
   const [encaisserMontant, setEncaisserMontant] = useState(String(deal.montant_mensuel))
   const [encaisserPending, startEncaisser]  = useTransition()
+  const [annulerOpen, setAnnulerOpen]       = useState(false)
+  const [raison, setRaison]                 = useState('')
+  const [annulerPending, startAnnuler]      = useTransition()
 
   function handleEncaisser() {
     const val = Number(encaisserMontant)
@@ -758,8 +764,13 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
               <Pencil size={11} />
             </button>
             {!deal.actif && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 uppercase">
-                Inactif
+              <span className={cn(
+                'text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase',
+                deal.raison_annulation
+                  ? 'bg-red-100 text-red-500'
+                  : 'bg-gray-100 text-gray-400',
+              )}>
+                {deal.raison_annulation ? 'Annulé' : 'Inactif'}
               </span>
             )}
           </div>
@@ -801,17 +812,20 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
               Versement {nextVersNum}
             </button>
           )}
-          {isAdmin && (
+          {isAdmin && deal.actif && (
+            <button
+              onClick={() => { setAnnulerOpen(v => !v); setEncaisserOpen(false) }}
+              className="px-2.5 py-1 rounded text-[11px] font-medium bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 transition-colors"
+            >
+              Annuler
+            </button>
+          )}
+          {isAdmin && !deal.actif && (
             <button
               onClick={handleToggleActif} disabled={pending}
-              className={cn(
-                'px-2.5 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-40',
-                deal.actif
-                  ? 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500'
-                  : 'bg-green-50 text-green-600 hover:bg-green-100',
-              )}
+              className="px-2.5 py-1 rounded text-[11px] font-medium bg-green-50 text-green-600 hover:bg-green-100 transition-colors disabled:opacity-40"
             >
-              {deal.actif ? 'Désactiver' : 'Réactiver'}
+              Réactiver
             </button>
           )}
           <button
@@ -846,6 +860,50 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
           <button onClick={() => setEncaisserOpen(false)} className="text-gray-300 hover:text-gray-500 ml-auto">
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Panel — Annuler l'entente */}
+      {annulerOpen && (
+        <div className="border-t border-red-100 bg-red-50/40 px-5 py-4 space-y-3">
+          <p className="text-xs font-semibold text-red-700">Annuler l&apos;entente récurrente</p>
+          <textarea
+            value={raison}
+            onChange={e => setRaison(e.target.value)}
+            placeholder="Raison de l'annulation (optionnel mais recommandé pour le track record)…"
+            rows={2}
+            className="w-full px-3 py-2 rounded-lg border border-red-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                startAnnuler(async () => {
+                  await annulerDealAvecRaison(deal.id, raison)
+                  setAnnulerOpen(false)
+                })
+              }}
+              disabled={annulerPending}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {annulerPending ? 'Annulation…' : 'Confirmer l\'annulation'}
+            </button>
+            <button
+              onClick={() => { setAnnulerOpen(false); setRaison('') }}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Garder l&apos;entente
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Raison d'annulation — affiché si deal annulé */}
+      {!deal.actif && deal.raison_annulation && (
+        <div className="border-t border-red-100 bg-red-50/30 px-5 py-3">
+          <p className="text-[11px] text-red-600 font-medium mb-0.5">
+            Annulé le {new Date(deal.annule_le!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+          <p className="text-xs text-red-500 italic">{deal.raison_annulation}</p>
         </div>
       )}
 
@@ -972,6 +1030,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
   const [tableView, setTableView]      = useState(false)
   const [filtre, setFiltre]  = useState<Filtre>(() => toValidFiltre(initialFiltre))
   const [search, setSearch]  = useState('')
+  const [pending, startTransition] = useTransition()
 
   const profileMap = useMemo(
     () => new Map(profiles.map(p => [p.id, p.full_name ?? 'Inconnu'])),
@@ -1057,7 +1116,8 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
   }, [filteredDeals])
 
   const actifsDeals   = filteredDeals.filter(d => d.actif)
-  const inactifsDeals = filteredDeals.filter(d => !d.actif)
+  const annulésDeals  = filteredDeals.filter(d => !d.actif && d.raison_annulation)
+  const inactifsDeals = filteredDeals.filter(d => !d.actif && !d.raison_annulation)
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -1588,7 +1648,75 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
         )}
       </div>
 
-      {/* ── Deals inactifs ── */}
+      {/* ── Deals annulés ── */}
+      {annulésDeals.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowInactifs(v => !v)}
+            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors mb-3"
+          >
+            {showInactifs ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            Ententes annulées ({annulésDeals.length})
+          </button>
+          {showInactifs && (
+            <div className="rounded-xl border border-red-100 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] font-semibold uppercase tracking-wide text-red-400 bg-red-50 border-b border-red-100">
+                    <th className="px-4 py-2.5 text-left">Cliente</th>
+                    <th className="px-4 py-2.5 text-left">Annulé le</th>
+                    <th className="px-4 py-2.5 text-left">Raison</th>
+                    <th className="px-4 py-2.5 text-right">Reçu</th>
+                    <th className="px-4 py-2.5 text-right">Attendu</th>
+                    <th className="px-4 py-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-red-50">
+                  {annulésDeals.map(d => {
+                    const reçu   = d.recurring_occurrences.filter(o => o.recu).reduce((s, o) => s + (o.montant_recu ?? 0), 0)
+                    const attendu = (d.versements_total ?? d.recurring_occurrences.length) * d.montant_mensuel
+                    return (
+                      <tr key={d.id} className="hover:bg-red-50/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <Link href={`/recurrents/${d.id}`} className="font-medium text-gray-700 hover:text-violet-600 transition-colors">
+                            {d.client_name}
+                          </Link>
+                          <div className="text-[11px] text-gray-400 mt-0.5">
+                            {d.closer_id ? profileMap.get(d.closer_id) : '—'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                          {d.annule_le
+                            ? new Date(d.annule_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500 italic max-w-xs">
+                          {d.raison_annulation ?? <span className="text-gray-300">Aucune raison</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right text-xs font-semibold text-green-700 tabular-nums">{dollar(reçu)}</td>
+                        <td className="px-4 py-3 text-right text-xs text-gray-400 tabular-nums">{dollar(attendu)}</td>
+                        <td className="px-4 py-3 text-right">
+                          {isAdmin && (
+                            <button
+                              onClick={() => { startTransition(async () => { await reactiverDeal(d.id) }) }}
+                              disabled={pending}
+                              className="text-[11px] px-2 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 font-medium transition-colors disabled:opacity-40"
+                            >
+                              Réactiver
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Deals inactifs (complétés, sans raison d'annulation) ── */}
       {inactifsDeals.length > 0 && (
         <div>
           <button
@@ -1596,7 +1724,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
             className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors mb-3"
           >
             {showInactifs ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            Deals inactifs ({inactifsDeals.length})
+            Deals complétés / inactifs ({inactifsDeals.length})
           </button>
           {showInactifs && (
             <div className="space-y-3">

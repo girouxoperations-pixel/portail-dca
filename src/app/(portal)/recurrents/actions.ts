@@ -444,7 +444,7 @@ export async function marquerRecuAvecSoldes(
 
   // Créer une occurrence en attente par tranche de solde
   if (soldes.length > 0) {
-    await db.from('recurring_occurrences').insert(
+    const { error: soldeErr } = await db.from('recurring_occurrences').insert(
       soldes.map(s => {
         const d = new Date(s.date + 'T00:00:00')
         return {
@@ -457,6 +457,11 @@ export async function marquerRecuAvecSoldes(
         }
       })
     )
+    if (soldeErr) {
+      // Le paiement partiel est déjà enregistré — on lève l'erreur pour que l'UI l'affiche
+      // sans annuler ce qui a déjà été créé (cash_entry + paye_entry sont commis)
+      throw new Error(`Soldes non créés (date en conflit ?) : ${soldeErr.message}`)
+    }
   }
 
   revalidatePath('/recurrents')
@@ -715,6 +720,19 @@ export async function desactiverDeal(id: string) {
 export async function reactiverDeal(id: string) {
   await requireRole(['admin'])
   const db = createAdminClient()
-  await db.from('recurring_deals').update({ actif: true }).eq('id', id)
+  await db.from('recurring_deals').update({ actif: true, annule_le: null, raison_annulation: null }).eq('id', id)
   revalidatePath('/recurrents')
+}
+
+export async function annulerDealAvecRaison(id: string, raison: string) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+  await db.from('recurring_deals').update({
+    actif:             false,
+    annule_le:         new Date().toISOString(),
+    raison_annulation: raison.trim() || null,
+  }).eq('id', id)
+  revalidatePath('/recurrents')
+  revalidatePath(`/recurrents/${id}`)
+  revalidatePath('/dashboard')
 }
