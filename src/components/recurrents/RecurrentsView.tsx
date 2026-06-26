@@ -15,7 +15,7 @@ import PageHeader      from '@/components/layout/PageHeader'
 import {
   creerRecurringDeal, marquerRecu, marquerRecuAvecSolde, annulerRecu,
   desactiverDeal, reactiverDeal, encaisserProchainVersement,
-  modifierRecurringDeal, setMethodePaiement,
+  modifierRecurringDeal, setMethodePaiement, modifierDateOccurrence,
 } from '@/app/(portal)/recurrents/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -245,13 +245,25 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   profiles:   Profile[]
   isAdmin:    boolean
 }) {
+  const [showDiff, setShowDiff]    = useState(false)
   const [amount, setAmount]        = useState(String(occ.montant_attendu))
   const [dateSolde, setDateSolde]  = useState('')
   const [editOpen, setEditOpen]    = useState(false)
   const [pending, startTransition] = useTransition()
 
   const montantSolde = Math.max(0, occ.montant_attendu - Number(amount))
-  const isPartial    = !occ.recu && Number(amount) > 0 && Number(amount) < occ.montant_attendu
+  const isPartial    = showDiff && !occ.recu && Number(amount) > 0 && Number(amount) < occ.montant_attendu
+
+  // Versement number within this deal
+  const occsSorted      = deal.recurring_occurrences.slice().sort((a, b) => a.date_attendue.localeCompare(b.date_attendue))
+  const versementNum    = occsSorted.findIndex(o => o.id === occ.id) + 1
+  const versementsTotal = occsSorted.length
+
+  function handleCancelDiff() {
+    setShowDiff(false)
+    setAmount(String(occ.montant_attendu))
+    setDateSolde('')
+  }
 
   const closers = profiles.filter(p => p.role === 'closer')
   const setters = profiles.filter(p => p.role === 'setter')
@@ -295,7 +307,11 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
     normal:  <span className="text-[10px] text-gray-400">Dans {diffDays}j</span>,
   }[urgency]
 
-  function handleMarquer() {
+  function handleMarquerExact() {
+    startTransition(async () => { await marquerRecu(occ.id, occ.montant_attendu) })
+  }
+
+  function handleMarquerDiff() {
     const val = Number(amount)
     if (isNaN(val) || val <= 0) return
     startTransition(async () => {
@@ -323,6 +339,9 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
       )}>
         <td className="px-4 py-3">
           <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded tabular-nums">
+              #{versementNum}/{versementsTotal}
+            </span>
             <Link href={`/recurrents/${deal.id}`} className="font-medium text-gray-800 text-sm hover:text-violet-600 transition-colors">
               {deal.client_name}
             </Link>
@@ -352,36 +371,73 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
 
         {!occ.recu ? (
           <>
+            {/* Col 3 — montant attendu + panel diff si ouvert */}
             <td className="px-4 py-3">
-              <input
-                type="number" value={amount} onChange={e => setAmount(e.target.value)}
-                min="0" step="0.01"
-                className="w-28 px-2 py-1 rounded border border-gray-200 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500"
-              />
-              {isPartial && (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <span className="text-[10px] text-amber-600 font-medium whitespace-nowrap">
-                    Solde {dollar(montantSolde)} dû le
-                  </span>
-                  <input
-                    type="date"
-                    value={dateSolde}
-                    onChange={e => setDateSolde(e.target.value)}
-                    className="px-1.5 py-0.5 rounded border border-amber-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50 text-amber-800"
-                  />
+              <div className="text-sm tabular-nums text-gray-500">
+                {dollar(occ.montant_attendu)}
+              </div>
+              {showDiff && (
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                      min="0" step="0.01" autoFocus
+                      className="w-28 px-2 py-1 rounded border border-violet-300 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
+                    <span className="text-[10px] text-gray-400 whitespace-nowrap">/ {dollar(occ.montant_attendu)}</span>
+                  </div>
+                  {isPartial && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-amber-600 font-medium whitespace-nowrap">
+                        Solde {dollar(montantSolde)} le
+                      </span>
+                      <input
+                        type="date" value={dateSolde} onChange={e => setDateSolde(e.target.value)}
+                        className="px-1.5 py-0.5 rounded border border-amber-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50 text-amber-800"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </td>
+            {/* Col 4 — actions */}
             <td className="px-4 py-3 text-right">
-              <button
-                onClick={handleMarquer}
-                disabled={pending || (isPartial && !dateSolde)}
-                title={isPartial && !dateSolde ? 'Entrez une date pour le solde restant' : undefined}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 ml-auto"
-              >
-                <CheckCircle2 size={12} />
-                {pending ? 'Enregistrement…' : isPartial ? 'Partiel + solde' : 'Marquer reçu'}
-              </button>
+              {!showDiff ? (
+                <div className="flex flex-col items-end gap-1.5">
+                  <button
+                    onClick={handleMarquerExact}
+                    disabled={pending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={12} />
+                    {pending ? 'Enregistrement…' : `Reçu — ${dollar(occ.montant_attendu)}`}
+                  </button>
+                  <button
+                    onClick={() => setShowDiff(true)}
+                    className="text-[11px] text-gray-400 hover:text-violet-600 transition-colors"
+                  >
+                    Montant différent ▾
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-end gap-1.5">
+                  <button
+                    onClick={handleMarquerDiff}
+                    disabled={pending || (isPartial && !dateSolde)}
+                    title={isPartial && !dateSolde ? 'Entrez une date pour le solde restant' : undefined}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={12} />
+                    {pending ? 'Enregistrement…' : isPartial ? 'Partiel + solde' : 'Confirmer'}
+                  </button>
+                  <button
+                    onClick={handleCancelDiff}
+                    className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Annuler ✕
+                  </button>
+                </div>
+              )}
             </td>
           </>
         ) : (
@@ -472,6 +528,81 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
         </tr>
       )}
     </>
+  )
+}
+
+// ── Ligne occurrence avec édition de date inline ─────────────────────
+
+function OccurrenceEditRow({ o, idx }: { o: Occurrence; idx: number }) {
+  const [editDate, setEditDate]       = useState(false)
+  const [newDate, setNewDate]         = useState(o.date_attendue)
+  const [datePending, startDateTrans] = useTransition()
+
+  function handleSaveDate() {
+    if (!newDate || newDate === o.date_attendue) { setEditDate(false); return }
+    startDateTrans(async () => {
+      await modifierDateOccurrence(o.id, newDate)
+      setEditDate(false)
+    })
+  }
+
+  return (
+    <tr className={cn('hover:bg-gray-50/50', o.recu && 'bg-green-50/30')}>
+      <td className="px-5 py-2 font-medium text-gray-700">
+        <div>#{idx + 1} <span className="text-gray-400 font-normal text-[11px]">({MOIS_FR[o.mois - 1]} {o.annee})</span></div>
+        {!o.recu && (
+          editDate ? (
+            <div className="flex items-center gap-1 mt-1">
+              <input
+                type="date" value={newDate}
+                onChange={e => setNewDate(e.target.value)}
+                className="px-1.5 py-0.5 rounded border border-violet-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-400"
+              />
+              <button
+                onClick={handleSaveDate} disabled={datePending}
+                className="text-[10px] font-semibold px-2 py-0.5 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50"
+              >
+                {datePending ? '…' : 'OK'}
+              </button>
+              <button onClick={() => setEditDate(false)} className="text-gray-300 hover:text-gray-500">
+                <X size={10} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="text-[11px] text-gray-400">{formatDate(o.date_attendue)}</span>
+              <button
+                onClick={() => setEditDate(true)}
+                className="text-gray-200 hover:text-violet-400 transition-colors"
+                title="Modifier la date"
+              >
+                <Pencil size={9} />
+              </button>
+            </div>
+          )
+        )}
+        {o.recu && (
+          <span className="text-[11px] text-gray-400">{formatDate(o.date_attendue)}</span>
+        )}
+      </td>
+      <td className="px-4 py-2 text-right tabular-nums text-gray-600">
+        {dollar(o.montant_attendu)}
+      </td>
+      <td className="px-4 py-2 text-right tabular-nums font-semibold text-gray-800">
+        {o.recu ? dollar(o.montant_recu ?? 0) : '—'}
+      </td>
+      <td className="px-4 py-2 text-gray-500">
+        {o.date_recue ? formatDate(o.date_recue) : '—'}
+      </td>
+      <td className="px-4 py-2">
+        <Badge
+          variant={o.recu ? 'green' : 'amber'}
+          icon={o.recu ? <CheckCircle2 size={9} /> : undefined}
+        >
+          {o.recu ? 'Reçu' : 'En attente'}
+        </Badge>
+      </td>
+    </tr>
   )
 }
 
@@ -738,28 +869,7 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
                 .slice()
                 .sort((a, b) => a.date_attendue.localeCompare(b.date_attendue))
                 .map((o, idx) => (
-                <tr key={o.id} className={cn('hover:bg-gray-50/50', o.recu && 'bg-green-50/30')}>
-                  <td className="px-5 py-2 font-medium text-gray-700">
-                    #{idx + 1} <span className="text-gray-400 font-normal text-[11px]">({MOIS_FR[o.mois - 1]} {o.annee})</span>
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-gray-600">
-                    {dollar(o.montant_attendu)}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums font-semibold text-gray-800">
-                    {o.recu ? dollar(o.montant_recu ?? 0) : '—'}
-                  </td>
-                  <td className="px-4 py-2 text-gray-500">
-                    {o.date_recue ? formatDate(o.date_recue) : '—'}
-                  </td>
-                  <td className="px-4 py-2">
-                    <Badge
-                      variant={o.recu ? 'green' : 'amber'}
-                      icon={o.recu ? <CheckCircle2 size={9} /> : undefined}
-                    >
-                      {o.recu ? 'Reçu' : 'En attente'}
-                    </Badge>
-                  </td>
-                </tr>
+                <OccurrenceEditRow key={o.id} o={o} idx={idx} />
               ))}
             </tbody>
             <tfoot>
