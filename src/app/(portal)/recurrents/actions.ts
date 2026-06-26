@@ -365,6 +365,107 @@ export async function marquerRecuAvecSolde(
   revalidatePath('/payes')
 }
 
+export async function marquerRecuAvecSoldes(
+  occurrenceId: string,
+  montantRecu: number,
+  soldes: { montant: number; date: string }[],
+) {
+  const { userId } = await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { data: occ, error: occErr } = await db
+    .from('recurring_occurrences')
+    .select('*, recurring_deals(client_name, closer_id, setter_id)')
+    .eq('id', occurrenceId)
+    .single()
+
+  if (occErr || !occ) throw new Error('Occurrence introuvable')
+  if (occ.recu) throw new Error('Déjà reçue')
+
+  const deal = occ.recurring_deals as {
+    client_name: string
+    closer_id:   string | null
+    setter_id:   string | null
+  }
+
+  const today         = new Date().toISOString().split('T')[0]
+  const [year, month] = today.split('-').map(Number)
+  const label         = periodLabel(today)
+  const commission    = Math.round(montantRecu * TAUX_CLOSER * 100) / 100
+  const commissionSet = Math.round(montantRecu * TAUX_SETTER * 100) / 100
+
+  const { data: cashEntry, error: cashErr } = await db
+    .from('cash_entries')
+    .insert({
+      entry_date:      today,
+      client_name:     deal.client_name,
+      montant_courant: montantRecu,
+      collected:       montantRecu,
+      closed_by:       deal.closer_id,
+      set_by:          deal.setter_id,
+      close_type:      'recurring',
+      month, year,
+      notes:           `Récurrent (partiel) — ${occ.mois}/${occ.annee}`,
+      created_by:      userId,
+    })
+    .select('id')
+    .single()
+
+  if (cashErr) throw new Error(cashErr.message)
+
+  const { data: payeEntry, error: payeErr } = await db
+    .from('paye_entries')
+    .insert({
+      cash_entry_id:     cashEntry.id,
+      period_label:      label,
+      month, year,
+      client_name:       deal.client_name,
+      closer_id:         deal.closer_id,
+      setter_id:         deal.setter_id,
+      montant:           montantRecu,
+      commission,
+      commission_setter: commissionSet,
+      statut:            'En attente',
+      notes:             'Récurrent (partiel)',
+      created_by:        userId,
+    })
+    .select('id')
+    .single()
+
+  if (payeErr) throw new Error(payeErr.message)
+
+  await db.from('recurring_occurrences').update({
+    recu:          true,
+    date_recue:    today,
+    montant_recu:  montantRecu,
+    cash_entry_id: cashEntry.id,
+    paye_entry_id: payeEntry.id,
+  }).eq('id', occurrenceId)
+
+  // Créer une occurrence en attente par tranche de solde
+  if (soldes.length > 0) {
+    await db.from('recurring_occurrences').insert(
+      soldes.map(s => {
+        const d = new Date(s.date + 'T00:00:00')
+        return {
+          recurring_deal_id: occ.recurring_deal_id,
+          mois:              d.getMonth() + 1,
+          annee:             d.getFullYear(),
+          date_attendue:     s.date,
+          montant_attendu:   s.montant,
+          recu:              false,
+        }
+      })
+    )
+  }
+
+  revalidatePath('/recurrents')
+  revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
+  revalidatePath('/dashboard')
+  revalidatePath('/cashcollect')
+  revalidatePath('/payes')
+}
+
 export async function annulerRecu(occurrenceId: string) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()

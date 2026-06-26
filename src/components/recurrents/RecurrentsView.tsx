@@ -13,7 +13,7 @@ import Badge           from '@/components/ui/Badge'
 import Modal           from '@/components/ui/Modal'
 import PageHeader      from '@/components/layout/PageHeader'
 import {
-  creerRecurringDeal, marquerRecu, marquerRecuAvecSolde, annulerRecu,
+  creerRecurringDeal, marquerRecu, marquerRecuAvecSoldes, annulerRecu,
   desactiverDeal, reactiverDeal, encaisserProchainVersement,
   modifierRecurringDeal, setMethodePaiement, modifierDateOccurrence,
 } from '@/app/(portal)/recurrents/actions'
@@ -245,17 +245,21 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   profiles:   Profile[]
   isAdmin:    boolean
 }) {
+  type SoldeLine = { montant: string; date: string }
+
   const [showDiff, setShowDiff]       = useState(false)
   const [amount, setAmount]           = useState(String(occ.montant_attendu))
-  const [dateSolde, setDateSolde]     = useState('')
+  const [soldeLines, setSoldeLines]   = useState<SoldeLine[]>([{ montant: '', date: '' }])
   const [editOpen, setEditOpen]       = useState(false)
   const [editDate, setEditDate]       = useState(false)
   const [newDate, setNewDate]         = useState(occ.date_attendue)
   const [pending, startTransition]    = useTransition()
   const [datePending, startDateTrans] = useTransition()
 
-  const montantSolde = Math.max(0, occ.montant_attendu - Number(amount))
-  const isPartial    = showDiff && !occ.recu && Number(amount) > 0 && Number(amount) < occ.montant_attendu
+  const isPartial   = showDiff && !occ.recu && Number(amount) > 0 && Number(amount) < occ.montant_attendu
+  const soldeTotal  = soldeLines.reduce((s, l) => s + (Number(l.montant) || 0), 0)
+  const soldeReste  = isPartial ? Math.round((occ.montant_attendu - Number(amount) - soldeTotal) * 100) / 100 : 0
+  const soldeValid  = !isPartial || soldeLines.every(l => l.date && Number(l.montant) > 0)
 
   // Versement number within this deal
   const occsSorted      = deal.recurring_occurrences.slice().sort((a, b) => a.date_attendue.localeCompare(b.date_attendue))
@@ -265,7 +269,7 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   function handleCancelDiff() {
     setShowDiff(false)
     setAmount(String(occ.montant_attendu))
-    setDateSolde('')
+    setSoldeLines([{ montant: '', date: '' }])
   }
 
   function handleSaveDate() {
@@ -326,8 +330,9 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
     const val = Number(amount)
     if (isNaN(val) || val <= 0) return
     startTransition(async () => {
-      if (isPartial && dateSolde) {
-        await marquerRecuAvecSolde(occ.id, val, montantSolde, dateSolde)
+      if (isPartial && soldeValid && soldeLines.some(l => l.date && Number(l.montant) > 0)) {
+        const lignes = soldeLines.filter(l => l.date && Number(l.montant) > 0)
+        await marquerRecuAvecSoldes(occ.id, val, lignes.map(l => ({ montant: Number(l.montant), date: l.date })))
       } else {
         await marquerRecu(occ.id, val)
       }
@@ -421,14 +426,35 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
                     <span className="text-[10px] text-gray-400 whitespace-nowrap">/ {dollar(occ.montant_attendu)}</span>
                   </div>
                   {isPartial && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-amber-600 font-medium whitespace-nowrap">
-                        Solde {dollar(montantSolde)} le
-                      </span>
-                      <input
-                        type="date" value={dateSolde} onChange={e => setDateSolde(e.target.value)}
-                        className="px-1.5 py-0.5 rounded border border-amber-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50 text-amber-800"
-                      />
+                    <div className="mt-1.5 space-y-1">
+                      <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">Soldes à venir</p>
+                      {soldeLines.map((line, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <input
+                            type="number" value={line.montant} placeholder="Montant"
+                            min="0" step="0.01"
+                            onChange={e => { const nl = [...soldeLines]; nl[i] = { ...nl[i], montant: e.target.value }; setSoldeLines(nl) }}
+                            className="w-20 px-1.5 py-0.5 rounded border border-amber-200 text-xs text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50"
+                          />
+                          <input
+                            type="date" value={line.date}
+                            onChange={e => { const nl = [...soldeLines]; nl[i] = { ...nl[i], date: e.target.value }; setSoldeLines(nl) }}
+                            className="px-1 py-0.5 rounded border border-amber-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50 text-amber-800"
+                          />
+                          {soldeLines.length > 1 && (
+                            <button onClick={() => setSoldeLines(soldeLines.filter((_, j) => j !== i))} className="text-gray-300 hover:text-red-400 text-xs leading-none">×</button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => setSoldeLines([...soldeLines, { montant: soldeReste > 0 ? String(Math.round(soldeReste * 100) / 100) : '', date: '' }])}
+                        className="text-[10px] text-violet-500 hover:text-violet-700 font-medium"
+                      >+ Versement</button>
+                      {soldeReste !== 0 && (
+                        <p className={cn('text-[10px] font-medium', soldeReste > 0 ? 'text-amber-600' : 'text-red-500')}>
+                          {soldeReste > 0 ? `Non alloué : ${dollar(soldeReste)}` : `Excès : ${dollar(-soldeReste)}`}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -457,12 +483,12 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
                 <div className="flex flex-col items-end gap-1.5">
                   <button
                     onClick={handleMarquerDiff}
-                    disabled={pending || (isPartial && !dateSolde)}
-                    title={isPartial && !dateSolde ? 'Entrez une date pour le solde restant' : undefined}
+                    disabled={pending || !soldeValid}
+                    title={!soldeValid ? 'Complétez tous les versements (montant + date)' : undefined}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
                   >
                     <CheckCircle2 size={12} />
-                    {pending ? 'Enregistrement…' : isPartial ? 'Partiel + solde' : 'Confirmer'}
+                    {pending ? 'Enregistrement…' : isPartial ? `Partiel + ${soldeLines.filter(l => l.date && Number(l.montant) > 0).length} solde${soldeLines.filter(l => l.date && Number(l.montant) > 0).length > 1 ? 's' : ''}` : 'Confirmer'}
                   </button>
                   <button
                     onClick={handleCancelDiff}
