@@ -606,6 +606,8 @@ export default function CashView({
   const [tab, setTab]               = useState<'entrees' | 'stats' | 'hebdo' | 'pjour'>('entrees')
   const [filterStart, setFilterStart] = useState(`${yearNow}-01-01`)
   const [filterEnd, setFilterEnd]     = useState(today)
+  const [filterCloserId, setFilterCloserId] = useState('')
+  const [filterSetterId, setFilterSetterId] = useState('')
   const [search, setSearch]           = useState('')
   const [modalEntry, setModalEntry]   = useState<CashEntry | null | 'new'>(null)
   const [showImport, setShowImport]   = useState(false)
@@ -633,6 +635,8 @@ export default function CashView({
     const q = search.trim().toLowerCase()
     return entrees.filter(e => {
       if (e.entry_date < filterStart || e.entry_date > filterEnd) return false
+      if (filterCloserId && e.closed_by !== filterCloserId) return false
+      if (filterSetterId && e.set_by    !== filterSetterId) return false
       if (!q) return true
       const closerName = e.closed_by ? (profileMap.get(e.closed_by) ?? '').toLowerCase() : ''
       const setterName = e.set_by    ? (profileMap.get(e.set_by)    ?? '').toLowerCase() : ''
@@ -643,7 +647,7 @@ export default function CashView({
         (e.notes ?? '').toLowerCase().includes(q)
       )
     })
-  }, [entrees, filterStart, filterEnd, search, profileMap])
+  }, [entrees, filterStart, filterEnd, filterCloserId, filterSetterId, search, profileMap])
 
   // ── KPIs on filtered data ─────────────────────────────────────
   const totaux = useMemo(() => ({
@@ -850,6 +854,28 @@ export default function CashView({
             className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
+        <select
+          value={filterCloserId}
+          onChange={e => setFilterCloserId(e.target.value)}
+          className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500 text-gray-700"
+        >
+          <option value="">Tous les closers</option>
+          {closers.map(c => (
+            <option key={c.id} value={c.id}>{c.full_name ?? c.id}</option>
+          ))}
+        </select>
+
+        <select
+          value={filterSetterId}
+          onChange={e => setFilterSetterId(e.target.value)}
+          className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500 text-gray-700"
+        >
+          <option value="">Tous les setters</option>
+          {setters.map(s => (
+            <option key={s.id} value={s.id}>{s.full_name ?? s.id}</option>
+          ))}
+        </select>
+
         <div className="relative ml-auto">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
