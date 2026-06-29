@@ -119,15 +119,40 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
   function handleFile(file: File) {
     setRows([]); setError(''); setSuccess(''); setFileName(file.name)
 
+    // Parse raw (no header) so we can find the real header row ourselves.
+    // The Google Sheet export has an empty first row (,,,,,,) that Papa Parse
+    // would otherwise treat as the header when using header:true.
     Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h: string) => h.trim().toLowerCase().replace(/[*]/g, ''),
+      header: false,
+      skipEmptyLines: false,
       complete: (result) => {
-        const data = result.data as Record<string, string>[]
+        const rawRows = result.data as string[][]
+
+        // Find the first row that contains 'nom' or 'client' as a cell
+        let headerIdx = rawRows.findIndex(row =>
+          row.some(cell => {
+            const c = cell.trim().toLowerCase()
+            return c === 'nom' || c === 'client'
+          })
+        )
+        if (headerIdx === -1) {
+          setError('Format non reconnu. Utilise le gabarit fourni ou le format Google Sheet DCA (colonnes Nom, Montant, Date, Closer, Setter, Méthode).')
+          return
+        }
+
+        const headers = rawRows[headerIdx].map(h => h.trim().toLowerCase())
+        const data: Record<string, string>[] = rawRows
+          .slice(headerIdx + 1)
+          .filter(row => row.some(cell => cell.trim()))
+          .map(row => {
+            const obj: Record<string, string> = {}
+            headers.forEach((h, i) => { obj[h] = (row[i] ?? '').trim() })
+            return obj
+          })
+
         const parsed = parseFile(data)
         if (!parsed || parsed.rows.length === 0) {
-          setError('Format non reconnu. Utilise le gabarit fourni ou le format Google Sheet DCA (colonnes Nom, Montant, Date, Closer, Setter, Méthode).')
+          setError('Aucune ligne valide trouvée après la ligne d\'en-tête.')
           return
         }
         setRows(parsed.rows)
