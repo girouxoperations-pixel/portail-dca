@@ -443,8 +443,9 @@ export async function marquerRecuAvecSoldes(
   }).eq('id', occurrenceId)
 
   // Créer une occurrence en attente par tranche de solde
+  // ignoreDuplicates: si une occurrence existe déjà à cette date pour ce deal, on la saute
   if (soldes.length > 0) {
-    const { error: soldeErr } = await db.from('recurring_occurrences').insert(
+    await db.from('recurring_occurrences').upsert(
       soldes.map(s => {
         const d = new Date(s.date + 'T00:00:00')
         return {
@@ -455,13 +456,9 @@ export async function marquerRecuAvecSoldes(
           montant_attendu:   s.montant,
           recu:              false,
         }
-      })
+      }),
+      { onConflict: 'recurring_deal_id,date_attendue', ignoreDuplicates: true }
     )
-    if (soldeErr) {
-      // Le paiement partiel est déjà enregistré — on lève l'erreur pour que l'UI l'affiche
-      // sans annuler ce qui a déjà été créé (cash_entry + paye_entry sont commis)
-      throw new Error(`Soldes non créés (date en conflit ?) : ${soldeErr.message}`)
-    }
   }
 
   revalidatePath('/recurrents')
