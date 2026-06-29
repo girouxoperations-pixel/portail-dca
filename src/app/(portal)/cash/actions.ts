@@ -299,6 +299,7 @@ export async function importerRecurringDeals(
   rows: RecurringDealRow[],
   collectYear: number,
   collectMonth: number,
+  forceCreate = false,
 ) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()
@@ -317,7 +318,8 @@ export async function importerRecurringDeals(
   const cy = collectYear  || now.getFullYear()
   const cm = collectMonth || now.getMonth() + 1
 
-  let count = 0
+  let created = 0
+  let updated = 0
 
   for (const r of rows) {
     if (!r.client) continue
@@ -325,11 +327,12 @@ export async function importerRecurringDeals(
     const collecte = Number(r.collecte) || 0
 
     // Check if a deal for this client already exists (e.g. from a prior month's import)
-    const { data: existingDeal } = await db
+    const existingDealResult = forceCreate ? null : await db
       .from('recurring_deals')
       .select('id, versements_total')
       .ilike('client_name', r.client)
       .maybeSingle()
+    const existingDeal = existingDealResult?.data ?? null
 
     if (existingDeal) {
       // Deal exists — add the collect-month occurrence if not already there
@@ -375,7 +378,7 @@ export async function importerRecurringDeals(
         }
       }
 
-      count++
+      updated++
       continue
     }
 
@@ -458,12 +461,12 @@ export async function importerRecurringDeals(
       }
     }
 
-    count++
+    created++
   }
 
   revalidatePath('/recurrents')
   revalidatePath('/cash')
-  return { count }
+  return { count: created + updated, created, updated }
 }
 
 export async function importerWeeklyPerfs(rows: PerfImportRow[]) {

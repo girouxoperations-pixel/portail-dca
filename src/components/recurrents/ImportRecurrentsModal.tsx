@@ -137,8 +137,11 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
     const importedAt = new Date().toISOString()
     start(async () => {
       try {
-        const result = await importerRecurringDeals(rows, importYear, importMonth)
-        setSuccess(`${result.count} entente${result.count > 1 ? 's' : ''} créée${result.count > 1 ? 's' : ''} avec succès.`)
+        const result = await importerRecurringDeals(rows, importYear, importMonth, true)
+        const msg = result.count === 0
+          ? 'Aucune entente importée.'
+          : `${result.created} entente${result.created > 1 ? 's' : ''} créée${result.created > 1 ? 's' : ''}${result.updated > 0 ? ` · ${result.updated} mise${result.updated > 1 ? 's' : ''} à jour` : ''}.`
+        setSuccess(msg)
         setLastImportAt(importedAt)
         setRows([])
       } catch (e: unknown) {
