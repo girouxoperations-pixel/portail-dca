@@ -5,22 +5,13 @@ import Papa from 'papaparse'
 import { Upload, Download, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react'
 import { importerRecurringDeals, type RecurringDealRow } from '@/app/(portal)/cash/actions'
 
+// ── Template générique ────────────────────────────────────────────
+
 const TEMPLATE = [
   'client,montant,date,versements,closer,setter,methode,notes',
-  'Marie Tremblay,1333,2026-06-15,3,Emma Tardif,Kim Fontaine,Interac,',
-  'Sophie Roy,2000,2026-06-20,2,Audrey Lavallee,Rose Langlois,Financement,',
+  'Marie Tremblay,1333,2026-07-15,3,Emma Tardif,Kim Fontaine,Interac,',
+  'Sophie Roy,2000,2026-07-20,2,Audrey Lavallee,Rose Langlois,Financement,',
 ].join('\n')
-
-const COLS = [
-  { name: 'client',     req: true,  hint: 'Nom complet du client' },
-  { name: 'montant',    req: true,  hint: 'Montant par versement ($)' },
-  { name: 'date',       req: true,  hint: 'Date du 1er versement (AAAA-MM-JJ)' },
-  { name: 'versements', req: true,  hint: 'Nombre de versements total (ex: 2 ou 3)' },
-  { name: 'closer',     req: false, hint: 'Prénom Nom du closer (doit exister dans la plateforme)' },
-  { name: 'setter',     req: false, hint: 'Prénom Nom du setter' },
-  { name: 'methode',    req: false, hint: 'Interac / Financement / Crédit / Virement' },
-  { name: 'notes',      req: false, hint: 'Notes libres' },
-]
 
 function downloadCsv(content: string, filename: string) {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
@@ -30,42 +21,118 @@ function downloadCsv(content: string, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+// ── Montant parser — handles "CA$1,333.33", "1333", "1 333,33 $" ─
+
+function parseMontant(s: string): number {
+  return parseFloat((s ?? '').replace(/[^0-9.]/g, '')) || 0
+}
+
+// ── Format detector + parsers ─────────────────────────────────────
+
+interface Parsed {
+  rows:  RecurringDealRow[]
+  year:  number
+  month: number
+}
+
+// Generic format: headers client,montant,date,versements,closer,setter,methode,notes
+function parseGeneric(data: Record<string, string>[]): Parsed | null {
+  const required = ['client', 'montant', 'date']
+  if (!required.every(k => k in data[0])) return null
+
+  const rows: RecurringDealRow[] = data
+    .filter(r => r.client?.trim())
+    .map(r => ({
+      originalDate:    r.date?.trim() || new Date().toISOString().slice(0, 10),
+      client:          r.client.trim(),
+      montant:         String(parseMontant(r.montant) || 0),
+      collecte:        '0',
+      methode:         (r.methode ?? '').trim(),
+      closer:          (r.closer ?? '').trim(),
+      setter:          (r.setter ?? '').trim(),
+      notes:           (r.notes ?? '').trim(),
+      versementsTotal: Number(r.versements) || undefined,
+    }))
+
+  const firstDate = rows[0]?.originalDate
+  const [y, m] = firstDate ? firstDate.split('-').map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1]
+  return { rows, year: y, month: m }
+}
+
+// DCA Google Sheet format: Nom,Montant,Date,Closer,Setter,Méthode + optional notes col
+// Montant is "CA$1,333.33". Closer/setter may be first-name only.
+// Deduplicates by client name — keeps first occurrence (action handles rest).
+function parseDcaGoogleSheet(data: Record<string, string>[]): Parsed | null {
+  // Detect by presence of 'nom' column (after lowercasing headers)
+  if (!('nom' in data[0])) return null
+
+  const seen = new Set<string>()
+  const rows: RecurringDealRow[] = []
+
+  for (const r of data) {
+    const client = (r['nom'] ?? '').trim()
+    if (!client) continue
+    // Deduplicate: same client may appear multiple times (one occurrence per payment date)
+    const key = client.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+
+    const montant = parseMontant(r['montant'] ?? '')
+    const date    = (r['date'] ?? '').trim()
+
+    rows.push({
+      originalDate:    date || new Date().toISOString().slice(0, 10),
+      client,
+      montant:         String(montant),
+      collecte:        '0',
+      methode:         (r['méthode'] ?? r['methode'] ?? '').trim(),
+      closer:          (r['closer'] ?? '').trim(),
+      setter:          (r['setter'] ?? '').trim(),
+      notes:           (r['notes'] ?? '').trim(),
+      versementsTotal: undefined, // inferred from montant by the action
+    })
+  }
+
+  if (rows.length === 0) return null
+  const firstDate = rows[0].originalDate
+  const [y, m] = firstDate ? firstDate.split('-').map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1]
+  return { rows, year: y, month: m }
+}
+
+function parseFile(rawData: Record<string, string>[]): Parsed | null {
+  if (rawData.length === 0) return null
+  return parseDcaGoogleSheet(rawData) ?? parseGeneric(rawData)
+}
+
+// ── Component ─────────────────────────────────────────────────────
+
 export default function ImportRecurrentsModal({ onClose }: { onClose: () => void }) {
-  const [rows, setRows]       = useState<RecurringDealRow[]>([])
+  const [rows, setRows]         = useState<RecurringDealRow[]>([])
+  const [importYear, setImportYear]   = useState(0)
+  const [importMonth, setImportMonth] = useState(0)
   const [fileName, setFileName] = useState('')
-  const [error, setError]     = useState('')
-  const [success, setSuccess] = useState('')
-  const [pending, start]      = useTransition()
-  const fileRef               = useRef<HTMLInputElement>(null)
+  const [error, setError]       = useState('')
+  const [success, setSuccess]   = useState('')
+  const [pending, start]        = useTransition()
+  const fileRef                 = useRef<HTMLInputElement>(null)
 
   function handleFile(file: File) {
     setRows([]); setError(''); setSuccess(''); setFileName(file.name)
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      transformHeader: (h: string) => h.trim().toLowerCase(),
+      transformHeader: (h: string) => h.trim().toLowerCase().replace(/[*]/g, ''),
       complete: (result) => {
         const data = result.data as Record<string, string>[]
-        if (data.length === 0) { setError('Fichier vide ou format invalide.'); return }
-        const missing = COLS.filter(c => c.req).map(c => c.name)
-          .filter(r => !Object.keys(data[0]).includes(r))
-        if (missing.length > 0) { setError(`Colonnes manquantes : ${missing.join(', ')}`); return }
-
-        const now = new Date()
-        const parsed: RecurringDealRow[] = data
-          .filter(r => r.client?.trim())
-          .map(r => ({
-            originalDate: r.date?.trim() || now.toISOString().slice(0, 10),
-            client:       r.client?.trim()     ?? '',
-            montant:      r.montant?.trim()    ?? '0',
-            collecte:     '0',
-            methode:      r.methode?.trim()    ?? '',
-            closer:       r.closer?.trim()     ?? '',
-            setter:       r.setter?.trim()     ?? '',
-            notes:        r.notes?.trim()      ?? '',
-            versementsTotal: Number(r.versements) || 2,
-          }))
-        setRows(parsed)
+        const parsed = parseFile(data)
+        if (!parsed || parsed.rows.length === 0) {
+          setError('Format non reconnu. Utilise le gabarit fourni ou le format Google Sheet DCA (colonnes Nom, Montant, Date, Closer, Setter, Méthode).')
+          return
+        }
+        setRows(parsed.rows)
+        setImportYear(parsed.year)
+        setImportMonth(parsed.month)
       },
       error: (err: { message: string }) => setError(err.message),
     })
@@ -73,9 +140,8 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
 
   function handleImport() {
     start(async () => {
-      const now = new Date()
       try {
-        const result = await importerRecurringDeals(rows, now.getFullYear(), now.getMonth() + 1)
+        const result = await importerRecurringDeals(rows, importYear, importMonth)
         setSuccess(`${result.count} entente${result.count > 1 ? 's' : ''} créée${result.count > 1 ? 's' : ''} avec succès.`)
         setRows([])
       } catch (e: unknown) {
@@ -83,6 +149,8 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
       }
     })
   }
+
+  const MOIS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -92,71 +160,44 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Importer des récurrents (CSV)</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Importez votre liste depuis Google Sheets</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Compatible avec votre format Google Sheet ou le gabarit ci-dessous
+            </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
 
         <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
 
-          {/* Step 1 — Download template */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Étape 1 — Préparer le fichier
-            </p>
-            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-              <p className="text-sm text-gray-700">
-                Télécharge le gabarit CSV, remplis-le depuis ton Google Sheet (copy-paste), puis réimporte-le ici. Les noms de closers et setters doivent correspondre exactement aux noms dans la plateforme.
-              </p>
-              <button
-                onClick={() => downloadCsv(TEMPLATE, 'gabarit_recurrents.csv')}
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <Download size={13} />
-                Télécharger le gabarit
-              </button>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      {COLS.map(c => (
-                        <th key={c.name} className="text-left pb-1.5 pr-4 font-semibold text-gray-500">
-                          {c.name}{c.req ? <span className="text-red-400 ml-0.5">*</span> : ''}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {COLS.map(c => (
-                      <tr key={c.name}>
-                        <td className="pr-4 py-1 text-gray-400 text-[11px]" colSpan={1}>{c.hint}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Step 2 — Upload */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Étape 2 — Charger le fichier
-            </p>
-            <label
-              className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-8 cursor-pointer hover:border-violet-400 hover:bg-violet-50/30 transition-colors"
-              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
-              onDragOver={e => e.preventDefault()}
+          {/* Template info */}
+          <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+            <p className="text-sm font-medium text-gray-700">Formats acceptés</p>
+            <ul className="text-xs text-gray-500 space-y-1 list-disc list-inside">
+              <li><strong>Format Google Sheet DCA</strong> : colonnes <code className="bg-white px-1 rounded border border-gray-200">Nom, Montant, Date, Closer, Setter, Méthode</code> — les prénoms sont suffisants</li>
+              <li><strong>Format gabarit</strong> : colonnes <code className="bg-white px-1 rounded border border-gray-200">client, montant, date, versements, closer, setter, methode, notes</code></li>
+            </ul>
+            <button
+              onClick={() => downloadCsv(TEMPLATE, 'gabarit_recurrents.csv')}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <Upload size={22} className="text-gray-400" />
-              <span className="text-sm text-gray-500">{fileName || 'Glisser-déposer ou cliquer pour choisir un fichier CSV'}</span>
-              <input
-                ref={fileRef} type="file" accept=".csv" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
-              />
-            </label>
+              <Download size={13} />
+              Télécharger le gabarit
+            </button>
           </div>
+
+          {/* Upload zone */}
+          <label
+            className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-8 cursor-pointer hover:border-violet-400 hover:bg-violet-50/30 transition-colors"
+            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+            onDragOver={e => e.preventDefault()}
+          >
+            <Upload size={22} className="text-gray-400" />
+            <span className="text-sm text-gray-500">{fileName || 'Glisser-déposer ou cliquer pour choisir un fichier CSV'}</span>
+            <input
+              ref={fileRef} type="file" accept=".csv" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+            />
+          </label>
 
           {/* Errors / feedback */}
           {error && (
@@ -175,14 +216,21 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
           {/* Preview */}
           {rows.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Aperçu — {rows.length} entente{rows.length > 1 ? 's' : ''} détectée{rows.length > 1 ? 's' : ''}
-              </p>
+              <div className="flex items-center gap-3 mb-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {rows.length} entente{rows.length > 1 ? 's' : ''} détectée{rows.length > 1 ? 's' : ''}
+                </p>
+                {importYear > 0 && (
+                  <span className="text-xs bg-violet-50 text-violet-700 font-medium px-2 py-0.5 rounded-full">
+                    Période : {MOIS_FR[importMonth - 1]} {importYear}
+                  </span>
+                )}
+              </div>
               <div className="overflow-x-auto rounded-xl border border-gray-100">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 text-gray-500">
                     <tr>
-                      {['Client', 'Montant', 'Date', 'Versements', 'Closer', 'Setter', 'Méthode'].map(h => (
+                      {['Client', 'Montant', 'Date', 'Closer', 'Setter', 'Méthode', 'Notes'].map(h => (
                         <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
                       ))}
                     </tr>
@@ -191,17 +239,20 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
                     {rows.map((r, i) => (
                       <tr key={i} className="hover:bg-gray-50">
                         <td className="px-3 py-2 font-medium text-gray-800">{r.client}</td>
-                        <td className="px-3 py-2 text-gray-600">{r.montant} $</td>
+                        <td className="px-3 py-2 text-gray-600 tabular-nums">{Number(r.montant).toLocaleString('fr-CA')} $</td>
                         <td className="px-3 py-2 text-gray-600">{r.originalDate}</td>
-                        <td className="px-3 py-2 text-gray-600">{r.versementsTotal ?? 2}</td>
                         <td className="px-3 py-2 text-gray-600">{r.closer || '—'}</td>
                         <td className="px-3 py-2 text-gray-600">{r.setter || '—'}</td>
                         <td className="px-3 py-2 text-gray-600">{r.methode || '—'}</td>
+                        <td className="px-3 py-2 text-gray-400 max-w-[160px] truncate">{r.notes || ''}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              <p className="text-[11px] text-gray-400 mt-2">
+                Le nombre de versements est déduit du montant. Les doublons dans le fichier sont ignorés — une entente par client est créée.
+              </p>
             </div>
           )}
         </div>
@@ -220,7 +271,10 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {pending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {pending ? 'Import en cours…' : `Importer ${rows.length > 0 ? `${rows.length} entente${rows.length > 1 ? 's' : ''}` : ''}`}
+            {pending
+              ? 'Import en cours…'
+              : `Importer ${rows.length > 0 ? `${rows.length} entente${rows.length > 1 ? 's' : ''}` : ''}`
+            }
           </button>
         </div>
       </div>
