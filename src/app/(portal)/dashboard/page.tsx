@@ -616,8 +616,7 @@ export default async function DashboardPage({
       .select('id, date_attendue, montant_attendu, recu, mois, annee, recurring_deals(client_name, closer_id, methode_paiement)')
       .eq('recu', false),
     supabase.from('cash_entries')
-      .select('entry_date, closed_by, set_by, collected, notes')
-      .not('notes', 'like', 'Récurrent%'),
+      .select('entry_date, closed_by, set_by, collected, close_type, notes'),
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
@@ -727,10 +726,18 @@ export default async function DashboardPage({
     annee:     `${now.getFullYear()}-01-01`,
   } as const
 
+  function isLbDeal(e: { close_type: string | null; notes: string | null }) {
+    if (e.close_type === 'recurring') return false
+    if (e.notes?.startsWith('Récurrent')) return false
+    return true
+  }
+
   function lbCloserRows(min: string, max = todayStr) {
     const byUser = new Map<string, { closes: number; cash: number }>()
     for (const e of allCashEntries ?? []) {
-      if (!e.closed_by || !e.entry_date || e.entry_date < min || e.entry_date > max) continue
+      if (!e.closed_by || !e.entry_date) continue
+      if (e.entry_date < min || e.entry_date > max) continue
+      if (!isLbDeal(e)) continue
       const cur = byUser.get(e.closed_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.closed_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
@@ -748,7 +755,9 @@ export default async function DashboardPage({
   function lbSetterRows(min: string, max = todayStr) {
     const byUser = new Map<string, { closes: number; cash: number }>()
     for (const e of allCashEntries ?? []) {
-      if (!e.set_by || !e.entry_date || e.entry_date < min || e.entry_date > max) continue
+      if (!e.set_by || !e.entry_date) continue
+      if (e.entry_date < min || e.entry_date > max) continue
+      if (!isLbDeal(e)) continue
       const cur = byUser.get(e.set_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.set_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
