@@ -4,7 +4,7 @@ import React, { useState, useTransition, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown,
   Zap, Clock, ChevronDown, ChevronRight, RefreshCw, BarChart3,
-  Monitor, Film, Globe, Upload,
+  Monitor, Film, Globe, Upload, Search, X,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -606,6 +606,7 @@ export default function CashView({
   const [tab, setTab]               = useState<'entrees' | 'stats' | 'hebdo' | 'pjour'>('entrees')
   const [filterStart, setFilterStart] = useState(`${yearNow}-01-01`)
   const [filterEnd, setFilterEnd]     = useState(today)
+  const [search, setSearch]           = useState('')
   const [modalEntry, setModalEntry]   = useState<CashEntry | null | 'new'>(null)
   const [showImport, setShowImport]   = useState(false)
   const [pending, startTransition]    = useTransition()
@@ -628,10 +629,21 @@ export default function CashView({
   ]
 
   // ── Filtered entries ──────────────────────────────────────────
-  const filtrees = useMemo(
-    () => entrees.filter(e => e.entry_date >= filterStart && e.entry_date <= filterEnd),
-    [entrees, filterStart, filterEnd],
-  )
+  const filtrees = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return entrees.filter(e => {
+      if (e.entry_date < filterStart || e.entry_date > filterEnd) return false
+      if (!q) return true
+      const closerName = e.closed_by ? (profileMap.get(e.closed_by) ?? '').toLowerCase() : ''
+      const setterName = e.set_by    ? (profileMap.get(e.set_by)    ?? '').toLowerCase() : ''
+      return (
+        (e.client_name ?? '').toLowerCase().includes(q) ||
+        closerName.includes(q) ||
+        setterName.includes(q) ||
+        (e.notes ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [entrees, filterStart, filterEnd, search, profileMap])
 
   // ── KPIs on filtered data ─────────────────────────────────────
   const totaux = useMemo(() => ({
@@ -838,8 +850,23 @@ export default function CashView({
             className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
-        {filtrees.length !== entrees.length && (
-          <span className="text-xs text-gray-400 ml-1">{filtrees.length} / {entrees.length} entrées</span>
+        <div className="relative ml-auto">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher…"
+            className="pl-7 pr-7 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500 w-44"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        {(filtrees.length !== entrees.length) && (
+          <span className="text-xs text-gray-400">{filtrees.length} / {entrees.length} entrées</span>
         )}
       </div>
 
