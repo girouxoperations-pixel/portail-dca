@@ -17,6 +17,7 @@ import ClosersTable          from '@/components/dashboard/ClosersTable'
 import QuickCashModal        from '@/components/dashboard/QuickCashModal'
 import RecurrentsHealthSection from '@/components/dashboard/RecurrentsHealthSection'
 import type { RecurrentsOcc } from '@/components/dashboard/RecurrentsHealthSection'
+import LeaderboardSection from '@/components/dashboard/LeaderboardSection'
 import ExportCsvButton       from '@/components/ui/ExportCsvButton'
 import type { TrendPoint }   from '@/components/dashboard/TrendChart'
 import { MOIS_FR, MOIS_COURT, PALIERS, dollar, getPalier } from '@/lib/constants'
@@ -435,84 +436,6 @@ function TableauSetters({ rows }: { rows: SetterRow[] }) {
   )
 }
 
-// ── Leaderboard ───────────────────────────────────────────────────────
-
-const RANK_MEDAL = ['🥇', '🥈', '🥉']
-
-function LeaderboardCard({
-  title, emoji, rows,
-}: {
-  title: string
-  emoji: string
-  rows: { nom: string; primary: string; secondary: string }[]
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
-        <span className="text-base">{emoji}</span>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-      </div>
-      <div className="divide-y divide-gray-50">
-        {rows.length === 0 && (
-          <p className="px-5 py-6 text-sm text-gray-400 text-center">Aucune donnée</p>
-        )}
-        {rows.map((r, i) => (
-          <div key={i} className="flex items-center gap-3 px-5 py-3.5">
-            <span className="text-xl w-7 text-center shrink-0">{RANK_MEDAL[i] ?? `#${i + 1}`}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{r.nom}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{r.secondary}</p>
-            </div>
-            <span className="text-sm font-bold text-violet-700 tabular-nums shrink-0">{r.primary}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function Leaderboard({
-  closerRows, setterRows, periodLabel,
-}: {
-  closerRows: CloserRow[]
-  setterRows: SetterRow[]
-  periodLabel: string
-}) {
-  const topClosers = closerRows
-    .filter(r => r.closes > 0)
-    .sort((a, b) => b.closes - a.closes || b.cash - a.cash)
-    .slice(0, 3)
-    .map(r => ({
-      nom:       r.nom,
-      primary:   `${r.closes} close${r.closes > 1 ? 's' : ''}`,
-      secondary: `${dollar(r.cash)} collecté`,
-    }))
-
-  const topSetters = setterRows
-    .filter(r => r.rdv > 0)
-    .sort((a, b) => b.rdv - a.rdv || b.showed - a.showed)
-    .slice(0, 3)
-    .map(r => ({
-      nom:       r.nom,
-      primary:   `${r.rdv} RDV`,
-      secondary: `${r.showed} présentés · ${r.showRate} % show`,
-    }))
-
-  if (topClosers.length === 0 && topSetters.length === 0) return null
-
-  return (
-    <div>
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-        Leaderboard — {periodLabel}
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <LeaderboardCard title="Top Closers" emoji="🎯" rows={topClosers} />
-        <LeaderboardCard title="Top Setters" emoji="📞" rows={topSetters} />
-      </div>
-    </div>
-  )
-}
-
 // ── Bonus ─────────────────────────────────────────────────────────────
 
 function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: BonusItem[] }) {
@@ -660,6 +583,7 @@ export default async function DashboardPage({
     { data: allCloserEntries },
     { data: setterEntriesMois },
     { data: recurringOccs },
+    { data: allCashEntries },
   ] = await Promise.all([
     supabase.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
@@ -691,6 +615,9 @@ export default async function DashboardPage({
     db.from('recurring_occurrences')
       .select('id, date_attendue, montant_attendu, recu, mois, annee, recurring_deals(client_name, closer_id, methode_paiement)')
       .eq('recu', false),
+    supabase.from('cash_entries')
+      .select('entry_date, closed_by, set_by, collected, notes')
+      .not('notes', 'like', 'Récurrent%'),
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
@@ -779,6 +706,70 @@ export default async function DashboardPage({
       showRate:    pct(s.showed, s.rdv),
     }))
     .sort((a, b) => b.rdv - a.rdv)
+
+  // ── Leaderboard — 5 independent periods ──────────────────────────
+  function getMondayStr(from: Date): string {
+    const d   = new Date(from)
+    const day = d.getDay()
+    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day))
+    return d.toISOString().split('T')[0]
+  }
+
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  const yesterdayStr = yesterday.toISOString().split('T')[0]
+
+  const lbPeriods = {
+    jour:      yesterdayStr,
+    semaine:   getMondayStr(now),
+    mois:      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`,
+    trimestre: (() => { const q = Math.floor(now.getMonth() / 3); return `${now.getFullYear()}-${String(q * 3 + 1).padStart(2, '0')}-01` })(),
+    annee:     `${now.getFullYear()}-01-01`,
+  } as const
+
+  function lbCloserRows(min: string, max = todayStr) {
+    const byUser = new Map<string, { closes: number; cash: number }>()
+    for (const e of allCashEntries ?? []) {
+      if (!e.closed_by || !e.entry_date || e.entry_date < min || e.entry_date > max) continue
+      const cur = byUser.get(e.closed_by) ?? { closes: 0, cash: 0 }
+      byUser.set(e.closed_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
+    }
+    return Array.from(byUser.entries())
+      .filter(([, v]) => v.closes > 0)
+      .sort(([, a], [, b]) => b.closes - a.closes || b.cash - a.cash)
+      .slice(0, 3)
+      .map(([uid, v]) => ({
+        nom:       profileMap.get(uid) ?? 'Inconnu',
+        primary:   `${v.closes} close${v.closes > 1 ? 's' : ''}`,
+        secondary: `${dollar(v.cash)} collecté`,
+      }))
+  }
+
+  function lbSetterRows(min: string, max = todayStr) {
+    const byUser = new Map<string, { closes: number; cash: number }>()
+    for (const e of allCashEntries ?? []) {
+      if (!e.set_by || !e.entry_date || e.entry_date < min || e.entry_date > max) continue
+      const cur = byUser.get(e.set_by) ?? { closes: 0, cash: 0 }
+      byUser.set(e.set_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
+    }
+    return Array.from(byUser.entries())
+      .filter(([, v]) => v.closes > 0)
+      .sort(([, a], [, b]) => b.closes - a.closes || b.cash - a.cash)
+      .slice(0, 3)
+      .map(([uid, v]) => ({
+        nom:       profileMap.get(uid) ?? 'Inconnu',
+        primary:   `${v.closes} deal${v.closes > 1 ? 's' : ''} settés`,
+        secondary: `${dollar(v.cash)} collecté`,
+      }))
+  }
+
+  const leaderboardData = {
+    jour:      { closers: lbCloserRows(yesterdayStr, yesterdayStr), setters: lbSetterRows(yesterdayStr, yesterdayStr) },
+    semaine:   { closers: lbCloserRows(lbPeriods.semaine),          setters: lbSetterRows(lbPeriods.semaine)          },
+    mois:      { closers: lbCloserRows(lbPeriods.mois),             setters: lbSetterRows(lbPeriods.mois)             },
+    trimestre: { closers: lbCloserRows(lbPeriods.trimestre),        setters: lbSetterRows(lbPeriods.trimestre)        },
+    annee:     { closers: lbCloserRows(lbPeriods.annee),            setters: lbSetterRows(lbPeriods.annee)            },
+  }
 
   // ── Récurrents health (always relative to today, not the period) ────
   const occs = recurringOccs ?? []
@@ -1094,7 +1085,7 @@ export default async function DashboardPage({
       </div>
 
       {/* Leaderboard — visible par tous */}
-      <Leaderboard closerRows={closerRows} setterRows={setterRows} periodLabel={moisLabel} />
+      <LeaderboardSection leaderboard={leaderboardData} />
 
       {/* Closers */}
       <ClosersTable rows={closerRows} history={closerHistory} />
