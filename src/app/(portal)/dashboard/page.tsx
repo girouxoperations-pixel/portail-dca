@@ -435,6 +435,95 @@ function TableauSetters({ rows }: { rows: SetterRow[] }) {
   )
 }
 
+// ── Leaderboard ───────────────────────────────────────────────────────
+
+const RANK_MEDAL = ['🥇', '🥈', '🥉']
+
+function LeaderboardCard({
+  title, emoji, rows,
+}: {
+  title: string
+  emoji: string
+  rows: { nom: string; primary: string; secondary: string }[]
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
+        <span className="text-base">{emoji}</span>
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {rows.length === 0 && (
+          <p className="px-5 py-6 text-sm text-gray-400 text-center">Aucune donnée</p>
+        )}
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-3 px-5 py-3.5">
+            <span className="text-xl w-7 text-center shrink-0">{RANK_MEDAL[i] ?? `#${i + 1}`}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">{r.nom}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{r.secondary}</p>
+            </div>
+            <span className="text-sm font-bold text-violet-700 tabular-nums shrink-0">{r.primary}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Leaderboard({
+  closerRows, setterRows, periodLabel,
+}: {
+  closerRows: CloserRow[]
+  setterRows: SetterRow[]
+  periodLabel: string
+}) {
+  const topClosersByDeals = closerRows
+    .filter(r => r.closes > 0)
+    .sort((a, b) => b.closes - a.closes || b.cash - a.cash)
+    .slice(0, 3)
+    .map(r => ({
+      nom:       r.nom,
+      primary:   `${r.closes} close${r.closes > 1 ? 's' : ''}`,
+      secondary: `${dollar(r.cash)} collecté`,
+    }))
+
+  const topClosersByCash = closerRows
+    .filter(r => r.cash > 0)
+    .sort((a, b) => b.cash - a.cash)
+    .slice(0, 3)
+    .map(r => ({
+      nom:       r.nom,
+      primary:   dollar(r.cash),
+      secondary: `${r.closes} close${r.closes > 1 ? 's' : ''}`,
+    }))
+
+  const topSetters = setterRows
+    .filter(r => r.rdv > 0)
+    .sort((a, b) => b.rdv - a.rdv || b.showed - a.showed)
+    .slice(0, 3)
+    .map(r => ({
+      nom:       r.nom,
+      primary:   `${r.rdv} RDV`,
+      secondary: `${r.showed} présentés · ${r.showRate} % show`,
+    }))
+
+  if (topClosersByDeals.length === 0 && topSetters.length === 0) return null
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+        Leaderboard — {periodLabel}
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <LeaderboardCard title="Top Closers — Closes" emoji="🎯" rows={topClosersByDeals} />
+        <LeaderboardCard title="Top Closers — Cash"   emoji="💰" rows={topClosersByCash} />
+        <LeaderboardCard title="Top Setters — RDV"    emoji="📞" rows={topSetters} />
+      </div>
+    </div>
+  )
+}
+
 // ── Bonus ─────────────────────────────────────────────────────────────
 
 function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: BonusItem[] }) {
@@ -1014,6 +1103,9 @@ export default async function DashboardPage({
 
         <TrendChart data={chartData} weeklyData={weeklyChartData} />
       </div>
+
+      {/* Leaderboard — visible par tous */}
+      <Leaderboard closerRows={closerRows} setterRows={setterRows} periodLabel={moisLabel} />
 
       {/* Closers */}
       <ClosersTable rows={closerRows} history={closerHistory} />
