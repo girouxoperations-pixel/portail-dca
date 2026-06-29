@@ -478,7 +478,7 @@ function Leaderboard({
   setterRows: SetterRow[]
   periodLabel: string
 }) {
-  const topClosersByDeals = closerRows
+  const topClosers = closerRows
     .filter(r => r.closes > 0)
     .sort((a, b) => b.closes - a.closes || b.cash - a.cash)
     .slice(0, 3)
@@ -486,16 +486,6 @@ function Leaderboard({
       nom:       r.nom,
       primary:   `${r.closes} close${r.closes > 1 ? 's' : ''}`,
       secondary: `${dollar(r.cash)} collecté`,
-    }))
-
-  const topClosersByCash = closerRows
-    .filter(r => r.cash > 0)
-    .sort((a, b) => b.cash - a.cash)
-    .slice(0, 3)
-    .map(r => ({
-      nom:       r.nom,
-      primary:   dollar(r.cash),
-      secondary: `${r.closes} close${r.closes > 1 ? 's' : ''}`,
     }))
 
   const topSetters = setterRows
@@ -508,17 +498,16 @@ function Leaderboard({
       secondary: `${r.showed} présentés · ${r.showRate} % show`,
     }))
 
-  if (topClosersByDeals.length === 0 && topSetters.length === 0) return null
+  if (topClosers.length === 0 && topSetters.length === 0) return null
 
   return (
     <div>
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
         Leaderboard — {periodLabel}
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <LeaderboardCard title="Top Closers — Closes" emoji="🎯" rows={topClosersByDeals} />
-        <LeaderboardCard title="Top Closers — Cash"   emoji="💰" rows={topClosersByCash} />
-        <LeaderboardCard title="Top Setters — RDV"    emoji="📞" rows={topSetters} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <LeaderboardCard title="Top Closers" emoji="🎯" rows={topClosers} />
+        <LeaderboardCard title="Top Setters" emoji="📞" rows={topSetters} />
       </div>
     </div>
   )
