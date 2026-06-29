@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown, Zap, RefreshCw, X, ChevronDown, ChevronUp, RefreshCcw } from 'lucide-react'
+import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown, Zap, RefreshCw, X, ChevronDown, ChevronUp, RefreshCcw, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   creerCashCollect, modifierCashEntry, supprimerCashCollect, ajouterVersementNouveauRecurrent,
@@ -758,6 +758,7 @@ export default function CashCollectView({
   const [modal,      setModal]        = useState<ModalState>(null)
   const [versRecOpen, setVersRecOpen] = useState(false)
   const [sortBy,     setSortBy]       = useState<'date' | 'type'>('date')
+  const [search,     setSearch]       = useState('')
   const [pending, startTransition]    = useTransition()
 
   const recurringIds = useMemo(() => new Set(recurringCashIds), [recurringCashIds])
@@ -791,10 +792,23 @@ export default function CashCollectView({
   })), [moisOptions, entrees])
 
   const filtrees = useMemo(() => {
-    if (moisSelect === 'tout') return entrees
-    const [y, m] = moisSelect.split('-').map(Number)
-    return entrees.filter(e => e.year === y && e.month === m)
-  }, [entrees, moisSelect])
+    const q = search.trim().toLowerCase()
+    return entrees.filter(e => {
+      if (moisSelect !== 'tout') {
+        const [y, m] = moisSelect.split('-').map(Number)
+        if (e.year !== y || e.month !== m) return false
+      }
+      if (!q) return true
+      const closerName = e.closed_by ? (profileMap.get(e.closed_by) ?? '').toLowerCase() : ''
+      const setterName = e.set_by    ? (profileMap.get(e.set_by)    ?? '').toLowerCase() : ''
+      return (
+        (e.client_name ?? '').toLowerCase().includes(q) ||
+        closerName.includes(q) ||
+        setterName.includes(q) ||
+        (e.notes ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [entrees, moisSelect, search, profileMap])
 
   const { deals, recurrents } = useMemo(() => {
     const deals:      CashEntry[] = []
@@ -865,12 +879,29 @@ export default function CashCollectView({
         }
       />
 
-      <MonthFilter
-        selected={moisSelect}
-        onChange={setMoisSelect}
-        options={moisOptionsWithCount}
-        allCount={entrees.length}
-      />
+      <div className="flex items-center gap-3 flex-wrap">
+        <MonthFilter
+          selected={moisSelect}
+          onChange={setMoisSelect}
+          options={moisOptionsWithCount}
+          allCount={entrees.length}
+        />
+        <div className="relative ml-auto">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher cliente, closer, setter…"
+            className="pl-7 pr-7 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500 w-60"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
