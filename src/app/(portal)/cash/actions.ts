@@ -284,14 +284,15 @@ export async function importerCashEntries(rows: CashImportRow[]) {
 }
 
 export interface RecurringDealRow {
-  originalDate: string  // YYYY-MM-DD — used for day-of-month in occurrences
-  client: string
-  montant: string       // monthly installment amount
-  collecte: string      // amount actually collected in the import month
-  methode: string
-  closer: string
-  setter: string
-  notes: string
+  originalDate:    string   // YYYY-MM-DD — used for day-of-month in occurrences
+  client:          string
+  montant:         string   // monthly installment amount
+  collecte:        string   // amount actually collected in the import month
+  methode:         string
+  closer:          string
+  setter:          string
+  notes:           string
+  versementsTotal?: number  // explicit count; if absent, inferred from montant
 }
 
 export async function importerRecurringDeals(
@@ -380,7 +381,7 @@ export async function importerRecurringDeals(
 
     // No existing deal — first import for this client, create deal + occurrences
     const inferred = montant > 0 ? Math.round(4000 / montant) : 2
-    const versementsTotal = (inferred === 2 || inferred === 3) ? inferred : 2
+    const versementsTotal = r.versementsTotal ?? ((inferred === 2 || inferred === 3) ? inferred : 2)
 
     const { data: deal, error } = await db
       .from('recurring_deals')

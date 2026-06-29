@@ -5,8 +5,9 @@ import Link from 'next/link'
 import {
   Plus, ChevronLeft, ChevronRight, CheckCircle2,
   ChevronDown, ChevronUp, RefreshCw, X, Pencil, Search,
-  LayoutList, LayoutGrid,
+  LayoutList, LayoutGrid, Upload,
 } from 'lucide-react'
+import ImportRecurrentsModal from '@/components/recurrents/ImportRecurrentsModal'
 import { cn }          from '@/lib/utils'
 import { dollar, MOIS_FR, formatDate } from '@/lib/constants'
 import Badge           from '@/components/ui/Badge'
@@ -1025,7 +1026,8 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
   const now = new Date()
   const [mois,  setMois]     = useState(now.getMonth() + 1)
   const [annee, setAnnee]    = useState(now.getFullYear())
-  const [modalOuvert, setModalOuvert] = useState(false)
+  const [modalOuvert, setModalOuvert]     = useState(false)
+  const [importOuvert, setImportOuvert]   = useState(false)
   const [showInactifs, setShowInactifs] = useState(false)
   const [tableView, setTableView]      = useState(false)
   const [filtre, setFiltre]  = useState<Filtre>(() => toValidFiltre(initialFiltre))
@@ -1126,14 +1128,22 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
         titre="Versements"
         subtitle="Suivi des ententes de paiement (2 ou 3 versements)"
         action={
-          <button
-            onClick={() => setModalOuvert(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-lg transition-colors"
-          >
-            <Plus size={15} />
-
-            Nouvelle entente
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setImportOuvert(true)}
+              className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+            >
+              <Upload size={14} />
+              Importer CSV
+            </button>
+            <button
+              onClick={() => setModalOuvert(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              <Plus size={15} />
+              Nouvelle entente
+            </button>
+          </div>
         }
       />
 
@@ -1743,6 +1753,10 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
           profiles={profiles}
           onClose={() => setModalOuvert(false)}
         />
+      )}
+
+      {importOuvert && (
+        <ImportRecurrentsModal onClose={() => setImportOuvert(false)} />
       )}
 
     </div>
