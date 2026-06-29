@@ -721,6 +721,21 @@ export async function reactiverDeal(id: string) {
   revalidatePath('/recurrents')
 }
 
+export async function supprimerImportRecent(sinceISO: string) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+  const { data: deals } = await db
+    .from('recurring_deals')
+    .select('id')
+    .gte('created_at', sinceISO)
+  if (!deals?.length) return { count: 0 }
+  const ids = deals.map(d => d.id)
+  await db.from('recurring_occurrences').delete().in('recurring_deal_id', ids)
+  await db.from('recurring_deals').delete().in('id', ids)
+  revalidatePath('/recurrents')
+  return { count: ids.length }
+}
+
 export async function annulerDealAvecRaison(id: string, raison: string) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()
