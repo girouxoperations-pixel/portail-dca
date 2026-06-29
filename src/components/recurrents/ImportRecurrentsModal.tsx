@@ -87,6 +87,7 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
   const [error, setError]             = useState('')
   const [success, setSuccess]         = useState('')
   const [lastImportAt, setLastImportAt] = useState('')
+  const [showUndo, setShowUndo]       = useState(false)
   const [pending, start]              = useTransition()
   const [undoPending, startUndo]      = useTransition()
   const fileRef                       = useRef<HTMLInputElement>(null)
@@ -146,12 +147,15 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
     })
   }
 
-  function handleUndo() {
+  function handleUndo(since?: string) {
+    // If no timestamp given, delete everything created in the last 2 hours
+    const sinceISO = since ?? new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
     startUndo(async () => {
       try {
-        const result = await supprimerImportRecent(lastImportAt)
+        const result = await supprimerImportRecent(sinceISO)
         setSuccess(`${result.count} entente${result.count > 1 ? 's' : ''} supprimée${result.count > 1 ? 's' : ''}.`)
         setLastImportAt('')
+        setShowUndo(false)
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Erreur lors de la suppression.')
       }
@@ -167,7 +171,32 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
             <h2 className="text-base font-semibold text-gray-900">Importer des récurrents (CSV)</h2>
             <p className="text-xs text-gray-400 mt-0.5">Compatible avec votre format Google Sheet ou le gabarit ci-dessous</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+          <div className="flex items-center gap-3">
+            {!showUndo ? (
+              <button
+                onClick={() => setShowUndo(true)}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+              >
+                Annuler dernier import
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-red-700">Supprimer les deals créés dans les 2 dernières heures ?</span>
+                <button
+                  onClick={() => handleUndo()}
+                  disabled={undoPending}
+                  className="flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-800 disabled:opacity-40"
+                >
+                  {undoPending ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                  Confirmer
+                </button>
+                <button onClick={() => setShowUndo(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={13} />
+                </button>
+              </div>
+            )}
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+          </div>
         </div>
 
         <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
@@ -210,7 +239,7 @@ export default function ImportRecurrentsModal({ onClose }: { onClose: () => void
               </div>
               {lastImportAt && (
                 <button
-                  onClick={handleUndo}
+                  onClick={() => handleUndo(lastImportAt)}
                   disabled={undoPending}
                   className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 transition-colors disabled:opacity-40"
                 >
