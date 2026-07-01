@@ -164,12 +164,26 @@ export async function modifierDateOccurrence(occurrenceId: string, newDate: stri
     .eq('id', occurrenceId)
     .single()
 
-  const d = new Date(newDate + 'T00:00:00')
-  const { error } = await db.from('recurring_occurrences').update({
-    date_attendue: newDate,
-    mois:          d.getMonth() + 1,
-    annee:         d.getFullYear(),
-  }).eq('id', occurrenceId)
+  const d      = new Date(newDate + 'T00:00:00')
+  const newMois  = d.getMonth() + 1
+  const newAnnee = d.getFullYear()
+
+  // Check if another occurrence already exists for this deal in the target month/year
+  const { data: conflict } = occ ? await db
+    .from('recurring_occurrences')
+    .select('id')
+    .eq('recurring_deal_id', occ.recurring_deal_id)
+    .eq('mois', newMois)
+    .eq('annee', newAnnee)
+    .neq('id', occurrenceId)
+    .maybeSingle() : { data: null }
+
+  // If there's a conflict, only update the display date — keep original mois/annee bucket
+  const update = conflict
+    ? { date_attendue: newDate }
+    : { date_attendue: newDate, mois: newMois, annee: newAnnee }
+
+  const { error } = await db.from('recurring_occurrences').update(update).eq('id', occurrenceId)
 
   if (error) throw new Error(error.message)
 
