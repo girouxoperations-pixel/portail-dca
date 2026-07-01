@@ -257,6 +257,7 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   const [editOpen, setEditOpen]       = useState(false)
   const [editDate, setEditDate]       = useState(false)
   const [newDate, setNewDate]         = useState(occ.date_attendue)
+  const [dateError, setDateError]     = useState('')
   const [pending, startTransition]    = useTransition()
   const [datePending, startDateTrans] = useTransition()
 
@@ -278,9 +279,14 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
 
   function handleSaveDate() {
     if (!newDate || newDate === occ.date_attendue) { setEditDate(false); return }
+    setDateError('')
     startDateTrans(async () => {
-      await modifierDateOccurrence(occ.id, newDate)
-      setEditDate(false)
+      try {
+        await modifierDateOccurrence(occ.id, newDate)
+        setEditDate(false)
+      } catch (e) {
+        setDateError(e instanceof Error ? e.message : 'Erreur lors de la mise à jour.')
+      }
     })
   }
 
@@ -381,20 +387,23 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
         <td className="px-4 py-3">
           {!occ.recu ? (
             editDate ? (
-              <div className="flex items-center gap-1">
-                <input
-                  type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
-                  autoFocus
-                  className="px-1.5 py-0.5 rounded border border-violet-300 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
-                />
-                <button
-                  onClick={handleSaveDate} disabled={datePending}
-                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
-                >OK</button>
-                <button
-                  onClick={() => { setEditDate(false); setNewDate(occ.date_attendue) }}
-                  className="text-[10px] text-gray-400 hover:text-gray-600"
-                >✕</button>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  <input
+                    type="date" value={newDate} onChange={e => { setNewDate(e.target.value); setDateError('') }}
+                    autoFocus
+                    className="px-1.5 py-0.5 rounded border border-violet-300 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  />
+                  <button
+                    onClick={handleSaveDate} disabled={datePending}
+                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+                  >OK</button>
+                  <button
+                    onClick={() => { setEditDate(false); setNewDate(occ.date_attendue); setDateError('') }}
+                    className="text-[10px] text-gray-400 hover:text-gray-600"
+                  >✕</button>
+                </div>
+                {dateError && <p className="text-[10px] text-red-500 max-w-[200px]">{dateError}</p>}
               </div>
             ) : (
               <div className="flex flex-col gap-1">
@@ -600,13 +609,19 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
 function OccurrenceEditRow({ o, idx }: { o: Occurrence; idx: number }) {
   const [editDate, setEditDate]       = useState(false)
   const [newDate, setNewDate]         = useState(o.date_attendue)
+  const [dateError, setDateError]     = useState('')
   const [datePending, startDateTrans] = useTransition()
 
   function handleSaveDate() {
     if (!newDate || newDate === o.date_attendue) { setEditDate(false); return }
+    setDateError('')
     startDateTrans(async () => {
-      await modifierDateOccurrence(o.id, newDate)
-      setEditDate(false)
+      try {
+        await modifierDateOccurrence(o.id, newDate)
+        setEditDate(false)
+      } catch (e) {
+        setDateError(e instanceof Error ? e.message : 'Erreur lors de la mise à jour.')
+      }
     })
   }
 
@@ -616,21 +631,24 @@ function OccurrenceEditRow({ o, idx }: { o: Occurrence; idx: number }) {
         <div>#{idx + 1} <span className="text-gray-400 font-normal text-[11px]">({MOIS_FR[o.mois - 1]} {o.annee})</span></div>
         {!o.recu && (
           editDate ? (
-            <div className="flex items-center gap-1 mt-1">
-              <input
-                type="date" value={newDate}
-                onChange={e => setNewDate(e.target.value)}
-                className="px-1.5 py-0.5 rounded border border-violet-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-400"
-              />
-              <button
-                onClick={handleSaveDate} disabled={datePending}
-                className="text-[10px] font-semibold px-2 py-0.5 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50"
-              >
-                {datePending ? '…' : 'OK'}
-              </button>
-              <button onClick={() => setEditDate(false)} className="text-gray-300 hover:text-gray-500">
-                <X size={10} />
-              </button>
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex items-center gap-1">
+                <input
+                  type="date" value={newDate}
+                  onChange={e => { setNewDate(e.target.value); setDateError('') }}
+                  className="px-1.5 py-0.5 rounded border border-violet-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-400"
+                />
+                <button
+                  onClick={handleSaveDate} disabled={datePending}
+                  className="text-[10px] font-semibold px-2 py-0.5 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {datePending ? '…' : 'OK'}
+                </button>
+                <button onClick={() => { setEditDate(false); setDateError('') }} className="text-gray-300 hover:text-gray-500">
+                  <X size={10} />
+                </button>
+              </div>
+              {dateError && <p className="text-[10px] text-red-500 max-w-[200px]">{dateError}</p>}
             </div>
           ) : (
             <div className="flex items-center gap-1 mt-0.5">
