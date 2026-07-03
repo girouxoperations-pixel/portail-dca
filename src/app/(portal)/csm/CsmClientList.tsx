@@ -14,14 +14,14 @@ import {
   updateMeeting, updateMissed, toggleText, updateStatus, marquerRemboursement, updateOnboardingDate, updateEmailAvis,
 } from './actions'
 
-type StatusFilter = 'tous' | 'active' | 'paused' | 'completed' | 'dropped' | 'refund'
+type StatusFilter = 'tous' | 'active' | 'paused' | 'cert_setter' | 'cert_closer' | 'dropped'
 
 const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }> = {
-  active:    { label: 'Active',       cls: 'bg-green-100 text-green-700'  },
-  paused:    { label: 'En pause',     cls: 'bg-amber-100 text-amber-700'  },
-  completed: { label: 'Complétée',   cls: 'bg-blue-100 text-blue-700'    },
-  dropped:   { label: 'Abandon',     cls: 'bg-gray-100 text-gray-500'    },
-  refund:    { label: 'Remboursée',  cls: 'bg-red-100 text-red-600'      },
+  active:    { label: 'Active',      cls: 'bg-green-100 text-green-700' },
+  paused:    { label: 'En pause',    cls: 'bg-amber-100 text-amber-700' },
+  completed: { label: 'Complétée',  cls: 'bg-blue-100 text-blue-700'   },
+  dropped:   { label: 'Abandon',    cls: 'bg-gray-100 text-gray-500'   },
+  refund:    { label: 'Remboursée', cls: 'bg-red-100 text-red-600'     },
 }
 
 function daysBetween(a: string, b: string) {
@@ -356,8 +356,9 @@ export default function CsmClientList({ clients }: Props) {
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
     return clients.filter(c => {
-      if (statusFilter === 'tous' && c.status === 'refund') return false
-      if (statusFilter !== 'tous' && c.status !== statusFilter) return false
+      if (statusFilter === 'cert_setter' && !c.cert_setter_done) return false
+      if (statusFilter === 'cert_closer' && !c.cert_closer_done) return false
+      if (statusFilter !== 'tous' && statusFilter !== 'cert_setter' && statusFilter !== 'cert_closer' && c.status !== statusFilter) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
     })
@@ -378,22 +379,19 @@ export default function CsmClientList({ clients }: Props) {
     ].some(ch => !ch.done && ch.due < todayStr && daysBetween(c.enrollment_date, todayStr) >= 7)
   }).length
 
-  const refundCount = clients.filter(c => c.status === 'refund').length
-
   const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
-    { key: 'tous',      label: 'Toutes'     },
-    { key: 'active',    label: 'Actives'    },
-    { key: 'paused',    label: 'En pause'   },
-    { key: 'completed', label: 'Complétées' },
-    { key: 'dropped',   label: 'Abandons'   },
-    { key: 'refund',    label: `Remboursées${refundCount > 0 ? ` (${refundCount})` : ''}` },
+    { key: 'tous',        label: 'Toutes'         },
+    { key: 'active',      label: 'Actives'        },
+    { key: 'paused',      label: 'En pause'       },
+    { key: 'cert_setter', label: 'Cert. setter'   },
+    { key: 'cert_closer', label: 'Cert. closer'   },
+    { key: 'dropped',     label: 'Abandons'       },
   ]
 
   const csvData = filtered.map(c => ({
     Nom:         c.name,
     Inscription: formatDate(c.enrollment_date),
     Paiement:    c.payment_type ?? '—',
-    M1:          formatDate(c.m1_date),
     M2:          formatDate(c.m2_date),
     M3:          formatDate(c.m3_date),
     M4:          formatDate(c.m4_date),
@@ -514,7 +512,6 @@ export default function CsmClientList({ clients }: Props) {
                   <th className="px-2 py-2.5 text-center text-gray-300">J.</th>
                   <th className="px-2 py-2.5 text-center text-emerald-500">Onb.</th>
                   {/* Meetings */}
-                  <th className="px-2 py-2.5 text-center text-violet-500">M1</th>
                   <th className="px-2 py-2.5 text-center">J+7</th>
                   <th className="px-2 py-2.5 text-center text-violet-500">M2</th>
                   <th className="px-2 py-2.5 text-center text-violet-500">M3</th>
@@ -582,9 +579,6 @@ export default function CsmClientList({ clients }: Props) {
 
                       {/* Onboarding date */}
                       <EditableOnboardingCell clientId={c.id} date={c.onboarding_date} />
-
-                      {/* M1 */}
-                      <EditableMCell clientId={c.id} num={1} date={c.m1_date} missed={c.m1_missed} />
 
                       {/* J+7 with last login + progress info */}
                       <TextCell

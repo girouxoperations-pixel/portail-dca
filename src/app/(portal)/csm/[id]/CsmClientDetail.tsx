@@ -12,7 +12,7 @@ import type { CsmClient } from '../types'
 import { computeDueDates, today, formatDate } from '../types'
 import {
   updateMeeting, toggleText, toggleMilestone,
-  updateCircleLogin, updateTheory, updateStatus, updateNotes,
+  updateCircleLogin, updateTheory, updateStatus, updateNotes, updateOnboardingNotes,
 } from '../actions'
 
 interface CashEntry { montant_courant: number; collected: number; entry_date: string; methode: string | null }
@@ -209,10 +209,9 @@ export default function CsmClientDetail({ client: c, cashEntry, followup, closer
   }
 
   const STATUS_OPTIONS = [
-    { value: 'active',    label: 'Active'     },
-    { value: 'paused',    label: 'En pause'   },
-    { value: 'completed', label: 'Complétée'  },
-    { value: 'dropped',   label: 'Abandon'    },
+    { value: 'active',  label: 'Active'   },
+    { value: 'paused',  label: 'En pause' },
+    { value: 'dropped', label: 'Abandon'  },
   ]
 
   const [, startTransition] = useTransition()
@@ -267,11 +266,10 @@ export default function CsmClientDetail({ client: c, cashEntry, followup, closer
           </div>
         )}
 
-        {c.onboarding_notes && (
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-500 whitespace-pre-line">{c.onboarding_notes}</p>
-          </div>
-        )}
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Notes d'onboarding</p>
+          <NotesEditor value={c.onboarding_notes} onSave={v => updateOnboardingNotes(c.id, v)} />
+        </div>
 
         {/* Circle tracker */}
         <div className="mt-4 flex items-center gap-3">

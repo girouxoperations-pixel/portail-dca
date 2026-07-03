@@ -160,3 +160,11 @@ export async function updateNotes(clientId: string, notes: string) {
   if (error) throw error
   revalidatePath(`/csm/${clientId}`)
 }
+
+export async function updateOnboardingNotes(clientId: string, notes: string) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_clients').update({ onboarding_notes: notes || null }).eq('id', clientId)
+  if (error) throw error
+  revalidatePath(`/csm/${clientId}`)
+}
