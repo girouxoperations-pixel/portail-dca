@@ -14,7 +14,7 @@ import {
   updateMeeting, updateMissed, toggleText, updateStatus, marquerRemboursement, updateOnboardingDate, updateEmailAvis,
 } from './actions'
 
-type StatusFilter = 'tous' | 'active' | 'paused' | 'cert_setter' | 'cert_closer' | 'dropped'
+type StatusFilter = 'tous' | 'active' | 'm2_missed' | 'm3_missed' | 'cert_setter' | 'cert_closer' | 'paused' | 'dropped'
 
 const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }> = {
   active:    { label: 'Active',      cls: 'bg-green-100 text-green-700' },
@@ -157,25 +157,20 @@ function EditableMCell({ clientId, num, date, missed }: {
             >
               {pendingM ? '…' : 'Sauvegarder'}
             </button>
-            <button
-              onClick={handleMissed}
-              disabled={pendingM}
-              title={missed ? 'Enlever manqué' : 'Marquer comme manqué'}
-              className={cn(
-                'px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50',
-                missed
-                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                  : 'bg-red-50 text-red-600 hover:bg-red-100',
-              )}
-            >
-              {missed ? '✓' : <AlertTriangle size={11} />}
-            </button>
           </div>
-          {missed && (
-            <p className="text-[10px] text-red-500 mt-1.5 flex items-center gap-1">
-              <AlertTriangle size={9} /> RDV manqué — entrer nouvelle date ci-dessus
-            </p>
-          )}
+          <button
+            onClick={handleMissed}
+            disabled={pendingM}
+            className={cn(
+              'mt-1.5 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 border',
+              missed
+                ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100',
+            )}
+          >
+            <AlertTriangle size={11} />
+            {missed ? 'Annuler no show' : 'No show'}
+          </button>
         </div>
       )}
     </td>
@@ -366,9 +361,12 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
     return clients.filter(c => {
+      if (statusFilter === 'm2_missed'   && !c.m2_missed)       return false
+      if (statusFilter === 'm3_missed'   && !c.m3_missed)       return false
       if (statusFilter === 'cert_setter' && !c.cert_setter_done) return false
       if (statusFilter === 'cert_closer' && !c.cert_closer_done) return false
-      if (statusFilter !== 'tous' && statusFilter !== 'cert_setter' && statusFilter !== 'cert_closer' && c.status !== statusFilter) return false
+      const simpleStatusFilters = ['active', 'paused', 'dropped']
+      if (simpleStatusFilters.includes(statusFilter) && c.status !== statusFilter) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
     })
@@ -389,13 +387,18 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
     ].some(ch => !ch.done && ch.due < todayStr && daysBetween(c.enrollment_date, todayStr) >= 7)
   }).length
 
+  const m2NoShowCount = clients.filter(c => c.m2_missed).length
+  const m3NoShowCount = clients.filter(c => c.m3_missed).length
+
   const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
-    { key: 'tous',        label: 'Toutes'         },
-    { key: 'active',      label: 'Actives'        },
-    { key: 'paused',      label: 'En pause'       },
-    { key: 'cert_setter', label: 'Cert. setter'   },
-    { key: 'cert_closer', label: 'Cert. closer'   },
-    { key: 'dropped',     label: 'Abandons'       },
+    { key: 'tous',        label: 'Toutes'                                                          },
+    { key: 'active',      label: 'Actives'                                                         },
+    { key: 'm2_missed',   label: `M2 manqué${m2NoShowCount > 0 ? ` (${m2NoShowCount})` : ''}`     },
+    { key: 'm3_missed',   label: `M3 manqué${m3NoShowCount > 0 ? ` (${m3NoShowCount})` : ''}`     },
+    { key: 'cert_setter', label: 'Cert. setter'                                                    },
+    { key: 'cert_closer', label: 'Cert. closer'                                                    },
+    { key: 'paused',      label: 'En pause'                                                        },
+    { key: 'dropped',     label: 'Abandons'                                                        },
   ]
 
   const csvData = filtered.map(c => ({
