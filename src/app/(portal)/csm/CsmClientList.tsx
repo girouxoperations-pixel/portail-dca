@@ -346,9 +346,19 @@ function CheckCell({ done, green }: { done: boolean; green?: boolean }) {
 
 // ── Main component ────────────────────────────────────────────────────
 
-interface Props { clients: CsmClient[] }
+interface Props { clients: CsmClient[]; fullyPaidNames: string[] }
 
-export default function CsmClientList({ clients }: Props) {
+function paymentBadgeCls(payment: string | null, fullyPaid: boolean): string {
+  if (!payment) return 'text-gray-400'
+  const p = payment.toLowerCase().trim().replace(/\s+/g, '-')
+  if (p === 'pif' || fullyPaid) return 'font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded'
+  if (p.startsWith('fin'))      return 'font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded'
+  // 2-vers / 3-vers
+  return 'font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded'
+}
+
+export default function CsmClientList({ clients, fullyPaidNames }: Props) {
+  const fullyPaidSet = useMemo(() => new Set(fullyPaidNames), [fullyPaidNames])
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('tous')
   const todayStr = today()
@@ -619,7 +629,12 @@ export default function CsmClientList({ clients }: Props) {
 
                       {/* Payment */}
                       <td className="px-2 py-2 text-center">
-                        <span className="text-[10px] text-gray-500 uppercase">{c.payment_type ?? '—'}</span>
+                        <span className={cn(
+                          'text-[10px] uppercase',
+                          paymentBadgeCls(c.payment_type, fullyPaidSet.has(c.name.toLowerCase().trim())),
+                        )}>
+                          {c.payment_type ?? '—'}
+                        </span>
                       </td>
                     </tr>
                   )
