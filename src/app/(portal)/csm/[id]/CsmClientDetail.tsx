@@ -197,7 +197,7 @@ function dollar(n: number) {
 
 export default function CsmClientDetail({ client: c, cashEntry, followup, closerName }: Props) {
   const todayStr = today()
-  const due = computeDueDates(c.enrollment_date)
+  const due = computeDueDates(c.enrollment_date, c.onboarding_date)
   const dayN = Math.floor((new Date(todayStr).getTime() - new Date(c.enrollment_date + 'T00:00').getTime()) / 86400000)
 
   // Date color for cell display
@@ -323,6 +323,11 @@ export default function CsmClientDetail({ client: c, cashEntry, followup, closer
             <MeetingNotes clientId={c.id} num={2} notes={c.m2_notes} />
           </TimelineItem>
 
+          {/* J+24 text */}
+          <TimelineItem label="Texto J+24" date={c.text_j24_date} dueDate={due.j24} done={c.text_j24_done} today={todayStr}>
+            <TextToggle clientId={c.id} field="j24" done={c.text_j24_done} />
+          </TimelineItem>
+
           {/* Quiz setter */}
           <TimelineItem label="Examen théorique Setting" date={null} today={todayStr}>
             <Milestone
@@ -390,11 +395,6 @@ export default function CsmClientDetail({ client: c, cashEntry, followup, closer
 
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-2">Closing</p>
           <div className="flex flex-wrap gap-2">
-            <Milestone
-              label="Théorie Closing"
-              done={c.theory_closer_done}
-              onToggle={() => toggleMilestone(c.id, 'theory_closer_done', !c.theory_closer_done)}
-            />
             <Milestone
               label="Quiz Closer"
               done={c.quiz_closer_done}
@@ -472,7 +472,7 @@ export default function CsmClientDetail({ client: c, cashEntry, followup, closer
 // ── Text toggle button ────────────────────────────────────────────────
 function TextToggle({ clientId, field, done }: {
   clientId: string
-  field: 'j7' | 'j21' | 'j49' | 'j63' | 'j77' | 'j90'
+  field: 'j7' | 'j24' | 'j49' | 'j63' | 'j77' | 'j90'
   done: boolean
 }) {
   const [pending, startTransition] = useTransition()

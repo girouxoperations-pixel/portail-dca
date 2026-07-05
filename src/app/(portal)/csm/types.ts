@@ -20,6 +20,8 @@ export interface CsmClient {
   m4_missed:           boolean
   text_j7_done:        boolean
   text_j7_date:        string | null
+  text_j24_done:       boolean
+  text_j24_date:       string | null
   text_j49_done:       boolean
   text_j49_date:       string | null
   text_j63_done:       boolean
@@ -43,25 +45,34 @@ export interface CsmClient {
   created_at:          string
 }
 
-// Weekday-adjusted due dates computed from enrollment_date
 export interface CsmDueDates {
   j7:  string
+  j24: string
   j49: string
   j63: string
   j77: string
   j90: string
 }
 
-export function computeDueDates(enrollmentDate: string): CsmDueDates {
-  function wd(days: number): string {
-    const d = new Date(enrollmentDate + 'T00:00')
+// J+7 uses onboardingDate if provided, all others use enrollmentDate
+export function computeDueDates(enrollmentDate: string, onboardingDate?: string | null): CsmDueDates {
+  function wd(days: number, base: string): string {
+    const d = new Date(base + 'T00:00')
     d.setDate(d.getDate() + days)
     const dow = d.getDay()
     if (dow === 0) d.setDate(d.getDate() + 1) // Sun -> Mon
     if (dow === 6) d.setDate(d.getDate() + 2) // Sat -> Mon
     return d.toISOString().split('T')[0]
   }
-  return { j7: wd(7), j49: wd(49), j63: wd(63), j77: wd(77), j90: wd(90) }
+  const j7Base = onboardingDate || enrollmentDate
+  return {
+    j7:  wd(7,  j7Base),
+    j24: wd(24, enrollmentDate),
+    j49: wd(49, enrollmentDate),
+    j63: wd(63, enrollmentDate),
+    j77: wd(77, enrollmentDate),
+    j90: wd(90, enrollmentDate),
+  }
 }
 
 // Color for a date cell: red = today, green = past, yellow = future, null = no date

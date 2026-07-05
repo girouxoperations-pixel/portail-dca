@@ -11,17 +11,21 @@ import ExportCsvButton from '@/components/ui/ExportCsvButton'
 import type { CsmClient } from './types'
 import { computeDueDates, today, formatDate } from './types'
 import {
-  updateMeeting, updateMissed, toggleText, updateStatus, marquerRemboursement, updateOnboardingDate, updateEmailAvis,
+  updateMeeting, updateMissed, toggleText, toggleMilestone, updateStatus,
+  marquerRemboursement, updateOnboardingDate, updateEmailAvis,
 } from './actions'
 
-type StatusFilter = 'tous' | 'active' | 'm2_missed' | 'm3_missed' | 'cert_setter' | 'cert_closer' | 'paused' | 'dropped'
+type StatusFilter =
+  | 'tous' | 'active' | 'm2_missed' | 'm3_missed'
+  | 'cert_setter' | 'cert_closer' | 'paused' | 'dropped'
+  | 'j90_auto' | 'overdue_texts'
 
 const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }> = {
-  active:    { label: 'Active',      cls: 'bg-green-100 text-green-700' },
-  paused:    { label: 'En pause',    cls: 'bg-amber-100 text-amber-700' },
-  completed: { label: 'Complétée',  cls: 'bg-blue-100 text-blue-700'   },
-  dropped:   { label: 'Abandon',    cls: 'bg-gray-100 text-gray-500'   },
-  refund:    { label: 'Remboursée', cls: 'bg-red-100 text-red-600'     },
+  active:    { label: 'Active',      cls: 'bg-green-100 text-green-700'  },
+  paused:    { label: 'En pause',    cls: 'bg-amber-100 text-amber-700'  },
+  completed: { label: 'Complétée',  cls: 'bg-blue-100 text-blue-700'    },
+  dropped:   { label: 'Abandon',    cls: 'bg-gray-100 text-gray-500'    },
+  refund:    { label: 'Remboursée', cls: 'bg-red-100 text-red-600'      },
 }
 
 function daysBetween(a: string, b: string) {
@@ -95,9 +99,9 @@ function EditableMCell({ clientId, num, date, missed }: {
   date:     string | null
   missed:   boolean
 }) {
-  const [open, setOpen]         = useState(false)
-  const [val, setVal]           = useState(date ?? '')
-  const [pendingM, startM]      = useTransition()
+  const [open, setOpen]    = useState(false)
+  const [val, setVal]      = useState(date ?? '')
+  const [pendingM, startM] = useTransition()
   const todayStr = today()
 
   function handleSave() {
@@ -181,7 +185,7 @@ function EditableMCell({ clientId, num, date, missed }: {
 
 function TextCell({ clientId, field, done, dueDate, actualDate, today: todayStr, info }: {
   clientId:   string
-  field:      'j7' | 'j49' | 'j63' | 'j77' | 'j90'
+  field:      'j7' | 'j24' | 'j49' | 'j63' | 'j77' | 'j90'
   done:       boolean
   dueDate:    string
   actualDate: string | null
@@ -270,14 +274,38 @@ function EmailCell({ clientId, avis }: { clientId: string; avis: EmailAvis | nul
   )
 }
 
-// ── Inline status badge ───────────────────────────────────────────────
+// ── Inline status + cert badge ────────────────────────────────────────
 
-function StatusCell({ clientId, status }: { clientId: string; status: CsmClient['status'] }) {
-  const [open, setOpen]    = useState(false)
-  const [pending, startT]  = useTransition()
-  const cfg = STATUS_CONFIG[status]
+function StatusCell({
+  clientId, status, certSetterDone, certCloserDone, dayN,
+}: {
+  clientId:       string
+  status:         CsmClient['status']
+  certSetterDone: boolean
+  certCloserDone: boolean
+  dayN:           number
+}) {
+  const [open, setOpen]   = useState(false)
+  const [pending, startT] = useTransition()
 
-  function handleSelect(key: CsmClient['status']) {
+  // Effective badge reflects the most specific state
+  let badgeLabel: string
+  let badgeCls: string
+  if (certCloserDone) {
+    badgeLabel = 'Cert. Closer'
+    badgeCls   = 'bg-purple-100 text-purple-700'
+  } else if (certSetterDone) {
+    badgeLabel = 'Cert. Setter'
+    badgeCls   = 'bg-blue-100 text-blue-700'
+  } else if (dayN >= 90 && status === 'active') {
+    badgeLabel = '+90 jours'
+    badgeCls   = 'bg-orange-100 text-orange-700'
+  } else {
+    badgeLabel = STATUS_CONFIG[status].label
+    badgeCls   = STATUS_CONFIG[status].cls
+  }
+
+  function handleStatus(key: CsmClient['status']) {
     if (key === 'refund') {
       if (!confirm('Marquer comme remboursée ?\n\nCela va supprimer la deal de la cash collect et annuler la commission associée.')) return
       startT(async () => { await marquerRemboursement(clientId); setOpen(false) })
@@ -286,40 +314,61 @@ function StatusCell({ clientId, status }: { clientId: string; status: CsmClient[
     }
   }
 
-  const nonRefund = (Object.entries(STATUS_CONFIG) as [CsmClient['status'], typeof STATUS_CONFIG[keyof typeof STATUS_CONFIG]][]).filter(([k]) => k !== 'refund')
-  const refundEntry = STATUS_CONFIG['refund']
+  function handleCert(field: 'cert_setter_done' | 'cert_closer_done', value: boolean) {
+    startT(async () => { await toggleMilestone(clientId, field, value); setOpen(false) })
+  }
 
   return (
     <td className="px-2 py-2 text-center relative">
       <button
         onClick={() => setOpen(v => !v)}
-        className={cn('text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5 mx-auto', cfg.cls)}
+        className={cn('text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5 mx-auto', badgeCls)}
       >
-        {cfg.label}
+        {badgeLabel}
         <ChevronDown size={8} />
       </button>
       {open && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-36">
-          {nonRefund.map(([key, c]) => (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-40 text-left">
+          {/* Regular status options */}
+          {(['active', 'paused', 'dropped'] as const).map(key => (
             <button
               key={key}
               disabled={pending}
-              onClick={() => handleSelect(key)}
-              className={cn(
-                'w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50',
-                status === key ? 'font-semibold' : '',
-              )}
+              onClick={() => handleStatus(key)}
+              className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50', status === key && !certSetterDone && !certCloserDone && 'font-semibold')}
             >
-              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', c.cls)}>{c.label}</span>
+              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', STATUS_CONFIG[key].cls)}>{STATUS_CONFIG[key].label}</span>
             </button>
           ))}
+          {/* Cert toggles */}
+          <div className="border-t border-gray-100">
+            <button
+              disabled={pending}
+              onClick={() => handleCert('cert_setter_done', !certSetterDone)}
+              className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-blue-50', certSetterDone && 'font-semibold')}
+            >
+              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', certSetterDone ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500')}>
+                {certSetterDone ? '✓ Cert. Setter' : 'Cert. Setter'}
+              </span>
+            </button>
+            <button
+              disabled={pending}
+              onClick={() => handleCert('cert_closer_done', !certCloserDone)}
+              className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-purple-50', certCloserDone && 'font-semibold')}
+            >
+              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', certCloserDone ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500')}>
+                {certCloserDone ? '✓ Cert. Closer' : 'Cert. Closer'}
+              </span>
+            </button>
+          </div>
+          {/* Remboursement */}
           <div className="border-t border-red-100">
             <button
               disabled={pending}
-              onClick={() => handleSelect('refund')}
+              onClick={() => handleStatus('refund')}
               className="w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-red-50"
             >
-              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', refundEntry.cls)}>{refundEntry.label}</span>
+              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', STATUS_CONFIG['refund'].cls)}>{STATUS_CONFIG['refund'].label}</span>
             </button>
           </div>
         </div>
@@ -328,12 +377,25 @@ function StatusCell({ clientId, status }: { clientId: string; status: CsmClient[
   )
 }
 
-function CheckCell({ done, green }: { done: boolean; green?: boolean }) {
+// ── Toggleable milestone cell ─────────────────────────────────────────
+
+function ToggleCell({ clientId, field, done, green }: {
+  clientId: string
+  field:    'cert_setter_done' | 'opportunity_setter' | 'cert_closer_done' | 'opportunity_closer'
+  done:     boolean
+  green?:   boolean
+}) {
+  const [pending, startT] = useTransition()
   return (
-    <td className="px-2 py-2 text-center">
-      {done
-        ? <CheckCircle2 size={13} className={cn('mx-auto', green ? 'text-green-600' : 'text-blue-500')} />
-        : <span className="text-gray-200 text-xs">—</span>
+    <td
+      className="px-2 py-2 text-center cursor-pointer hover:bg-gray-50 transition-colors"
+      onClick={() => startT(() => { toggleMilestone(clientId, field, !done) })}
+    >
+      {pending
+        ? <span className="text-gray-300 text-xs">…</span>
+        : done
+          ? <CheckCircle2 size={13} className={cn('mx-auto', green ? 'text-green-600' : 'text-blue-500')} />
+          : <span className="text-gray-200 text-xs">—</span>
       }
     </td>
   )
@@ -348,7 +410,6 @@ function paymentBadgeCls(payment: string | null, fullyPaid: boolean): string {
   const p = payment.toLowerCase().trim().replace(/\s+/g, '-')
   if (p === 'pif' || fullyPaid) return 'font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded'
   if (p.startsWith('fin'))      return 'font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded'
-  // 2-vers / 3-vers
   return 'font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded'
 }
 
@@ -358,47 +419,57 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('tous')
   const todayStr = today()
 
+  // Overdue text check (reused for filter and KPI)
+  function hasOverdueText(c: CsmClient): boolean {
+    const due = computeDueDates(c.enrollment_date, c.onboarding_date)
+    const dayN = daysBetween(c.enrollment_date, todayStr)
+    return [
+      { done: c.text_j7_done,  due: due.j7  },
+      { done: c.text_j24_done, due: due.j24 },
+      { done: c.text_j49_done, due: due.j49 },
+      { done: c.text_j63_done, due: due.j63 },
+      { done: c.text_j77_done, due: due.j77 },
+      { done: c.text_j90_done, due: due.j90 },
+    ].some(ch => !ch.done && ch.due < todayStr && dayN >= 7)
+  }
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
     return clients.filter(c => {
-      if (statusFilter === 'm2_missed'   && !c.m2_missed)       return false
-      if (statusFilter === 'm3_missed'   && !c.m3_missed)       return false
-      if (statusFilter === 'cert_setter' && !c.cert_setter_done) return false
-      if (statusFilter === 'cert_closer' && !c.cert_closer_done) return false
+      const dayN = daysBetween(c.enrollment_date, todayStr)
+      if (statusFilter === 'm2_missed'      && !c.m2_missed)               return false
+      if (statusFilter === 'm3_missed'      && !c.m3_missed)               return false
+      if (statusFilter === 'cert_setter'    && !c.cert_setter_done)        return false
+      if (statusFilter === 'cert_closer'    && !c.cert_closer_done)        return false
+      if (statusFilter === 'j90_auto'       && dayN < 90)                  return false
+      if (statusFilter === 'overdue_texts'  && !hasOverdueText(c))         return false
       const simpleStatusFilters = ['active', 'paused', 'dropped']
       if (simpleStatusFilters.includes(statusFilter) && c.status !== statusFilter) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
     })
-  }, [clients, search, statusFilter])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients, search, statusFilter, todayStr])
 
   // KPIs
   const active     = clients.filter(c => c.status === 'active').length
-  const certSetter = clients.filter(c => c.cert_setter_done).length
-  const missedAny  = clients.filter(c => c.m1_missed || c.m2_missed || c.m3_missed || c.m4_missed).length
-  const overdue    = clients.filter(c => {
-    const due = computeDueDates(c.enrollment_date)
-    return [
-      { done: c.text_j7_done,  due: due.j7  },
-      { done: c.text_j49_done, due: due.j49 },
-      { done: c.text_j63_done, due: due.j63 },
-      { done: c.text_j77_done, due: due.j77 },
-      { done: c.text_j90_done, due: due.j90 },
-    ].some(ch => !ch.done && ch.due < todayStr && daysBetween(c.enrollment_date, todayStr) >= 7)
-  }).length
+  const certCloser = clients.filter(c => c.cert_closer_done).length
+  const overdue    = clients.filter(hasOverdueText).length
 
   const m2NoShowCount = clients.filter(c => c.m2_missed).length
   const m3NoShowCount = clients.filter(c => c.m3_missed).length
+  const j90Count      = clients.filter(c => daysBetween(c.enrollment_date, todayStr) >= 90).length
 
   const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
-    { key: 'tous',        label: 'Toutes'                                                          },
-    { key: 'active',      label: 'Actives'                                                         },
-    { key: 'm2_missed',   label: `M2 manqué${m2NoShowCount > 0 ? ` (${m2NoShowCount})` : ''}`     },
-    { key: 'm3_missed',   label: `M3 manqué${m3NoShowCount > 0 ? ` (${m3NoShowCount})` : ''}`     },
-    { key: 'cert_setter', label: 'Cert. setter'                                                    },
-    { key: 'cert_closer', label: 'Cert. closer'                                                    },
-    { key: 'paused',      label: 'En pause'                                                        },
-    { key: 'dropped',     label: 'Abandons'                                                        },
+    { key: 'tous',         label: 'Toutes'                                                            },
+    { key: 'active',       label: 'Actives'                                                           },
+    { key: 'm2_missed',    label: `M2 manqué${m2NoShowCount > 0 ? ` (${m2NoShowCount})` : ''}`       },
+    { key: 'm3_missed',    label: `M3 manqué${m3NoShowCount > 0 ? ` (${m3NoShowCount})` : ''}`       },
+    { key: 'cert_setter',  label: 'Cert. Setter'                                                      },
+    { key: 'cert_closer',  label: 'Cert. Closer'                                                      },
+    { key: 'paused',       label: 'En pause'                                                          },
+    { key: 'dropped',      label: 'Abandons'                                                          },
+    { key: 'j90_auto',     label: `+90 jours${j90Count > 0 ? ` (${j90Count})` : ''}`                },
   ]
 
   const csvData = filtered.map(c => ({
@@ -434,33 +505,40 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
         </div>
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
           <div className="flex items-center gap-2 mb-1">
-            <Shield size={14} className="text-green-500" />
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Cert. Setter</p>
+            <Shield size={14} className="text-purple-500" />
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Cert. Closer</p>
           </div>
-          <p className="text-2xl font-bold text-gray-900 tabular-nums">{certSetter}</p>
+          <p className="text-2xl font-bold text-gray-900 tabular-nums">{certCloser}</p>
         </div>
-        <div className={cn(
-          'rounded-xl border shadow-sm p-4',
-          missedAny > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100',
-        )}>
-          <div className="flex items-center gap-2 mb-1">
-            <AlertTriangle size={14} className={missedAny > 0 ? 'text-red-500' : 'text-gray-300'} />
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">RDV manqués</p>
-          </div>
-          <p className={cn('text-2xl font-bold tabular-nums', missedAny > 0 ? 'text-red-600' : 'text-gray-300')}>
-            {missedAny > 0 ? missedAny : '—'}
-          </p>
-        </div>
-        <div className={cn(
-          'rounded-xl border shadow-sm p-4',
-          overdue > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100',
-        )}>
+        <div
+          className={cn(
+            'rounded-xl border shadow-sm p-4 cursor-pointer transition-all',
+            overdue > 0 ? 'bg-amber-50 border-amber-200 hover:bg-amber-100' : 'bg-white border-gray-100',
+            statusFilter === 'overdue_texts' && 'ring-2 ring-amber-400',
+          )}
+          onClick={() => setStatusFilter(sf => sf === 'overdue_texts' ? 'tous' : 'overdue_texts')}
+        >
           <div className="flex items-center gap-2 mb-1">
             <AlertCircle size={14} className={overdue > 0 ? 'text-amber-500' : 'text-gray-300'} />
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Textes en retard</p>
           </div>
           <p className={cn('text-2xl font-bold tabular-nums', overdue > 0 ? 'text-amber-600' : 'text-gray-300')}>
             {overdue > 0 ? overdue : '—'}
+          </p>
+        </div>
+        <div className={cn(
+          'rounded-xl border shadow-sm p-4 cursor-pointer transition-all',
+          j90Count > 0 ? 'bg-orange-50 border-orange-200 hover:bg-orange-100' : 'bg-white border-gray-100',
+          statusFilter === 'j90_auto' && 'ring-2 ring-orange-400',
+        )}
+          onClick={() => setStatusFilter(sf => sf === 'j90_auto' ? 'tous' : 'j90_auto')}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle size={14} className={j90Count > 0 ? 'text-orange-500' : 'text-gray-300'} />
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">+90 jours</p>
+          </div>
+          <p className={cn('text-2xl font-bold tabular-nums', j90Count > 0 ? 'text-orange-600' : 'text-gray-300')}>
+            {j90Count > 0 ? j90Count : '—'}
           </p>
         </div>
       </div>
@@ -477,7 +555,7 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
             className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
-        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5">
+        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5 flex-wrap">
           {STATUS_FILTERS.map(f => (
             <button
               key={f.key}
@@ -509,7 +587,7 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-100 border border-green-200 inline-block" /> Passé / fait</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-yellow-50 border border-yellow-200 inline-block" /> À venir</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-100 border border-red-300 inline-block" /> Manqué / retard</span>
-        <span className="flex items-center gap-1.5 text-gray-400">Cliquer sur M ou J pour modifier</span>
+        <span className="flex items-center gap-1.5 text-gray-400">Cliquer sur M ou J pour modifier · Cliquer sur C.S/C.C/Opp pour cocher</span>
       </div>
 
       {/* Table */}
@@ -524,22 +602,21 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
                   <th className="px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-40">Cliente</th>
                   <th className="px-2 py-2.5 text-center text-gray-300">J.</th>
                   <th className="px-2 py-2.5 text-center text-emerald-500">Onb.</th>
-                  {/* Meetings */}
+                  {/* Touchpoints */}
                   <th className="px-2 py-2.5 text-center">J+7</th>
                   <th className="px-2 py-2.5 text-center text-violet-500">M2</th>
+                  <th className="px-2 py-2.5 text-center">J+24</th>
                   <th className="px-2 py-2.5 text-center text-violet-500">M3</th>
-                  {/* 4 post-M3 touchpoints */}
+                  {/* Post-M3 */}
                   <th className="px-2 py-2.5 text-center border-l border-violet-100">J+49</th>
                   <th className="px-2 py-2.5 text-center">J+63</th>
                   <th className="px-2 py-2.5 text-center">J+77</th>
                   <th className="px-2 py-2.5 text-center">J+90</th>
                   <th className="px-2 py-2.5 text-center text-violet-500 border-l border-violet-100">M4</th>
-                  {/* Milestones */}
-                  <th className="px-2 py-2.5 text-center border-l border-gray-100">Q.S</th>
-                  <th className="px-2 py-2.5 text-center">C.S</th>
+                  {/* Milestones — toggleable */}
+                  <th className="px-2 py-2.5 text-center border-l border-gray-100">C.S</th>
                   <th className="px-2 py-2.5 text-center">Opp S</th>
-                  <th className="px-2 py-2.5 text-center border-l border-gray-100">Q.C</th>
-                  <th className="px-2 py-2.5 text-center">C.C</th>
+                  <th className="px-2 py-2.5 text-center border-l border-gray-100">C.C</th>
                   <th className="px-2 py-2.5 text-center">Opp C</th>
                   {/* Meta */}
                   <th className="px-2 py-2.5 text-center border-l border-gray-100">Email</th>
@@ -549,10 +626,10 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(c => {
-                  const due  = computeDueDates(c.enrollment_date)
+                  const due  = computeDueDates(c.enrollment_date, c.onboarding_date)
                   const dayN = daysBetween(c.enrollment_date, todayStr)
 
-                  // Last login info for J7 cell
+                  // Last login info for J+7 cell
                   const lastLoginDaysAgo = c.circle_last_login
                     ? daysBetween(c.circle_last_login, todayStr)
                     : null
@@ -593,7 +670,7 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
                       {/* Onboarding date */}
                       <EditableOnboardingCell clientId={c.id} date={c.onboarding_date} />
 
-                      {/* J+7 with last login + progress info */}
+                      {/* J+7 — based on onboarding_date if available */}
                       <TextCell
                         clientId={c.id} field="j7"
                         done={c.text_j7_done} dueDate={due.j7} actualDate={c.text_j7_date}
@@ -604,10 +681,13 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
                       {/* M2 */}
                       <EditableMCell clientId={c.id} num={2} date={c.m2_date} missed={c.m2_missed} />
 
+                      {/* J+24 */}
+                      <TextCell clientId={c.id} field="j24" done={c.text_j24_done} dueDate={due.j24} actualDate={c.text_j24_date} today={todayStr} />
+
                       {/* M3 */}
                       <EditableMCell clientId={c.id} num={3} date={c.m3_date} missed={c.m3_missed} />
 
-                      {/* 4 post-M3 touchpoints */}
+                      {/* Post-M3 touchpoints */}
                       <TextCell clientId={c.id} field="j49" done={c.text_j49_done} dueDate={due.j49} actualDate={c.text_j49_date} today={todayStr} />
                       <TextCell clientId={c.id} field="j63" done={c.text_j63_done} dueDate={due.j63} actualDate={c.text_j63_date} today={todayStr} />
                       <TextCell clientId={c.id} field="j77" done={c.text_j77_done} dueDate={due.j77} actualDate={c.text_j77_date} today={todayStr} />
@@ -616,19 +696,23 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
                       {/* M4 */}
                       <EditableMCell clientId={c.id} num={4} date={c.m4_date} missed={c.m4_missed} />
 
-                      {/* Milestones */}
-                      <CheckCell done={c.quiz_setter_done} />
-                      <CheckCell done={c.cert_setter_done} green />
-                      <CheckCell done={c.opportunity_setter} />
-                      <CheckCell done={c.quiz_closer_done} />
-                      <CheckCell done={c.cert_closer_done} green />
-                      <CheckCell done={c.opportunity_closer} />
+                      {/* Toggleable milestone cells */}
+                      <ToggleCell clientId={c.id} field="cert_setter_done"  done={c.cert_setter_done}  green />
+                      <ToggleCell clientId={c.id} field="opportunity_setter" done={c.opportunity_setter} />
+                      <ToggleCell clientId={c.id} field="cert_closer_done"   done={c.cert_closer_done}  green />
+                      <ToggleCell clientId={c.id} field="opportunity_closer" done={c.opportunity_closer} />
 
                       {/* Email avis */}
                       <EmailCell clientId={c.id} avis={c.email_avis ?? null} />
 
-                      {/* Status inline */}
-                      <StatusCell clientId={c.id} status={c.status} />
+                      {/* Status + cert inline */}
+                      <StatusCell
+                        clientId={c.id}
+                        status={c.status}
+                        certSetterDone={c.cert_setter_done}
+                        certCloserDone={c.cert_closer_done}
+                        dayN={dayN}
+                      />
 
                       {/* Payment */}
                       <td className="px-2 py-2 text-center">

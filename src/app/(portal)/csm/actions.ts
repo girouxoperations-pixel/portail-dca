@@ -37,7 +37,7 @@ export async function updateMeeting(
 // ── Text follow-up toggles ──────────────────────────────────────────
 export async function toggleText(
   clientId: string,
-  field: 'j7' | 'j21' | 'j49' | 'j63' | 'j77' | 'j90',
+  field: 'j7' | 'j24' | 'j49' | 'j63' | 'j77' | 'j90',
   done: boolean,
 ) {
   await verifyAdminOrCsm()
