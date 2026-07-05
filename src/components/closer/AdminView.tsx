@@ -38,6 +38,16 @@ interface Profil {
   full_name: string | null
 }
 
+interface CashEntry {
+  id:             string
+  entry_date:     string
+  closed_by:      string | null
+  montant_courant: number
+  collected:      number
+  close_type:     string | null
+  notes:          string | null
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 const INPUT_CLS =
@@ -312,10 +322,11 @@ function ModalModifier({ entry, closerName, onClose }: {
 
 // ── Composant principal ───────────────────────────────────────────────
 
-export default function AdminView({ entrees, closers, isAdmin }: {
-  entrees:  CloserEntry[]
-  closers:  Profil[]
-  isAdmin:  boolean
+export default function AdminView({ entrees, closers, cashEntries, isAdmin }: {
+  entrees:     CloserEntry[]
+  closers:     Profil[]
+  cashEntries: CashEntry[]
+  isAdmin:     boolean
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [closerFilter, setCloserFilter] = useState<string>('tout')
@@ -401,25 +412,49 @@ export default function AdminView({ entrees, closers, isAdmin }: {
     return { isoYear, week, weekStart: mon.toISOString().slice(0, 10), weekEnd: sun.toISOString().slice(0, 10) }
   }
 
+  const filteredCashEntries = useMemo(() => {
+    if (!range.start) return []
+    const inPeriod = cashEntries.filter(e => e.entry_date >= range.start && e.entry_date <= range.end)
+    if (closerFilter === 'tout') return inPeriod
+    return inPeriod.filter(e => e.closed_by === closerFilter)
+  }, [cashEntries, range, closerFilter])
+
   const weeklyStats = useMemo(() => {
-    const map = new Map<string, {
+    type WeekRow = {
       isoYear: number; week: number; weekStart: string; weekEnd: string
-      scheduled: number; shows: number; pitches: number; closes: number; cash: number; revenue: number
-    }>()
+      scheduled: number; shows: number; pitches: number
+      closes: number; cashDeals: number; cashRecurrents: number
+    }
+    const map = new Map<string, WeekRow>()
+
+    // Activity (scheduled/shows/pitches) from closer_entries
     for (const e of filtrees) {
       const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
       const key = `${isoYear}-${String(week).padStart(2, '0')}`
-      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, scheduled: 0, shows: 0, pitches: 0, closes: 0, cash: 0, revenue: 0 }
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, scheduled: 0, shows: 0, pitches: 0, closes: 0, cashDeals: 0, cashRecurrents: 0 }
       cur.scheduled += e.scheduled_calls
       cur.shows     += e.show_calls
       cur.pitches   += e.pitch_calls
-      cur.closes    += e.closes
-      cur.cash      += e.cash_collected
-      cur.revenue   += e.revenue
       map.set(key, cur)
     }
+
+    // Closes + cash from actual cash_entries
+    for (const e of filteredCashEntries) {
+      const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
+      const key = `${isoYear}-${String(week).padStart(2, '0')}`
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, scheduled: 0, shows: 0, pitches: 0, closes: 0, cashDeals: 0, cashRecurrents: 0 }
+      const isRecurring = e.close_type === 'recurring' || (e.notes?.startsWith('Récurrent') ?? false)
+      if (isRecurring) {
+        cur.cashRecurrents += e.collected ?? 0
+      } else {
+        cur.closes    += 1
+        cur.cashDeals += e.collected ?? 0
+      }
+      map.set(key, cur)
+    }
+
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a)).map(([, v]) => v)
-  }, [filtrees])
+  }, [filtrees, filteredCashEntries])
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -634,8 +669,8 @@ export default function AdminView({ entrees, closers, isAdmin }: {
                   <th className="px-4 py-2.5 text-right">Pitches</th>
                   <th className="px-4 py-2.5 text-right">Closes</th>
                   <th className="px-4 py-2.5 text-right">Close %</th>
-                  <th className="px-4 py-2.5 text-right">Cash</th>
-                  <th className="px-4 py-2.5 text-right">Revenue</th>
+                  <th className="px-4 py-2.5 text-right">Cash Deals</th>
+                  <th className="px-4 py-2.5 text-right">Cash Récurrents</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -653,24 +688,34 @@ export default function AdminView({ entrees, closers, isAdmin }: {
                       <td className="px-4 py-3 text-right tabular-nums text-gray-600">{w.pitches}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-bold text-gray-900">{w.closes}</td>
                       <td className="px-4 py-3 text-right"><PctBadge value={pct(w.closes, w.pitches)} bold /></td>
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-blue-700">{w.cash > 0 ? dollar(w.cash) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{w.revenue > 0 ? dollar(w.revenue) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-blue-700">{w.cashDeals > 0 ? dollar(w.cashDeals) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-violet-600">{w.cashRecurrents > 0 ? dollar(w.cashRecurrents) : <span className="text-gray-300">—</span>}</td>
                     </tr>
                   )
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50 text-xs font-bold text-gray-700">
-                  <td className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{kpis.scheduled}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{kpis.shows}</td>
-                  <td className="px-4 py-3 text-right"><PctBadge value={kpis.showRate} /></td>
-                  <td className="px-4 py-3 text-right tabular-nums">{kpis.pitches}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{kpis.closes}</td>
-                  <td className="px-4 py-3 text-right"><PctBadge value={kpis.closeRate} bold /></td>
-                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(kpis.cash_collected)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{dollar(kpis.revenue)}</td>
-                </tr>
+                {(() => {
+                  const totCloses = weeklyStats.reduce((s, w) => s + w.closes, 0)
+                  const totDeals  = weeklyStats.reduce((s, w) => s + w.cashDeals, 0)
+                  const totRecur  = weeklyStats.reduce((s, w) => s + w.cashRecurrents, 0)
+                  const totSched  = weeklyStats.reduce((s, w) => s + w.scheduled, 0)
+                  const totShows  = weeklyStats.reduce((s, w) => s + w.shows, 0)
+                  const totPitch  = weeklyStats.reduce((s, w) => s + w.pitches, 0)
+                  return (
+                    <tr className="border-t-2 border-gray-200 bg-gray-50 text-xs font-bold text-gray-700">
+                      <td className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{totSched}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{totShows}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(totShows, totSched)} /></td>
+                      <td className="px-4 py-3 text-right tabular-nums">{totPitch}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{totCloses}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(totCloses, totPitch)} bold /></td>
+                      <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totDeals)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-violet-600">{dollar(totRecur)}</td>
+                    </tr>
+                  )
+                })()}
               </tfoot>
             </table>
           </div>

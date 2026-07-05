@@ -22,19 +22,23 @@ export default async function CloserPage() {
 
   // ── Vue admin / CSM ─────────────────────────────────────────────
   if (role === 'admin' || role === 'csm') {
-    const [{ data: entrees }, { data: closers }] = await Promise.all([
+    const [{ data: entrees }, { data: closers }, { data: cashEntries }] = await Promise.all([
       db.from('closer_entries')
         .select('*')
         .order('entry_date', { ascending: false }),
       db.from('profiles')
         .select('id, full_name')
         .eq('role', 'closer'),
+      db.from('cash_entries')
+        .select('id, entry_date, closed_by, montant_courant, collected, close_type, notes')
+        .order('entry_date', { ascending: false }),
     ])
 
     return (
       <AdminView
-        entrees={entrees   ?? []}
-        closers={closers   ?? []}
+        entrees={entrees      ?? []}
+        closers={closers      ?? []}
+        cashEntries={cashEntries ?? []}
         isAdmin={role === 'admin'}
       />
     )
