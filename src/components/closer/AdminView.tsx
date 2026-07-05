@@ -671,6 +671,7 @@ export default function AdminView({ entrees, closers, cashEntries, isAdmin }: {
                   <th className="px-4 py-2.5 text-right">Close %</th>
                   <th className="px-4 py-2.5 text-right">Cash Deals</th>
                   <th className="px-4 py-2.5 text-right">Cash Récurrents</th>
+                  <th className="px-4 py-2.5 text-right">Total Cash</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -690,6 +691,7 @@ export default function AdminView({ entrees, closers, cashEntries, isAdmin }: {
                       <td className="px-4 py-3 text-right"><PctBadge value={pct(w.closes, w.pitches)} bold /></td>
                       <td className="px-4 py-3 text-right tabular-nums font-semibold text-blue-700">{w.cashDeals > 0 ? dollar(w.cashDeals) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-violet-600">{w.cashRecurrents > 0 ? dollar(w.cashRecurrents) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-gray-900">{(w.cashDeals + w.cashRecurrents) > 0 ? dollar(w.cashDeals + w.cashRecurrents) : <span className="text-gray-300">—</span>}</td>
                     </tr>
                   )
                 })}
@@ -713,6 +715,7 @@ export default function AdminView({ entrees, closers, cashEntries, isAdmin }: {
                       <td className="px-4 py-3 text-right"><PctBadge value={pct(totCloses, totPitch)} bold /></td>
                       <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totDeals)}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-violet-600">{dollar(totRecur)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-gray-900">{dollar(totDeals + totRecur)}</td>
                     </tr>
                   )
                 })()}

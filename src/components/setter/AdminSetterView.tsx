@@ -641,6 +641,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   <th className="px-4 py-2.5 text-right">Deals</th>
                   <th className="px-4 py-2.5 text-right">Cash Deals</th>
                   <th className="px-4 py-2.5 text-right">Cash Récurrents</th>
+                  <th className="px-4 py-2.5 text-right">Total Cash</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
                 </tr>
               </thead>
@@ -663,6 +664,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                       <td className="px-4 py-3 text-right tabular-nums font-bold text-green-700">{w.deals > 0 ? w.deals : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-semibold text-blue-700">{w.cashDeals > 0 ? dollar(w.cashDeals) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-violet-600">{w.cashRecurrents > 0 ? dollar(w.cashRecurrents) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-gray-900">{(w.cashDeals + w.cashRecurrents) > 0 ? dollar(w.cashDeals + w.cashRecurrents) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-red-400">{w.noShow > 0 ? w.noShow : <span className="text-gray-300">—</span>}</td>
                     </tr>
                   )
@@ -691,6 +693,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                       <td className="px-4 py-3 text-right tabular-nums text-green-700">{totDeals}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totCash)}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-violet-600">{dollar(totRecur)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-gray-900">{dollar(totCash + totRecur)}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-red-400">{totNoSho}</td>
                     </tr>
                   )
