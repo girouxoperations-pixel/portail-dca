@@ -268,6 +268,7 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [setterFilter, setSetterFilter] = useState<string>('tout')
+  const [contentTab, setContentTab]     = useState<'activite' | 'semaine'>('activite')
   const [modalOuverte, setModalOuverte] = useState(false)
   const [entreeEnEdit, setEntreeEnEdit] = useState<SetterEntry | null>(null)
   const [pending, startTransition]      = useTransition()
@@ -390,6 +391,24 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
         }
       />
 
+      {/* Content tabs */}
+      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setContentTab('activite')}
+          className={cn('px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+            contentTab === 'activite' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700')}
+        >
+          Activité
+        </button>
+        <button
+          onClick={() => setContentTab('semaine')}
+          className={cn('px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+            contentTab === 'semaine' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700')}
+        >
+          Par semaine
+        </button>
+      </div>
+
       {/* Filters row */}
       <div className="flex items-center gap-4 flex-wrap">
         <PeriodFilter
@@ -415,6 +434,8 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
           <button onClick={() => setSetterFilter('tout')} className="text-violet-400 hover:text-violet-700 ml-1 text-xs">✕</button>
         </div>
       )}
+
+      {contentTab === 'activite' && (<>
 
       {/* KPIs activité */}
       <div>
@@ -559,8 +580,10 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
         </div>
       )}
 
+      </>)}
+
       {/* Stats par semaine */}
-      {weeklyStats.length > 0 && (
+      {contentTab === 'semaine' && weeklyStats.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-50">
             <h3 className="text-sm font-semibold text-gray-900">Par semaine{nomSetter ? ` — ${nomSetter}` : ''}</h3>
@@ -622,6 +645,8 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
           </div>
         </div>
       )}
+
+      {contentTab === 'activite' && (<>
 
       {/* Entrées détaillées */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -703,6 +728,8 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
           </div>
         )}
       </div>
+
+      </>)}
 
       {modalOuverte && (
         <ModalAjout setters={setters} onClose={() => setModalOuverte(false)} />
