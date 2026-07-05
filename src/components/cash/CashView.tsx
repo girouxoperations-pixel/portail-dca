@@ -869,7 +869,7 @@ export default function CashView({
         <button className={tabCls('hebdo')}    onClick={() => setTab('hebdo')}>Perf hebdo</button>
       </div>
 
-      {/* Period filter + KPIs — entrées + stats + semaine tabs */}
+      {/* Period filter + KPIs — entrées + semaine tabs only */}
       {(tab === 'entrees' || tab === 'stats' || tab === 'semaine') && <><div className="flex items-center gap-2 flex-wrap">
         {PRESETS.map(p => {
           const active = filterStart === p.start && filterEnd === p.end
@@ -941,37 +941,39 @@ export default function CashView({
         )}
       </div>
 
-      {/* KPI annuels */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <KpiCard
-          title="Cash collecté"
-          value={dollar(totaux.collected)}
-          icon={Wallet}
-          color="blue"
-          subtitle={`${filtrees.length} transactions`}
-        />
-        <KpiCard
-          title="Revenue total"
-          value={dollar(totaux.montant)}
-          icon={DollarSign}
-          color="green"
-          subtitle={`${pctCollecte} % encaissé`}
-        />
-        <KpiCard
-          title="À collecter"
-          value={dollar(totaux.aCollecter)}
-          icon={TrendingDown}
-          color="red"
-          subtitle="Solde en attente"
-        />
-        <KpiCard
-          title="Transactions"
-          value={String(nDealsTotal + nRecTotal)}
-          icon={BarChart3}
-          color="violet"
-          subtitle={`${nDealsTotal} deals · ${nRecTotal} récurrents`}
-        />
-      </div></>}
+      {/* KPI annuels — masqués sur l'onglet Stats (a ses propres blocs) */}
+      {tab !== 'stats' && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <KpiCard
+            title="Cash collecté"
+            value={dollar(totaux.collected)}
+            icon={Wallet}
+            color="blue"
+            subtitle={`${filtrees.length} transactions`}
+          />
+          <KpiCard
+            title="Revenue total"
+            value={dollar(totaux.montant)}
+            icon={DollarSign}
+            color="green"
+            subtitle={`${pctCollecte} % encaissé`}
+          />
+          <KpiCard
+            title="À collecter"
+            value={dollar(totaux.aCollecter)}
+            icon={TrendingDown}
+            color="red"
+            subtitle="Solde en attente"
+          />
+          <KpiCard
+            title="Transactions"
+            value={String(nDealsTotal + nRecTotal)}
+            icon={BarChart3}
+            color="violet"
+            subtitle={`${nDealsTotal} deals · ${nRecTotal} récurrents`}
+          />
+        </div>
+      )}</>}
 
       {/* ── Tab Entrées ─────────────────────────────────────────── */}
       {tab === 'entrees' && (

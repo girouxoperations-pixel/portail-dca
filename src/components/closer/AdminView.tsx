@@ -387,6 +387,39 @@ export default function AdminView({ entrees, closers, isAdmin }: {
 
   const nomCloser = closerFilter === 'tout' ? null : (profileMap.get(closerFilter) ?? null)
 
+  // ── Semaine ISO ────────────────────────────────────────────────
+  function isoWeekInfo(dateStr: string) {
+    const d = new Date(dateStr + 'T00:00')
+    const day = d.getDay() || 7
+    const thu = new Date(d); thu.setDate(d.getDate() + 4 - day)
+    const isoYear = thu.getFullYear()
+    const jan4 = new Date(isoYear, 0, 4)
+    const week = Math.round(((thu.getTime() - jan4.getTime()) / 86400000 + (jan4.getDay() || 7) - 1) / 7) + 1
+    const mon = new Date(d); mon.setDate(d.getDate() - day + 1)
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+    return { isoYear, week, weekStart: mon.toISOString().slice(0, 10), weekEnd: sun.toISOString().slice(0, 10) }
+  }
+
+  const weeklyStats = useMemo(() => {
+    const map = new Map<string, {
+      isoYear: number; week: number; weekStart: string; weekEnd: string
+      scheduled: number; shows: number; pitches: number; closes: number; cash: number; revenue: number
+    }>()
+    for (const e of filtrees) {
+      const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
+      const key = `${isoYear}-${String(week).padStart(2, '0')}`
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, scheduled: 0, shows: 0, pitches: 0, closes: 0, cash: 0, revenue: 0 }
+      cur.scheduled += e.scheduled_calls
+      cur.shows     += e.show_calls
+      cur.pitches   += e.pitch_calls
+      cur.closes    += e.closes
+      cur.cash      += e.cash_collected
+      cur.revenue   += e.revenue
+      map.set(key, cur)
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a)).map(([, v]) => v)
+  }, [filtrees])
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
 
@@ -549,6 +582,67 @@ export default function AdminView({ entrees, closers, isAdmin }: {
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.showRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.pitches}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.pitchRate} /></td>
+                  <td className="px-4 py-3 text-right tabular-nums">{kpis.closes}</td>
+                  <td className="px-4 py-3 text-right"><PctBadge value={kpis.closeRate} bold /></td>
+                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(kpis.cash_collected)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{dollar(kpis.revenue)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Stats par semaine */}
+      {weeklyStats.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-50">
+            <h3 className="text-sm font-semibold text-gray-900">Par semaine{nomCloser ? ` — ${nomCloser}` : ''}</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Agrégé par semaine ISO (lundi–dimanche)</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide bg-gray-50">
+                  <th className="px-4 py-2.5 text-left">Semaine</th>
+                  <th className="px-4 py-2.5 text-right">Sched.</th>
+                  <th className="px-4 py-2.5 text-right">Shows</th>
+                  <th className="px-4 py-2.5 text-right">Show %</th>
+                  <th className="px-4 py-2.5 text-right">Pitches</th>
+                  <th className="px-4 py-2.5 text-right">Closes</th>
+                  <th className="px-4 py-2.5 text-right">Close %</th>
+                  <th className="px-4 py-2.5 text-right">Cash</th>
+                  <th className="px-4 py-2.5 text-right">Revenue</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {weeklyStats.map(w => {
+                  const fmtD = (s: string) => new Date(s + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                  return (
+                    <tr key={`${w.isoYear}-${w.week}`} className="hover:bg-violet-50/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-gray-800">S{w.week}</span>
+                        <span className="ml-2 text-xs text-gray-400">{fmtD(w.weekStart)} – {fmtD(w.weekEnd)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{w.scheduled}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{w.shows}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(w.shows, w.scheduled)} /></td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{w.pitches}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-gray-900">{w.closes}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(w.closes, w.pitches)} bold /></td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-blue-700">{w.cash > 0 ? dollar(w.cash) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{w.revenue > 0 ? dollar(w.revenue) : <span className="text-gray-300">—</span>}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-200 bg-gray-50 text-xs font-bold text-gray-700">
+                  <td className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{kpis.scheduled}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{kpis.shows}</td>
+                  <td className="px-4 py-3 text-right"><PctBadge value={kpis.showRate} /></td>
+                  <td className="px-4 py-3 text-right tabular-nums">{kpis.pitches}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.closes}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.closeRate} bold /></td>
                   <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(kpis.cash_collected)}</td>
