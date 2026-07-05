@@ -603,7 +603,7 @@ export default function CashView({
   const yearNow   = new Date().getFullYear()
   const monthNow  = new Date().getMonth()
 
-  const [tab, setTab]               = useState<'entrees' | 'stats' | 'hebdo' | 'pjour'>('entrees')
+  const [tab, setTab]               = useState<'entrees' | 'stats' | 'semaine' | 'pjour' | 'hebdo'>('entrees')
   const [filterStart, setFilterStart] = useState(`${yearNow}-01-01`)
   const [filterEnd, setFilterEnd]     = useState(today)
   const [filterCloserId, setFilterCloserId] = useState('')
@@ -784,6 +784,50 @@ export default function CashView({
     return { months, counts }
   }, [filtrees, recurringIds])
 
+  // ── Weekly business stats (Par semaine tab) ───────────────────
+  const weeklyStats = useMemo(() => {
+    function isoWeekInfo(dateStr: string) {
+      const d = new Date(dateStr + 'T00:00')
+      const day = d.getDay() || 7 // Mon=1 … Sun=7
+      // Thursday of the same week → determines ISO year
+      const thu = new Date(d)
+      thu.setDate(d.getDate() + 4 - day)
+      const isoYear = thu.getFullYear()
+      const jan4 = new Date(isoYear, 0, 4)
+      const week = Math.round(((thu.getTime() - jan4.getTime()) / 86400000 + (jan4.getDay() || 7) - 1) / 7) + 1
+      // Monday and Sunday of this week
+      const mon = new Date(d)
+      mon.setDate(d.getDate() - day + 1)
+      const sun = new Date(mon)
+      sun.setDate(mon.getDate() + 6)
+      return { isoYear, week, weekStart: mon.toISOString().slice(0, 10), weekEnd: sun.toISOString().slice(0, 10) }
+    }
+
+    const map = new Map<string, {
+      isoYear: number; week: number; weekStart: string; weekEnd: string
+      nDeals: number; revenueDeal: number; cashDeal: number; cashRec: number
+    }>()
+
+    for (const e of filtrees) {
+      const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
+      const key = `${isoYear}-${String(week).padStart(2, '0')}`
+      const src = getSourceType(e, recurringIds)
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, nDeals: 0, revenueDeal: 0, cashDeal: 0, cashRec: 0 }
+      if (src === 'deal') {
+        cur.nDeals++
+        cur.revenueDeal += e.montant_courant ?? 0
+        cur.cashDeal    += e.collected       ?? 0
+      } else {
+        cur.cashRec += e.collected ?? 0
+      }
+      map.set(key, cur)
+    }
+
+    return Array.from(map.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([, v]) => v)
+  }, [filtrees, recurringIds])
+
   const tabCls = (t: typeof tab) => cn(
     'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
     tab === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
@@ -818,14 +862,15 @@ export default function CashView({
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        <button className={tabCls('entrees')} onClick={() => setTab('entrees')}>Entrées</button>
-        <button className={tabCls('stats')}   onClick={() => setTab('stats')}>Stats</button>
-        <button className={tabCls('pjour')}   onClick={() => setTab('pjour')}>Par jour</button>
-        <button className={tabCls('hebdo')}   onClick={() => setTab('hebdo')}>Perf hebdo</button>
+        <button className={tabCls('entrees')}  onClick={() => setTab('entrees')}>Entrées</button>
+        <button className={tabCls('stats')}    onClick={() => setTab('stats')}>Stats</button>
+        <button className={tabCls('semaine')}  onClick={() => setTab('semaine')}>Par semaine</button>
+        <button className={tabCls('pjour')}    onClick={() => setTab('pjour')}>Par jour</button>
+        <button className={tabCls('hebdo')}    onClick={() => setTab('hebdo')}>Perf hebdo</button>
       </div>
 
-      {/* Period filter + KPIs — entrées + stats tabs only */}
-      {(tab === 'entrees' || tab === 'stats') && <><div className="flex items-center gap-2 flex-wrap">
+      {/* Period filter + KPIs — entrées + stats + semaine tabs */}
+      {(tab === 'entrees' || tab === 'stats' || tab === 'semaine') && <><div className="flex items-center gap-2 flex-wrap">
         {PRESETS.map(p => {
           const active = filterStart === p.start && filterEnd === p.end
           return (
@@ -1083,6 +1128,112 @@ export default function CashView({
 
         </div>
       )}
+
+      {/* ── Tab Par semaine ─────────────────────────────────────── */}
+      {tab === 'semaine' && (() => {
+        const totW = weeklyStats.reduce((s, w) => ({
+          nDeals:      s.nDeals      + w.nDeals,
+          revenueDeal: s.revenueDeal + w.revenueDeal,
+          cashDeal:    s.cashDeal    + w.cashDeal,
+          cashRec:     s.cashRec     + w.cashRec,
+        }), { nDeals: 0, revenueDeal: 0, cashDeal: 0, cashRec: 0 })
+
+        function fmtWeek(weekStart: string, weekEnd: string) {
+          const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+          const s = new Date(weekStart + 'T00:00').toLocaleDateString('fr-FR', opts)
+          const e = new Date(weekEnd   + 'T00:00').toLocaleDateString('fr-FR', opts)
+          return `${s} – ${e}`
+        }
+
+        const chartData = [...weeklyStats].reverse().map(w => ({
+          label:    `S${w.week}`,
+          Deals:    Math.round(w.cashDeal),
+          Récurrents: Math.round(w.cashRec),
+        }))
+
+        return (
+          <div className="space-y-4">
+            {/* Mini chart */}
+            {chartData.length > 1 && (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">Cash collecté — semaine par semaine</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={chartData} barGap={2} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)} tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      formatter={(v) => typeof v === 'number' ? dollar(v) : String(v ?? '')}
+                      contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', fontSize: 12 }}
+                      cursor={{ fill: '#f9fafb' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={v => <span className="text-gray-500">{v}</span>} />
+                    <Bar dataKey="Deals"      stackId="a" fill="#7c3aed" radius={[0,0,0,0]} maxBarSize={48} />
+                    <Bar dataKey="Récurrents" stackId="a" fill="#a78bfa" radius={[4,4,0,0]} maxBarSize={48} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Table */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              {weeklyStats.length === 0 ? (
+                <p className="text-center py-12 text-sm text-gray-400">Aucune entrée sur cette période</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100 bg-gray-50">
+                        <th className="px-5 py-3 text-left">Semaine</th>
+                        <th className="px-5 py-3 text-right">Nb deals</th>
+                        <th className="px-5 py-3 text-right">Revenue deals</th>
+                        <th className="px-5 py-3 text-right text-violet-500">Cash deals</th>
+                        <th className="px-5 py-3 text-right text-blue-500">Cash récurrents</th>
+                        <th className="px-5 py-3 text-right font-bold text-gray-500">Cash total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {weeklyStats.map(w => (
+                        <tr key={`${w.isoYear}-${w.week}`} className="hover:bg-violet-50/20 transition-colors">
+                          <td className="px-5 py-3">
+                            <span className="font-semibold text-gray-800">Sem. {w.week}</span>
+                            <span className="ml-2 text-xs text-gray-400">{fmtWeek(w.weekStart, w.weekEnd)}</span>
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums font-medium text-gray-700">
+                            {w.nDeals}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums text-gray-600">
+                            {dollar(w.revenueDeal)}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums font-semibold text-violet-700">
+                            {w.cashDeal > 0 ? dollar(w.cashDeal) : <span className="text-gray-200">—</span>}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums font-semibold text-blue-600">
+                            {w.cashRec > 0 ? dollar(w.cashRec) : <span className="text-gray-200">—</span>}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums font-bold text-gray-900">
+                            {dollar(w.cashDeal + w.cashRec)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-200 bg-gray-50 text-sm font-bold text-gray-700">
+                        <td className="px-5 py-3 text-gray-400 uppercase tracking-wide text-xs">Total</td>
+                        <td className="px-5 py-3 text-right tabular-nums">{totW.nDeals}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-gray-600">{dollar(totW.revenueDeal)}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-violet-700">{dollar(totW.cashDeal)}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-blue-600">{dollar(totW.cashRec)}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-gray-900">{dollar(totW.cashDeal + totW.cashRec)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Tab Par jour ────────────────────────────────────────── */}
       {tab === 'pjour' && (() => {
