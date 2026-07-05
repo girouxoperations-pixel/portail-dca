@@ -50,17 +50,21 @@ export default async function SetterPage() {
   // ── Vue admin / CSM : toutes les entrées + liste des setters ─────
   if (role !== 'admin' && role !== 'csm') redirect('/dashboard')
 
-  const [{ data: entrees }, { data: setters }] = await Promise.all([
+  const [{ data: entrees }, { data: setters }, { data: cashEntries }] = await Promise.all([
     db.from('setter_entries')
       .select('*')
       .order('entry_date', { ascending: false }),
     db.from('profiles').select('id, full_name').eq('role', 'setter'),
+    db.from('cash_entries')
+      .select('id, entry_date, set_by, montant_courant, collected, close_type, notes')
+      .order('entry_date', { ascending: false }),
   ])
 
   return (
     <AdminSetterView
-      entrees={entrees ?? []}
-      setters={setters ?? []}
+      entrees={entrees      ?? []}
+      setters={setters      ?? []}
+      cashEntries={cashEntries ?? []}
       isAdmin={role === 'admin'}
     />
   )

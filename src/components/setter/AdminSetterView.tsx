@@ -11,7 +11,7 @@ import {
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { ajouterEntreeSetter, modifierEntreeSetter, supprimerEntreeSetter } from '@/app/(portal)/setter/actions'
-import { MOIS_COURT, formatDate } from '@/lib/constants'
+import { MOIS_COURT, dollar, formatDate } from '@/lib/constants'
 import MetricCard   from '@/components/ui/MetricCard'
 import PeriodFilter, { usePeriodFilter, computePrevRange } from '@/components/ui/PeriodFilter'
 import Modal        from '@/components/ui/Modal'
@@ -38,6 +38,16 @@ interface SetterEntry {
 interface Profil {
   id:        string
   full_name: string | null
+}
+
+interface CashEntry {
+  id:              string
+  entry_date:      string
+  set_by:          string | null
+  montant_courant: number
+  collected:       number
+  close_type:      string | null
+  notes:           string | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -261,10 +271,11 @@ function ModalModifier({ entry, setterName, onClose }: {
 
 // ── Composant principal ───────────────────────────────────────────────
 
-export default function AdminSetterView({ entrees, setters, isAdmin }: {
-  entrees:  SetterEntry[]
-  setters:  Profil[]
-  isAdmin:  boolean
+export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin }: {
+  entrees:     SetterEntry[]
+  setters:     Profil[]
+  cashEntries: CashEntry[]
+  isAdmin:     boolean
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [setterFilter, setSetterFilter] = useState<string>('tout')
@@ -354,25 +365,51 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
     return { isoYear, week, weekStart: mon.toISOString().slice(0, 10), weekEnd: sun.toISOString().slice(0, 10) }
   }
 
+  const filteredCashEntries = useMemo(() => {
+    if (!range.start) return []
+    const inPeriod = cashEntries.filter(e => e.entry_date >= range.start && e.entry_date <= range.end)
+    if (setterFilter === 'tout') return inPeriod
+    return inPeriod.filter(e => e.set_by === setterFilter)
+  }, [cashEntries, range, setterFilter])
+
   const weeklyStats = useMemo(() => {
-    const map = new Map<string, {
+    type WeekRow = {
       isoYear: number; week: number; weekStart: string; weekEnd: string
-      attempts: number; contacts: number; rdv: number; showed: number; deals: number; noShow: number
-    }>()
+      attempts: number; contacts: number; rdv: number; showed: number; noShow: number
+      deals: number; cashDeals: number; cashRecurrents: number
+    }
+    const map = new Map<string, WeekRow>()
+
+    // Activity from setter_entries
     for (const e of filtrees) {
       const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
       const key = `${isoYear}-${String(week).padStart(2, '0')}`
-      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, showed: 0, deals: 0, noShow: 0 }
-      cur.attempts  += e.attempts
-      cur.contacts  += e.contacts
-      cur.rdv       += e.rdv_booked
-      cur.showed    += e.showed
-      cur.deals     += e.deals
-      cur.noShow    += e.no_show
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, showed: 0, noShow: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
+      cur.attempts += e.attempts
+      cur.contacts += e.contacts
+      cur.rdv      += e.rdv_booked
+      cur.showed   += e.showed
+      cur.noShow   += e.no_show
       map.set(key, cur)
     }
+
+    // Deals + cash from actual cash_entries (set_by = this setter)
+    for (const e of filteredCashEntries) {
+      const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
+      const key = `${isoYear}-${String(week).padStart(2, '0')}`
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, showed: 0, noShow: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
+      const isRecurring = e.close_type === 'recurring' || (e.notes?.startsWith('Récurrent') ?? false)
+      if (isRecurring) {
+        cur.cashRecurrents += e.collected ?? 0
+      } else {
+        cur.deals     += 1
+        cur.cashDeals += e.collected ?? 0
+      }
+      map.set(key, cur)
+    }
+
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a)).map(([, v]) => v)
-  }, [filtrees])
+  }, [filtrees, filteredCashEntries])
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -602,6 +639,8 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
                   <th className="px-4 py-2.5 text-right">Présentés</th>
                   <th className="px-4 py-2.5 text-right">Show %</th>
                   <th className="px-4 py-2.5 text-right">Deals</th>
+                  <th className="px-4 py-2.5 text-right">Cash Deals</th>
+                  <th className="px-4 py-2.5 text-right">Cash Récurrents</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
                 </tr>
               </thead>
@@ -622,24 +661,40 @@ export default function AdminSetterView({ entrees, setters, isAdmin }: {
                       <td className="px-4 py-3 text-right tabular-nums text-gray-600">{w.showed}</td>
                       <td className="px-4 py-3 text-right"><PctBadge value={pct(w.showed, w.rdv)} bold /></td>
                       <td className="px-4 py-3 text-right tabular-nums font-bold text-green-700">{w.deals > 0 ? w.deals : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-blue-700">{w.cashDeals > 0 ? dollar(w.cashDeals) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-violet-600">{w.cashRecurrents > 0 ? dollar(w.cashRecurrents) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-red-400">{w.noShow > 0 ? w.noShow : <span className="text-gray-300">—</span>}</td>
                     </tr>
                   )
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50 text-xs font-bold text-gray-700">
-                  <td className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{kpis.attempts}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{kpis.contacts}</td>
-                  <td className="px-4 py-3 text-right"><PctBadge value={kpis.contactRate} /></td>
-                  <td className="px-4 py-3 text-right tabular-nums">{kpis.rdv}</td>
-                  <td className="px-4 py-3 text-right"><PctBadge value={kpis.bookRate} /></td>
-                  <td className="px-4 py-3 text-right tabular-nums">{kpis.showed}</td>
-                  <td className="px-4 py-3 text-right"><PctBadge value={kpis.showRate} bold /></td>
-                  <td className="px-4 py-3 text-right tabular-nums text-green-700">{kpis.deals}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-red-400">{kpis.no_show}</td>
-                </tr>
+                {(() => {
+                  const totDeals = weeklyStats.reduce((s, w) => s + w.deals, 0)
+                  const totCash  = weeklyStats.reduce((s, w) => s + w.cashDeals, 0)
+                  const totRecur = weeklyStats.reduce((s, w) => s + w.cashRecurrents, 0)
+                  const totNoSho = weeklyStats.reduce((s, w) => s + w.noShow, 0)
+                  const totTent  = weeklyStats.reduce((s, w) => s + w.attempts, 0)
+                  const totCont  = weeklyStats.reduce((s, w) => s + w.contacts, 0)
+                  const totRdv   = weeklyStats.reduce((s, w) => s + w.rdv, 0)
+                  const totShow  = weeklyStats.reduce((s, w) => s + w.showed, 0)
+                  return (
+                    <tr className="border-t-2 border-gray-200 bg-gray-50 text-xs font-bold text-gray-700">
+                      <td className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{totTent}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{totCont}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(totCont, totTent)} /></td>
+                      <td className="px-4 py-3 text-right tabular-nums">{totRdv}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(totRdv, totCont)} /></td>
+                      <td className="px-4 py-3 text-right tabular-nums">{totShow}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(totShow, totRdv)} bold /></td>
+                      <td className="px-4 py-3 text-right tabular-nums text-green-700">{totDeals}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totCash)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-violet-600">{dollar(totRecur)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-red-400">{totNoSho}</td>
+                    </tr>
+                  )
+                })()}
               </tfoot>
             </table>
           </div>
