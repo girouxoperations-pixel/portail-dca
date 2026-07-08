@@ -180,10 +180,10 @@ interface BonusItem {
 
 function PctBadge({ value }: { value: number }) {
   const cls = value >= 40
-    ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
+    ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
     : value >= 20
-    ? 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20'
-    : 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20'
+    ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+    : 'bg-red-100 text-red-700 ring-1 ring-red-200'
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums', cls)}>
       {value} %
@@ -193,10 +193,10 @@ function PctBadge({ value }: { value: number }) {
 
 function PctBadgeSetter({ value }: { value: number }) {
   const cls = value >= 50
-    ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
+    ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
     : value >= 30
-    ? 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20'
-    : 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20'
+    ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+    : 'bg-red-100 text-red-700 ring-1 ring-red-200'
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums', cls)}>
       {value} %
@@ -230,12 +230,12 @@ function ProjectionCard({
   const onTrack        = targetCash > 0 ? projected >= targetCash : null
 
   return (
-    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col gap-4 h-full">
+    <div className="bg-white border border-gray-150 rounded-2xl shadow-xl p-6 flex flex-col gap-4 h-full">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Projection fin de mois</p>
-          <p className="text-3xl font-bold text-white mt-1.5 tabular-nums tracking-tight">{dollar(projected)}</p>
-          <p className="text-xs text-gray-600 mt-1">
+          <p className="text-3xl font-bold text-gray-900 mt-1.5 tabular-nums tracking-tight">{dollar(projected)}</p>
+          <p className="text-xs text-gray-400 mt-1">
             {dollar(Math.round(dailyRate))}/jour · {daysRemaining} jour{daysRemaining !== 1 ? 's' : ''} restant{daysRemaining !== 1 ? 's' : ''}
           </p>
         </div>
@@ -243,8 +243,8 @@ function ProjectionCard({
           <span className={cn(
             'shrink-0 flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl',
             onTrack
-              ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
-              : 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20',
+              ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
+              : 'bg-red-100 text-red-700 ring-1 ring-red-200',
           )}>
             {onTrack ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
             {onTrack ? 'En bonne voie' : 'Sous l\'objectif'}
@@ -253,22 +253,22 @@ function ProjectionCard({
       </div>
 
       <div className="space-y-1.5">
-        <div className="flex justify-between text-xs text-gray-600">
+        <div className="flex justify-between text-xs text-gray-400">
           <span>Avancement du mois</span>
           <span>{monthPct} % ({dayOfMonth}/{daysInMonth} jours)</span>
         </div>
-        <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-          <div className="h-full bg-white/20 rounded-full" style={{ width: `${monthPct}%` }} />
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full bg-gray-400 rounded-full" style={{ width: `${monthPct}%` }} />
         </div>
       </div>
 
       {targetCash > 0 && (
         <div className="space-y-1.5">
-          <div className="flex justify-between text-xs text-gray-600">
+          <div className="flex justify-between text-xs text-gray-400">
             <span>vs objectif</span>
-            <span className="tabular-nums text-gray-400">{dollar(cashCollected)} / {dollar(targetCash)}</span>
+            <span className="tabular-nums text-gray-500">{dollar(cashCollected)} / {dollar(targetCash)}</span>
           </div>
-          <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden relative">
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
             <div
               className="absolute h-full bg-violet-400/20 rounded-full"
               style={{ width: `${Math.min((projected / targetCash) * 100, 100)}%` }}
@@ -278,7 +278,7 @@ function ProjectionCard({
               style={{ width: `${Math.min((cashCollected / targetCash) * 100, 100)}%` }}
             />
           </div>
-          <div className="flex items-center gap-3 text-xs text-gray-600 mt-1">
+          <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 rounded-sm bg-violet-600 inline-block" />Collecté</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 rounded-sm bg-violet-400/20 inline-block" />Projeté</span>
           </div>
@@ -383,16 +383,16 @@ function TableauSetters({ rows }: { rows: SetterRow[] }) {
   }))
 
   return (
-    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
-      <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-2">
+    <div className="bg-white border border-gray-150 rounded-2xl shadow-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
         <TrendingUp size={15} className="text-blue-400" />
-        <h3 className="text-sm font-semibold text-gray-200">Performance setters</h3>
+        <h3 className="text-sm font-semibold text-gray-900">Performance setters</h3>
         <div className="ml-auto"><ExportCsvButton filename="setters" data={csvData} /></div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/[0.06] text-xs font-medium text-gray-600 uppercase tracking-wider">
+            <tr className="border-b border-gray-100 text-xs font-medium text-gray-600 uppercase tracking-wider">
               <th className="px-4 py-3 text-left">Setter</th>
               <th className="px-4 py-3 text-right">Tentatives</th>
               <th className="px-4 py-3 text-right">Contacts</th>
@@ -404,23 +404,23 @@ function TableauSetters({ rows }: { rows: SetterRow[] }) {
               <th className="px-4 py-3 text-right">No Show</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.04]">
+          <tbody className="divide-y divide-gray-50">
             {rows.map((r, i) => (
-              <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                <td className="px-4 py-3 font-semibold text-white">{r.nom}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-400">{r.attempts}</td>
+              <tr key={i} className="hover:bg-white/[0.03] transition-colors">
+                <td className="px-4 py-3 font-semibold text-gray-900">{r.nom}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-500">{r.attempts}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-400">{r.contacts}</td>
                 <td className="px-4 py-3 text-right"><PctBadgeSetter value={r.contactRate} /></td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold text-white">{r.rdv}</td>
                 <td className="px-4 py-3 text-right"><PctBadgeSetter value={r.bookRate} /></td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-400">{r.showed}</td>
                 <td className="px-4 py-3 text-right"><PctBadgeSetter value={r.showRate} /></td>
-                <td className="px-4 py-3 text-right tabular-nums text-red-400">{r.no_show}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-red-600">{r.no_show}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-white/[0.06] bg-white/[0.02] font-semibold text-gray-400 text-xs">
+            <tr className="border-t border-gray-100 bg-gray-50 font-semibold text-gray-400 text-xs">
               <td className="px-4 py-3 text-gray-600 uppercase tracking-wide">Total équipe</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.attempts}</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.contacts}</td>
@@ -454,10 +454,10 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
   }, 0)
 
   return (
-    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
-      <div className="px-5 py-4 border-b border-white/[0.06] flex items-start justify-between gap-4">
+    <div className="bg-white border border-gray-150 rounded-2xl shadow-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-200">Bonus automatiques</h3>
+          <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques</h3>
           <p className="text-xs text-gray-600 mt-0.5">5 paliers · 50k → 70k → 85k → 100k → 130k de cash collecté</p>
         </div>
         <div className="text-right shrink-0">
@@ -470,7 +470,7 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/[0.06] text-xs font-medium text-gray-600 uppercase tracking-wider">
+            <tr className="border-b border-gray-100 text-xs font-medium text-gray-600 uppercase tracking-wider">
               <th className="px-4 py-3 text-left">Nom</th>
               <th className="px-4 py-3 text-left">Rôle</th>
               <th className="px-4 py-3 text-right">Cash collecté</th>
@@ -478,18 +478,18 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
               <th className="px-4 py-3 text-right">Bonus</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.04]">
+          <tbody className="divide-y divide-gray-50">
             {all.map((item, i) => {
               const bonus = item.palier
                 ? (item.role === 'closer' ? item.palier.closer : item.palier.setter)
                 : null
               return (
-                <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="px-4 py-3 font-medium text-white">{item.nom}</td>
+                <tr key={i} className="hover:bg-white/[0.03] transition-colors">
+                  <td className="px-4 py-3 font-medium text-gray-900">{item.nom}</td>
                   <td className="px-4 py-3">
                     <span className={cn(
                       'text-xs px-2 py-0.5 rounded-full font-medium',
-                      item.role === 'closer' ? 'bg-violet-500/10 text-violet-400' : 'bg-blue-500/10 text-blue-400',
+                      item.role === 'closer' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700',
                     )}>
                       {item.role}
                     </span>
@@ -497,14 +497,14 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
                   <td className="px-4 py-3 text-right tabular-nums text-gray-400">{dollar(item.collected)}</td>
                   <td className="px-4 py-3 text-right">
                     {item.palier
-                      ? <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 font-medium">{dollar(item.palier.seuil)}</span>
-                      : <span className="text-gray-700 text-xs">—</span>
+                      ? <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">{dollar(item.palier.seuil)}</span>
+                      : <span className="text-gray-300 text-xs">—</span>
                     }
                   </td>
                   <td className="px-4 py-3 text-right">
                     {bonus !== null
-                      ? <span className="font-semibold text-emerald-400 tabular-nums">+{dollar(bonus)}</span>
-                      : <span className="text-gray-700 text-xs">—</span>
+                      ? <span className="font-semibold text-emerald-600 tabular-nums">+{dollar(bonus)}</span>
+                      : <span className="text-gray-300 text-xs">—</span>
                     }
                   </td>
                 </tr>
@@ -513,9 +513,9 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
           </tbody>
           {totalBonus > 0 && (
             <tfoot>
-              <tr className="border-t border-white/[0.06] bg-white/[0.02]">
+              <tr className="border-t border-gray-100 bg-gray-50">
                 <td colSpan={4} className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Total à verser</td>
-                <td className="px-4 py-3 text-right font-bold text-emerald-400 tabular-nums">+{dollar(totalBonus)}</td>
+                <td className="px-4 py-3 text-right font-bold text-emerald-600 tabular-nums">+{dollar(totalBonus)}</td>
               </tr>
             </tfoot>
           )}
@@ -820,8 +820,9 @@ export default async function DashboardPage({
   // ── KPIs ─────────────────────────────────────────────────────────
   const cashRevenu    = (cashMois ?? []).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
   const cashCollected = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
-  const nOnTheSpotDash = (cashMois ?? []).filter(e => e.close_type === 'on_the_spot').length
-  const nFollowUpDash  = (cashMois ?? []).filter(e => e.close_type === 'follow_up').length
+  const nOnTheSpotDash  = (cashMois ?? []).filter(e => e.close_type === 'on_the_spot').length
+  const nFollowUpDash   = (cashMois ?? []).filter(e => e.close_type === 'follow_up').length
+  const nDealsFromCash  = (cashMois ?? []).filter(e => !e.notes?.startsWith('Récurrent') && e.close_type !== 'recurring').length
 
   const dealsCollected = (cashMois ?? [])
     .filter(e => !e.notes?.startsWith('Récurrent'))
@@ -829,6 +830,7 @@ export default async function DashboardPage({
   const recCollected = (cashMois ?? [])
     .filter(e => e.notes?.startsWith('Récurrent'))
     .reduce((s, e) => s + (e.collected ?? 0), 0)
+  const cashParDeal    = nDealsFromCash > 0 ? Math.round(dealsCollected / nDealsFromCash) : 0
   const prevCollected = (cashPrevMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
   const cashTrend     = prevCollected > 0
     ? Math.round(((cashCollected - prevCollected) / prevCollected) * 100)
@@ -968,14 +970,14 @@ export default async function DashboardPage({
 
   // ── Full business view (all roles) ───────────────────────────────
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#181929]">
+    <div className="min-h-[calc(100vh-4rem)] bg-gray-50">
     <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
 
       {/* Header */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">
+            <h1 className="text-2xl font-bold text-gray-100 tracking-tight">
               {isCurrentPeriod && isMoisMode ? `Bonjour, ${prenom} 👋` : periodLabel}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
@@ -992,7 +994,7 @@ export default async function DashboardPage({
       </div>
 
       {!hasData && (
-        <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl px-6 py-16 text-center">
+        <div className="bg-white border border-gray-150 rounded-2xl shadow-xl px-6 py-16 text-center">
           <p className="text-4xl mb-4">📊</p>
           <p className="text-base font-semibold text-gray-300">Aucune donnée pour cette période</p>
           <p className="text-sm text-gray-600 mt-1">Importe tes données via Cash / Stats → Importer CSV</p>
@@ -1005,18 +1007,18 @@ export default async function DashboardPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
         {/* Cash collecté — hero card */}
-        <div className="lg:col-span-2 bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col gap-5">
+        <div className="lg:col-span-2 bg-white border border-gray-150 rounded-2xl shadow-xl p-6 flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Cash collecté</p>
-              <p className="text-5xl font-bold text-white tabular-nums tracking-tight leading-none">
+              <p className="text-5xl font-bold text-gray-900 tabular-nums tracking-tight leading-none">
                 {dollar(cashCollected)}
               </p>
               {recCollected > 0 && (
                 <p className="text-sm text-gray-500 mt-2">
-                  <span className="text-blue-400 font-medium">{dollar(dealsCollected)}</span> deals
+                  <span className="text-violet-600 font-medium">{dollar(dealsCollected)}</span> deals
                   &nbsp;·&nbsp;
-                  <span className="text-violet-400 font-medium">{dollar(recCollected)}</span> récurrents
+                  <span className="text-indigo-500 font-medium">{dollar(recCollected)}</span> récurrents
                 </p>
               )}
             </div>
@@ -1024,10 +1026,10 @@ export default async function DashboardPage({
               <div className={cn(
                 'shrink-0 flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl',
                 cashTrend > 0
-                  ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
+                  ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
                   : cashTrend < 0
-                  ? 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20'
-                  : 'bg-white/5 text-gray-500',
+                  ? 'bg-red-100 text-red-700 ring-1 ring-red-200'
+                  : 'bg-gray-100 text-gray-500',
               )}>
                 {cashTrend > 0 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
                 {cashTrend > 0 ? '+' : ''}{cashTrend} % vs période préc.
@@ -1046,29 +1048,29 @@ export default async function DashboardPage({
                   <span className="text-gray-500">Objectif mensuel</span>
                   <span className="text-gray-400 tabular-nums">{dollar(cashCollected)} / {dollar(targetC)}</span>
                 </div>
-                <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${pctVal}%` }} />
                 </div>
-                <p className="text-xs text-gray-600">{pctVal} % de l&apos;objectif atteint</p>
+                <p className="text-xs text-gray-400">{pctVal} % de l&apos;objectif atteint</p>
               </div>
             )
           })()}
 
           {/* Bottom stats strip */}
-          <div className="flex items-center gap-6 pt-2 border-t border-white/[0.06]">
+          <div className="flex items-center gap-6 pt-2 border-t border-gray-100">
             <div>
-              <p className="text-xs text-gray-600 mb-0.5">Revenue deals</p>
-              <p className="text-sm font-semibold text-gray-300 tabular-nums">{dollar(cashRevenu)}</p>
+              <p className="text-xs text-gray-400 mb-0.5">Revenue deals</p>
+              <p className="text-sm font-semibold text-gray-700 tabular-nums">{dollar(cashRevenu)}</p>
             </div>
-            <div className="w-px h-8 bg-white/[0.06]" />
+            <div className="w-px h-8 bg-gray-100" />
             <div>
-              <p className="text-xs text-gray-600 mb-0.5">On-the-spot</p>
-              <p className="text-sm font-semibold text-gray-300 tabular-nums">{nOnTheSpotDash} deal{nOnTheSpotDash !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-gray-400 mb-0.5">On-the-spot</p>
+              <p className="text-sm font-semibold text-gray-700 tabular-nums">{nOnTheSpotDash} deal{nOnTheSpotDash !== 1 ? 's' : ''}</p>
             </div>
-            <div className="w-px h-8 bg-white/[0.06]" />
+            <div className="w-px h-8 bg-gray-100" />
             <div>
-              <p className="text-xs text-gray-600 mb-0.5">Follow-up</p>
-              <p className="text-sm font-semibold text-gray-300 tabular-nums">{nFollowUpDash} deal{nFollowUpDash !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-gray-400 mb-0.5">Follow-up</p>
+              <p className="text-sm font-semibold text-gray-700 tabular-nums">{nFollowUpDash} deal{nFollowUpDash !== 1 ? 's' : ''}</p>
             </div>
           </div>
         </div>
@@ -1083,9 +1085,9 @@ export default async function DashboardPage({
             isCurrentMonth={isCurrentMonthSel}
           />
         ) : (
-          <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col items-center justify-center text-center">
-            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Période</p>
-            <p className="text-xl font-bold text-white">{periodLabel}</p>
+          <div className="bg-white border border-gray-150 rounded-2xl shadow-xl p-6 flex flex-col items-center justify-center text-center">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Période</p>
+            <p className="text-xl font-bold text-gray-900">{periodLabel}</p>
             <p className="text-xs text-gray-500 mt-2">
               vs préc. : {cashTrend !== null ? `${cashTrend > 0 ? '+' : ''}${cashTrend} %` : '—'}
             </p>
@@ -1098,25 +1100,25 @@ export default async function DashboardPage({
         {/* Mini KPI cards */}
         <div className="flex flex-col gap-4">
           <KpiCard
-            title="Closes ce mois"
-            value={closes}
+            title="Deals ce mois"
+            value={nDealsFromCash}
             icon={Target}
             color="green"
-            subtitle={`On-the-spot : ${nOnTheSpotDash} · Follow-up : ${nFollowUpDash}`}
+            subtitle={`⚡ ${nOnTheSpotDash} spot · 🔄 ${nFollowUpDash} follow-up`}
+          />
+          <KpiCard
+            title="Cash moyen / deal"
+            value={cashParDeal > 0 ? dollar(cashParDeal) : '—'}
+            icon={Wallet}
+            color="blue"
+            subtitle={`${dollar(dealsCollected)} collecté sur ${nDealsFromCash} deal${nDealsFromCash !== 1 ? 's' : ''}`}
           />
           <KpiCard
             title="Appels schedulés"
             value={scheduled}
             icon={Phone}
             color="violet"
-            subtitle={`${shows} shows · ${showRate} % show rate`}
-          />
-          <KpiCard
-            title="Close rate"
-            value={`${closeRate} %`}
-            icon={TrendingUp}
-            color="blue"
-            subtitle={`Show rate : ${showRate} %`}
+            subtitle={`${shows} shows · ${showRate} % show rate · close rate ${closeRate} %`}
           />
         </div>
 
@@ -1128,7 +1130,7 @@ export default async function DashboardPage({
 
       {/* ── Santé des récurrents ──────────────────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Santé des récurrents</p>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Santé des récurrents</p>
         <RecurrentsHealthSection
           occsAujourdhui={occsAujourdhuiHealth}
           occsRetard={occsRetardHealth}
@@ -1154,10 +1156,10 @@ export default async function DashboardPage({
 
       {/* ── Funnel + Tendance ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-2">
+        <div className="bg-white border border-gray-150 rounded-2xl shadow-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
             <Target size={15} className="text-violet-400" />
-            <h3 className="text-sm font-semibold text-gray-200">Funnel de conversion</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Funnel de conversion</h3>
             <span className="ml-auto text-xs text-gray-600">
               {scheduled > 0 ? `Close rate global : ${pct(closes, scheduled)} %` : ''}
             </span>
@@ -1178,8 +1180,6 @@ export default async function DashboardPage({
       {/* ── Performance setters ───────────────────────────────────── */}
       {setterRows.length > 0 && <TableauSetters rows={setterRows} />}
 
-      {/* ── Bonus ─────────────────────────────────────────────────── */}
-      {isMoisMode && <SectionBonus closers={bonusClosers} setters={bonusSetters} />}
 
       {/* ── Quick cash entry ──────────────────────────────────────── */}
       <QuickCashModal

@@ -1,0 +1,188 @@
+import { redirect } from 'next/navigation'
+import { Trophy } from 'lucide-react'
+import { createClient }      from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import PersonCard            from '@/components/equipe/PersonCard'
+import type { PersonGoal }   from '@/components/equipe/PersonCard'
+
+const MOIS_FR = [
+  'Janvier','Février','Mars','Avril','Mai','Juin',
+  'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
+]
+
+export default async function EquipePage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: me } = await supabase
+    .from('profiles').select('roles').eq('id', user.id).single()
+  const myRoles  = (me?.roles ?? []) as string[]
+  const isAdmin  = myRoles.some(r => ['admin', 'csm'].includes(r))
+
+  const db       = createAdminClient()
+  const now      = new Date()
+  const year     = now.getFullYear()
+  const month    = now.getMonth() + 1
+  const dayOfMonth   = now.getDate()
+  const daysInMonth  = new Date(year, month, 0).getDate()
+  const dateMin  = `${year}-${String(month).padStart(2, '0')}-01`
+  const dateMax  = new Date(year, month, 1).toISOString().split('T')[0]
+
+  const [
+    { data: profiles },
+    { data: goals },
+    { data: closerEntries },
+    { data: setterEntries },
+  ] = await Promise.all([
+    db.from('profiles')
+      .select('id, full_name, role')
+      .in('role', ['closer', 'setter'])
+      .order('full_name'),
+    db.from('user_goals')
+      .select('user_id, target_cash, target_closes, target_rdv, target_calls')
+      .eq('year', year)
+      .eq('month', month),
+    db.from('closer_entries')
+      .select('user_id, cash_collected, closes')
+      .gte('entry_date', dateMin)
+      .lt('entry_date', dateMax),
+    db.from('setter_entries')
+      .select('user_id, rdv_booked, attempts')
+      .gte('entry_date', dateMin)
+      .lt('entry_date', dateMax),
+  ])
+
+  const goalMap = new Map((goals ?? []).map(g => [g.user_id, g]))
+
+  // Aggregate closer actuals
+  const closerAgg = new Map<string, { cash: number; closes: number }>()
+  for (const e of closerEntries ?? []) {
+    const cur = closerAgg.get(e.user_id) ?? { cash: 0, closes: 0 }
+    closerAgg.set(e.user_id, {
+      cash:   cur.cash   + (e.cash_collected ?? 0),
+      closes: cur.closes + (e.closes ?? 0),
+    })
+  }
+
+  // Aggregate setter actuals
+  const setterAgg = new Map<string, { rdv: number; calls: number }>()
+  for (const e of setterEntries ?? []) {
+    const cur = setterAgg.get(e.user_id) ?? { rdv: 0, calls: 0 }
+    setterAgg.set(e.user_id, {
+      rdv:   cur.rdv   + (e.rdv_booked ?? 0),
+      calls: cur.calls + (e.attempts   ?? 0),
+    })
+  }
+
+  // Build closer cards sorted by cash desc
+  const closerCards: PersonGoal[] = (profiles ?? [])
+    .filter(p => p.role === 'closer')
+    .map(p => {
+      const g = goalMap.get(p.id)
+      const a = closerAgg.get(p.id) ?? { cash: 0, closes: 0 }
+      const projectedCash =
+        a.cash > 0 && dayOfMonth > 0
+          ? Math.round(a.cash + (a.cash / dayOfMonth) * (daysInMonth - dayOfMonth))
+          : null
+      return {
+        userId:        p.id,
+        nom:           p.full_name ?? 'Inconnu',
+        role:          'closer' as const,
+        rank:          0,
+        targetCash:    g?.target_cash    ?? 0,
+        targetCloses:  g?.target_closes  ?? 0,
+        targetRdv:     0,
+        targetCalls:   0,
+        actualCash:    a.cash,
+        actualCloses:  a.closes,
+        actualRdv:     0,
+        actualCalls:   0,
+        projectedCash,
+        year,
+        month,
+        isAdmin,
+      }
+    })
+    .sort((a, b) => b.actualCash - a.actualCash)
+    .map((c, i) => ({ ...c, rank: i + 1 }))
+
+  // Build setter cards sorted by rdv desc
+  const setterCards: PersonGoal[] = (profiles ?? [])
+    .filter(p => p.role === 'setter')
+    .map(p => {
+      const g = goalMap.get(p.id)
+      const a = setterAgg.get(p.id) ?? { rdv: 0, calls: 0 }
+      return {
+        userId:        p.id,
+        nom:           p.full_name ?? 'Inconnu',
+        role:          'setter' as const,
+        rank:          0,
+        targetCash:    0,
+        targetCloses:  0,
+        targetRdv:     g?.target_rdv   ?? 0,
+        targetCalls:   g?.target_calls ?? 0,
+        actualCash:    0,
+        actualCloses:  0,
+        actualRdv:     a.rdv,
+        actualCalls:   a.calls,
+        projectedCash: null,
+        year,
+        month,
+        isAdmin,
+      }
+    })
+    .sort((a, b) => b.actualRdv - a.actualRdv)
+    .map((c, i) => ({ ...c, rank: i + 1 }))
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 rounded-xl bg-violet-100">
+          <Trophy size={18} className="text-violet-600" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Équipe</h1>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Objectifs & progression — {MOIS_FR[month - 1]} {year}
+          </p>
+        </div>
+      </div>
+
+      {/* Closers */}
+      {closerCards.length > 0 && (
+        <section>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+            Closers
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {closerCards.map(c => (
+              <PersonCard key={c.userId} {...c} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Setters */}
+      {setterCards.length > 0 && (
+        <section>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+            Setters
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {setterCards.map(c => (
+              <PersonCard key={c.userId} {...c} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {closerCards.length === 0 && setterCards.length === 0 && (
+        <div className="bg-white border border-gray-150 rounded-2xl shadow-sm p-10 text-center">
+          <p className="text-sm text-gray-400">Aucun closer ou setter trouvé.</p>
+        </div>
+      )}
+    </div>
+  )
+}

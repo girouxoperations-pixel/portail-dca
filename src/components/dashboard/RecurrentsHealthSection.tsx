@@ -76,8 +76,8 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
 
   if (done) {
     return (
-      <tr className="bg-emerald-500/10">
-        <td colSpan={6} className="px-4 py-2.5 text-xs text-emerald-400 flex items-center gap-1.5">
+      <tr className="bg-emerald-50">
+        <td colSpan={6} className="px-4 py-2.5 text-xs text-emerald-700 flex items-center gap-1.5">
           <CheckCircle2 size={13} /> {occ.clientName} — {dollar(occ.montant_attendu)} marqué reçu
         </td>
       </tr>
@@ -85,14 +85,14 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
   }
 
   const methodeLabel = occ.methodePaiement === 'carte'
-    ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">💳 Carte</span>
+    ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">💳 Carte</span>
     : occ.methodePaiement === 'virement'
-    ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">🏦 Virement</span>
-    : <span className="text-[10px] text-gray-600">—</span>
+    ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">🏦 Virement</span>
+    : <span className="text-[10px] text-gray-400">—</span>
 
   return (
-    <tr className="hover:bg-white/[0.03] transition-colors">
-      <td className="px-4 py-2.5 font-medium text-gray-200">{occ.clientName}</td>
+    <tr className="hover:bg-gray-50 transition-colors">
+      <td className="px-4 py-2.5 font-medium text-gray-900">{occ.clientName}</td>
       <td className="px-4 py-2.5 text-gray-500">{occ.closerName ?? '—'}</td>
       <td className="px-4 py-2.5">{methodeLabel}</td>
 
@@ -101,19 +101,19 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
           <div className="flex items-center gap-1">
             <input
               type="date" value={newDate} onChange={e => setNewDate(e.target.value)} autoFocus
-              className="px-1.5 py-0.5 rounded border border-violet-500/40 bg-white/[0.05] text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+              className="px-1.5 py-0.5 rounded border border-violet-400 bg-white text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
             <button onClick={handleSaveDate} disabled={datePending}
               className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
             >OK</button>
             <button onClick={() => { setEditDate(false); setNewDate(occ.date_attendue) }}
-              className="text-[10px] text-gray-500 hover:text-gray-300"
+              className="text-[10px] text-gray-400 hover:text-gray-600"
             >✕</button>
           </div>
         ) : (
           <div className="flex items-center gap-1.5">
             <span>{fmtDate(occ.date_attendue)}</span>
-            <button onClick={() => setEditDate(true)} className="text-gray-600 hover:text-violet-400 transition-colors">
+            <button onClick={() => setEditDate(true)} className="text-gray-400 hover:text-violet-600 transition-colors">
               <Pencil size={10} />
             </button>
           </div>
@@ -127,37 +127,37 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
               <input
                 type="number" value={amount} onChange={e => setAmount(e.target.value)}
                 min="0" step="0.01" autoFocus
-                className="w-24 px-2 py-0.5 rounded border border-violet-500/40 bg-white/[0.05] text-sm text-white text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-violet-500"
+                className="w-24 px-2 py-0.5 rounded border border-violet-300 bg-white text-sm text-gray-900 text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-violet-500"
               />
-              <span className="text-[10px] text-gray-500 whitespace-nowrap">/ {dollar(occ.montant_attendu)}</span>
+              <span className="text-[10px] text-gray-400 whitespace-nowrap">/ {dollar(occ.montant_attendu)}</span>
             </div>
             {isPartial && (
               <div className="mt-1 space-y-1 text-right">
-                <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wide">Soldes à venir</p>
+                <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">Soldes à venir</p>
                 {soldeLines.map((line, i) => (
                   <div key={i} className="flex items-center justify-end gap-1">
                     <input
                       type="number" value={line.montant} placeholder="Montant"
                       min="0" step="0.01"
                       onChange={e => { const nl = [...soldeLines]; nl[i] = { ...nl[i], montant: e.target.value }; setSoldeLines(nl) }}
-                      className="w-20 px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-xs text-amber-300 text-right tabular-nums focus:outline-none"
+                      className="w-20 px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-xs text-amber-700 text-right tabular-nums focus:outline-none"
                     />
                     <input
                       type="date" value={line.date}
                       onChange={e => { const nl = [...soldeLines]; nl[i] = { ...nl[i], date: e.target.value }; setSoldeLines(nl) }}
-                      className="px-1 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-300 focus:outline-none"
+                      className="px-1 py-0.5 rounded border border-amber-300 bg-amber-50 text-[11px] text-amber-700 focus:outline-none"
                     />
                     {soldeLines.length > 1 && (
-                      <button onClick={() => setSoldeLines(soldeLines.filter((_, j) => j !== i))} className="text-gray-600 hover:text-red-400 text-xs leading-none">×</button>
+                      <button onClick={() => setSoldeLines(soldeLines.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500 text-xs leading-none">×</button>
                     )}
                   </div>
                 ))}
                 <button
                   onClick={() => setSoldeLines([...soldeLines, { montant: soldeReste > 0 ? String(Math.round(soldeReste * 100) / 100) : '', date: '' }])}
-                  className="text-[10px] text-violet-400 hover:text-violet-300 font-medium"
+                  className="text-[10px] text-violet-600 hover:text-violet-700 font-medium"
                 >+ Versement</button>
                 {soldeReste !== 0 && (
-                  <p className={cn('text-[10px] font-medium', soldeReste > 0 ? 'text-amber-400' : 'text-red-400')}>
+                  <p className={cn('text-[10px] font-medium', soldeReste > 0 ? 'text-amber-600' : 'text-red-600')}>
                     {soldeReste > 0 ? `Non alloué : ${dollar(soldeReste)}` : `Excès : ${dollar(-soldeReste)}`}
                   </p>
                 )}
@@ -165,7 +165,7 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
             )}
           </div>
         ) : (
-          <span className="font-semibold text-white tabular-nums">{dollar(occ.montant_attendu)}</span>
+          <span className="font-semibold text-gray-900 tabular-nums">{dollar(occ.montant_attendu)}</span>
         )}
       </td>
 
@@ -178,7 +178,7 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
             >
               {pending ? '…' : <><CheckCircle2 size={11} /> Reçu — {dollar(occ.montant_attendu)}</>}
             </button>
-            <button onClick={() => setShowDiff(true)} className="text-[11px] text-gray-600 hover:text-violet-400 transition-colors">
+            <button onClick={() => setShowDiff(true)} className="text-[11px] text-gray-400 hover:text-violet-600 transition-colors">
               Montant différent ▾
             </button>
           </div>
@@ -194,7 +194,7 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
             </button>
             <button
               onClick={() => { setShowDiff(false); setAmount(String(occ.montant_attendu)); setSoldeLines([{ montant: '', date: '' }]) }}
-              className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors"
+              className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
             >Annuler ✕</button>
           </div>
         )}
@@ -205,7 +205,7 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
 
 function OccTable({ occs, headerCls }: { occs: RecurrentsOcc[]; headerCls: string }) {
   if (occs.length === 0) {
-    return <p className="text-sm text-gray-600 text-center py-6">Aucun versement</p>
+    return <p className="text-sm text-gray-400 text-center py-6">Aucun versement</p>
   }
   const sorted = [...occs].sort((a, b) => a.date_attendue.localeCompare(b.date_attendue))
   return (
@@ -221,13 +221,13 @@ function OccTable({ occs, headerCls }: { occs: RecurrentsOcc[]; headerCls: strin
             <th className="px-4 py-2.5 text-right">Action</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/[0.04]">
+        <tbody className="divide-y divide-gray-100">
           {sorted.map(o => <OccRow key={o.id} occ={o} />)}
         </tbody>
         <tfoot>
-          <tr className="border-t border-white/[0.06] bg-white/[0.02]">
-            <td colSpan={5} className="px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Total</td>
-            <td className="px-4 py-2.5 text-right font-bold text-white tabular-nums">
+          <tr className="border-t border-gray-100 bg-gray-50">
+            <td colSpan={5} className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</td>
+            <td className="px-4 py-2.5 text-right font-bold text-gray-900 tabular-nums">
               {dollar(sorted.reduce((s, o) => s + o.montant_attendu, 0))}
             </td>
           </tr>
@@ -253,14 +253,13 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
       amount:    occsAujourdhui.reduce((s, o) => s + o.montant_attendu, 0),
       count:     occsAujourdhui.length,
       sub:       (n: number) => `${n} versement${n !== 1 ? 's' : ''} dû${n !== 1 ? 's' : ''} aujourd'hui`,
-      danger:    occsAujourdhui.length > 0,
       occs:      occsAujourdhui,
-      cardCls:   occsAujourdhui.length > 0 ? 'bg-orange-500/10 border-orange-500/30' : 'bg-[#1e1f2e] border-white/[0.07]',
-      openCls:   'bg-[#26201a] border-orange-500/30',
-      headCls:   'border-b border-orange-500/20 bg-orange-500/5',
-      headerCls: 'text-orange-500/60',
-      amtCls:    occsAujourdhui.length > 0 ? 'text-orange-400' : 'text-gray-600',
-      iconCls:   occsAujourdhui.length > 0 ? 'text-orange-400' : 'text-gray-700',
+      cardCls:   occsAujourdhui.length > 0 ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-150',
+      openCls:   'bg-orange-50 border-orange-200',
+      headCls:   'border-b border-orange-200 bg-orange-50',
+      headerCls: 'text-orange-500',
+      amtCls:    occsAujourdhui.length > 0 ? 'text-orange-600' : 'text-gray-300',
+      iconCls:   occsAujourdhui.length > 0 ? 'text-orange-500' : 'text-gray-300',
     },
     {
       key:       'semaine' as const,
@@ -269,13 +268,12 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
       amount:    occsSemaine.reduce((s, o) => s + o.montant_attendu, 0),
       count:     occsSemaine.length,
       sub:       (n: number) => `${n} versement${n !== 1 ? 's' : ''} attendu${n !== 1 ? 's' : ''}`,
-      danger:    false,
       occs:      occsSemaine,
-      cardCls:   'bg-[#1e1f2e] border-white/[0.07]',
-      openCls:   'bg-[#242214] border-amber-500/30',
-      headCls:   'border-b border-amber-500/20 bg-amber-500/5',
-      headerCls: 'text-amber-500/60',
-      amtCls:    occsSemaine.length > 0 ? 'text-white' : 'text-gray-600',
+      cardCls:   'bg-white border-gray-150',
+      openCls:   'bg-amber-50 border-amber-200',
+      headCls:   'border-b border-amber-200 bg-amber-50',
+      headerCls: 'text-amber-600',
+      amtCls:    occsSemaine.length > 0 ? 'text-gray-900' : 'text-gray-300',
       iconCls:   'text-amber-500',
     },
     {
@@ -285,14 +283,13 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
       amount:    occsMois.reduce((s, o) => s + o.montant_attendu, 0),
       count:     occsMois.length,
       sub:       (n: number) => `${n} versement${n !== 1 ? 's' : ''} à encaisser`,
-      danger:    false,
       occs:      occsMois,
-      cardCls:   'bg-[#1e1f2e] border-white/[0.07]',
-      openCls:   'bg-[#1e1e30] border-violet-500/30',
-      headCls:   'border-b border-violet-500/20 bg-violet-500/5',
-      headerCls: 'text-violet-400/60',
-      amtCls:    occsMois.length > 0 ? 'text-white' : 'text-gray-600',
-      iconCls:   'text-violet-400',
+      cardCls:   'bg-white border-gray-150',
+      openCls:   'bg-violet-50 border-violet-200',
+      headCls:   'border-b border-violet-200 bg-violet-50',
+      headerCls: 'text-violet-600',
+      amtCls:    occsMois.length > 0 ? 'text-gray-900' : 'text-gray-300',
+      iconCls:   'text-violet-600',
     },
     {
       key:       'retard' as const,
@@ -301,14 +298,13 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
       amount:    occsRetard.reduce((s, o) => s + o.montant_attendu, 0),
       count:     occsRetard.length,
       sub:       (n: number) => `${n} versement${n !== 1 ? 's' : ''} non reçu${n !== 1 ? 's' : ''}`,
-      danger:    occsRetard.length > 0,
       occs:      occsRetard,
-      cardCls:   occsRetard.length > 0 ? 'bg-red-500/10 border-red-500/30' : 'bg-[#1e1f2e] border-white/[0.07]',
-      openCls:   'bg-[#26181a] border-red-500/30',
-      headCls:   'border-b border-red-500/20 bg-red-500/5',
-      headerCls: 'text-red-500/60',
-      amtCls:    occsRetard.length > 0 ? 'text-red-400' : 'text-gray-600',
-      iconCls:   occsRetard.length > 0 ? 'text-red-400' : 'text-gray-700',
+      cardCls:   occsRetard.length > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-150',
+      openCls:   'bg-red-50 border-red-200',
+      headCls:   'border-b border-red-200 bg-red-50',
+      headerCls: 'text-red-500',
+      amtCls:    occsRetard.length > 0 ? 'text-red-600' : 'text-gray-300',
+      iconCls:   occsRetard.length > 0 ? 'text-red-500' : 'text-gray-300',
     },
   ]
 
@@ -325,8 +321,8 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
               key={card.key}
               onClick={() => toggle(card.key)}
               className={cn(
-                'rounded-2xl border shadow-xl p-4 text-left transition-all hover:shadow-2xl hover:-translate-y-0.5 cursor-pointer',
-                isOpen ? card.openCls + ' ring-1 ring-white/10' : card.cardCls,
+                'rounded-2xl border shadow-sm p-4 text-left transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer',
+                isOpen ? card.openCls + ' ring-1 ring-gray-200' : card.cardCls,
               )}
             >
               <div className="flex items-center justify-between mb-3">
@@ -334,26 +330,26 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
                   <Icon size={13} className={card.iconCls} />
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{card.label}</p>
                 </div>
-                <ChevronRight size={12} className={cn('text-gray-700 transition-transform', isOpen && 'rotate-90')} />
+                <ChevronRight size={12} className={cn('text-gray-400 transition-transform', isOpen && 'rotate-90')} />
               </div>
               <p className={cn('text-2xl font-bold tabular-nums tracking-tight', card.amtCls)}>
                 {card.count === 0 ? '—' : dollar(card.amount)}
               </p>
-              <p className="text-xs text-gray-600 mt-1">{card.sub(card.count)}</p>
+              <p className="text-xs text-gray-400 mt-1">{card.sub(card.count)}</p>
             </button>
           )
         })}
       </div>
 
       {activeCard && (
-        <div className={cn('rounded-2xl border shadow-xl overflow-hidden', activeCard.openCls)}>
+        <div className={cn('rounded-2xl border shadow-sm overflow-hidden', activeCard.openCls)}>
           <div className={cn('px-5 py-3 flex items-center justify-between', activeCard.headCls)}>
-            <p className="text-sm font-semibold text-gray-300">
+            <p className="text-sm font-semibold text-gray-700">
               {activeCard.label} — {activeCard.count} versement{activeCard.count !== 1 ? 's' : ''}
             </p>
             <Link
               href={`/recurrents?filtre=${activeCard.key}`}
-              className="text-xs text-violet-400 hover:text-violet-300 font-medium flex items-center gap-1"
+              className="text-xs text-violet-600 hover:text-violet-700 font-medium flex items-center gap-1"
               onClick={e => e.stopPropagation()}
             >
               Gérer <ChevronRight size={12} />

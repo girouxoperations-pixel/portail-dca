@@ -14,10 +14,10 @@ interface Props {
 }
 
 const COLORS = [
-  { bar: 'bg-violet-600',   badge: 'bg-violet-500/10 text-violet-400 ring-1 ring-violet-500/20' },
-  { bar: 'bg-violet-500',   badge: 'bg-violet-500/10 text-violet-400 ring-1 ring-violet-500/20' },
-  { bar: 'bg-indigo-500',   badge: 'bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/20' },
-  { bar: 'bg-emerald-500',  badge: 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20' },
+  { bar: 'bg-violet-600',  badge: 'bg-violet-100 text-violet-700 ring-1 ring-violet-200' },
+  { bar: 'bg-violet-500',  badge: 'bg-violet-100 text-violet-700 ring-1 ring-violet-200' },
+  { bar: 'bg-indigo-500',  badge: 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200' },
+  { bar: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' },
 ]
 
 export default function FunnelCard({ steps }: Props) {
@@ -32,25 +32,25 @@ export default function FunnelCard({ steps }: Props) {
         return (
           <div key={step.label}>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-medium text-gray-400">{step.label}</span>
+              <span className="text-xs font-medium text-gray-500">{step.label}</span>
               <div className="flex items-center gap-2.5">
                 {i > 0 && (
                   <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums', col.badge)}>
                     {step.convRate} %
                   </span>
                 )}
-                <span className="text-sm font-bold text-white tabular-nums w-8 text-right">
+                <span className="text-sm font-bold text-gray-900 tabular-nums w-8 text-right">
                   {step.value}
                 </span>
               </div>
             </div>
-            <div className="h-5 bg-white/[0.05] rounded-md overflow-hidden relative">
+            <div className="h-5 bg-gray-100 rounded-md overflow-hidden relative">
               <div
                 className={cn('h-full rounded-md transition-all duration-500', col.bar)}
                 style={{ width: `${width}%` }}
               />
               {step.value > 0 && i > 0 && (
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 tabular-nums">
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 tabular-nums">
                   {step.pct} %
                 </span>
               )}

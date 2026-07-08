@@ -17,11 +17,11 @@ interface KpiCardProps {
 }
 
 const COLOR: Record<Color, { iconBg: string; iconText: string }> = {
-  green:  { iconBg: 'bg-emerald-500/10', iconText: 'text-emerald-400' },
-  blue:   { iconBg: 'bg-blue-500/10',    iconText: 'text-blue-400'    },
-  violet: { iconBg: 'bg-violet-500/10',  iconText: 'text-violet-400'  },
-  amber:  { iconBg: 'bg-amber-500/10',   iconText: 'text-amber-400'   },
-  red:    { iconBg: 'bg-red-500/10',     iconText: 'text-red-400'     },
+  green:  { iconBg: 'bg-emerald-100', iconText: 'text-emerald-600' },
+  blue:   { iconBg: 'bg-blue-100',    iconText: 'text-blue-600'    },
+  violet: { iconBg: 'bg-violet-100',  iconText: 'text-violet-600'  },
+  amber:  { iconBg: 'bg-amber-100',   iconText: 'text-amber-600'   },
+  red:    { iconBg: 'bg-red-100',     iconText: 'text-red-600'     },
 }
 
 export default function KpiCard({ title, value, icon: Icon, color, subtitle, trend }: KpiCardProps) {
@@ -32,12 +32,12 @@ export default function KpiCard({ title, value, icon: Icon, color, subtitle, tre
     trend?.direction === 'down' ? TrendingDown : Minus
 
   const trendCls =
-    trend?.direction === 'up'   ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20' :
-    trend?.direction === 'down' ? 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20'             :
-    'bg-white/5 text-gray-500 ring-1 ring-white/10'
+    trend?.direction === 'up'   ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' :
+    trend?.direction === 'down' ? 'bg-red-50 text-red-700 ring-1 ring-red-200'             :
+    'bg-gray-100 text-gray-500 ring-1 ring-gray-200'
 
   return (
-    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-4 shadow-xl">
+    <div className="bg-white border border-gray-150 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div className={cn('rounded-xl p-2.5', c.iconBg)}>
           <Icon size={18} className={c.iconText} />
@@ -51,12 +51,12 @@ export default function KpiCard({ title, value, icon: Icon, color, subtitle, tre
       </div>
 
       <div>
-        <p className="text-3xl font-bold tabular-nums text-white tracking-tight">{value}</p>
+        <p className="text-3xl font-bold tabular-nums text-gray-900 tracking-tight">{value}</p>
         <p className="text-xs font-medium text-gray-500 mt-0.5 uppercase tracking-wide">{title}</p>
       </div>
 
       {subtitle && (
-        <p className="text-xs text-gray-600 border-t border-white/[0.05] pt-3 truncate">
+        <p className="text-xs text-gray-400 border-t border-gray-100 pt-3 truncate">
           {subtitle}
         </p>
       )}
