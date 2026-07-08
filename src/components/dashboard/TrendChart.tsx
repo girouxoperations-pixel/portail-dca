@@ -21,18 +21,22 @@ interface Props {
 const fmt$ = (v: number) =>
   v >= 1000 ? `${(v / 1000).toFixed(0)}k $` : `${v} $`
 
-function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { dataKey: string; name: string; value: number; color: string }[]; label?: string }) {
+function CustomTooltip({ active, payload, label }: {
+  active?: boolean
+  payload?: { dataKey: string; name: string; value: number; color: string }[]
+  label?: string
+}) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-white border border-gray-100 shadow-lg rounded-xl px-4 py-3 text-sm">
-      <p className="font-semibold text-gray-800 mb-2">{label}</p>
+    <div className="bg-[#1a1a24] border border-white/10 shadow-2xl rounded-xl px-4 py-3 text-sm">
+      <p className="font-semibold text-gray-300 mb-2">{label}</p>
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center justify-between gap-6">
           <span className="flex items-center gap-1.5 text-gray-500">
-            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: p.color }} />
+            <span className="w-2 h-2 rounded-full inline-block" style={{ background: p.color }} />
             {p.name}
           </span>
-          <span className="font-semibold tabular-nums" style={{ color: p.color }}>
+          <span className="font-semibold tabular-nums text-white">
             {p.dataKey === 'closes' ? p.value : `${p.value.toLocaleString('fr-CA')} $`}
           </span>
         </div>
@@ -48,24 +52,22 @@ export default function TrendChart({ data, weeklyData }: Props) {
   if (active.length === 0) return null
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-4">
+    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
+      <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">Tendance</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <h3 className="text-sm font-semibold text-gray-200">Tendance</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
             {mode === 'mois' ? 'Cash collecté et closes par mois' : 'Cash collecté et closes par semaine'}
           </p>
         </div>
-
-        {/* Toggle mensuel / hebdomadaire */}
         {weeklyData && weeklyData.length > 0 && (
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5 shrink-0">
+          <div className="flex items-center bg-white/[0.05] rounded-lg p-0.5 gap-0.5 shrink-0">
             <button
               onClick={() => setMode('mois')}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 mode === 'mois'
-                  ? 'bg-white text-violet-700 shadow-sm font-semibold'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               Mensuel
@@ -74,8 +76,8 @@ export default function TrendChart({ data, weeklyData }: Props) {
               onClick={() => setMode('semaine')}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 mode === 'semaine'
-                  ? 'bg-white text-violet-700 shadow-sm font-semibold'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               Hebdo
@@ -87,10 +89,10 @@ export default function TrendChart({ data, weeklyData }: Props) {
       <div className="px-4 py-5">
         <ResponsiveContainer width="100%" height={260}>
           <ComposedChart data={active} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
             <XAxis
               dataKey="mois"
-              tick={{ fontSize: mode === 'semaine' ? 10 : 12, fill: '#9ca3af' }}
+              tick={{ fontSize: mode === 'semaine' ? 10 : 12, fill: '#4b5563' }}
               axisLine={false}
               tickLine={false}
               interval={mode === 'semaine' ? 'preserveStartEnd' : 0}
@@ -98,7 +100,7 @@ export default function TrendChart({ data, weeklyData }: Props) {
             <YAxis
               yAxisId="cash"
               tickFormatter={fmt$}
-              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              tick={{ fontSize: 11, fill: '#4b5563' }}
               axisLine={false}
               tickLine={false}
               width={52}
@@ -106,7 +108,7 @@ export default function TrendChart({ data, weeklyData }: Props) {
             <YAxis
               yAxisId="closes"
               orientation="right"
-              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              tick={{ fontSize: 11, fill: '#4b5563' }}
               axisLine={false}
               tickLine={false}
               width={28}
@@ -114,13 +116,13 @@ export default function TrendChart({ data, weeklyData }: Props) {
             <Tooltip content={<CustomTooltip />} />
             <Legend
               wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
-              formatter={(value) => <span className="text-gray-500">{value}</span>}
+              formatter={(value) => <span style={{ color: '#6b7280' }}>{value}</span>}
             />
             <Bar
               yAxisId="cash"
               dataKey="cash"
               name="Cash collecté"
-              fill="#3b82f6"
+              fill="#6366f1"
               radius={[4, 4, 0, 0]}
               maxBarSize={48}
             />
@@ -128,7 +130,7 @@ export default function TrendChart({ data, weeklyData }: Props) {
               yAxisId="cash"
               dataKey="revenue"
               name="Revenue"
-              fill="#e0e7ff"
+              fill="#4338ca40"
               radius={[4, 4, 0, 0]}
               maxBarSize={48}
             />
@@ -136,9 +138,9 @@ export default function TrendChart({ data, weeklyData }: Props) {
               yAxisId="closes"
               dataKey="closes"
               name="Closes"
-              stroke="#7c3aed"
+              stroke="#a78bfa"
               strokeWidth={2.5}
-              dot={{ fill: '#7c3aed', r: 4, strokeWidth: 0 }}
+              dot={{ fill: '#a78bfa', r: 4, strokeWidth: 0 }}
               activeDot={{ r: 6, strokeWidth: 0 }}
             />
           </ComposedChart>

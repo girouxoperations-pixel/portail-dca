@@ -11,58 +11,52 @@ interface KpiCardProps {
   color:     Color
   subtitle?: string
   trend?: {
-    label: string        // ex: "+12% vs mois dernier"
+    label:     string
     direction: 'up' | 'down' | 'neutral'
   }
 }
 
-const COLOR: Record<Color, { iconBg: string; iconText: string; valueCls: string }> = {
-  green:  { iconBg: 'bg-green-100',  iconText: 'text-green-600',  valueCls: 'text-gray-900' },
-  blue:   { iconBg: 'bg-blue-100',   iconText: 'text-blue-600',   valueCls: 'text-gray-900' },
-  violet: { iconBg: 'bg-violet-100', iconText: 'text-violet-600', valueCls: 'text-gray-900' },
-  amber:  { iconBg: 'bg-amber-100',  iconText: 'text-amber-600',  valueCls: 'text-gray-900' },
-  red:    { iconBg: 'bg-red-100',    iconText: 'text-red-600',    valueCls: 'text-gray-900' },
+const COLOR: Record<Color, { iconBg: string; iconText: string }> = {
+  green:  { iconBg: 'bg-emerald-500/10', iconText: 'text-emerald-400' },
+  blue:   { iconBg: 'bg-blue-500/10',    iconText: 'text-blue-400'    },
+  violet: { iconBg: 'bg-violet-500/10',  iconText: 'text-violet-400'  },
+  amber:  { iconBg: 'bg-amber-500/10',   iconText: 'text-amber-400'   },
+  red:    { iconBg: 'bg-red-500/10',     iconText: 'text-red-400'     },
 }
 
-export default function KpiCard({
-  title, value, icon: Icon, color, subtitle, trend,
-}: KpiCardProps) {
+export default function KpiCard({ title, value, icon: Icon, color, subtitle, trend }: KpiCardProps) {
   const c = COLOR[color]
 
   const TrendIcon =
-    trend?.direction === 'up'   ? TrendingUp   :
-    trend?.direction === 'down' ? TrendingDown  : Minus
+    trend?.direction === 'up'   ? TrendingUp  :
+    trend?.direction === 'down' ? TrendingDown : Minus
 
-  const trendColor =
-    trend?.direction === 'up'      ? 'text-green-500'  :
-    trend?.direction === 'down'    ? 'text-red-500'    :
-    'text-gray-400'
+  const trendCls =
+    trend?.direction === 'up'   ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20' :
+    trend?.direction === 'down' ? 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20'             :
+    'bg-white/5 text-gray-500 ring-1 ring-white/10'
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 flex flex-col gap-3
-      shadow-sm hover:shadow-md transition-shadow">
-      {/* Icône + titre */}
+    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-4 shadow-xl">
       <div className="flex items-center justify-between">
-        <div className={cn('rounded-lg p-2.5', c.iconBg)}>
+        <div className={cn('rounded-xl p-2.5', c.iconBg)}>
           <Icon size={18} className={c.iconText} />
         </div>
         {trend && (
-          <div className={cn('flex items-center gap-1 text-xs font-medium', trendColor)}>
-            <TrendIcon size={12} />
+          <div className={cn('flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full', trendCls)}>
+            <TrendIcon size={11} />
             {trend.label}
           </div>
         )}
       </div>
 
-      {/* Valeur principale */}
       <div>
-        <p className={cn('text-2xl font-bold tabular-nums', c.valueCls)}>{value}</p>
-        <p className="text-xs font-medium text-gray-500 mt-0.5">{title}</p>
+        <p className="text-3xl font-bold tabular-nums text-white tracking-tight">{value}</p>
+        <p className="text-xs font-medium text-gray-500 mt-0.5 uppercase tracking-wide">{title}</p>
       </div>
 
-      {/* Sous-titre optionnel */}
       {subtitle && (
-        <p className="text-xs text-gray-400 border-t border-gray-50 pt-2.5 truncate">
+        <p className="text-xs text-gray-600 border-t border-white/[0.05] pt-3 truncate">
           {subtitle}
         </p>
       )}

@@ -180,10 +180,10 @@ interface BonusItem {
 
 function PctBadge({ value }: { value: number }) {
   const cls = value >= 40
-    ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
+    ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
     : value >= 20
-    ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-    : 'bg-red-50 text-red-600 ring-1 ring-red-200'
+    ? 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20'
+    : 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20'
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums', cls)}>
       {value} %
@@ -193,10 +193,10 @@ function PctBadge({ value }: { value: number }) {
 
 function PctBadgeSetter({ value }: { value: number }) {
   const cls = value >= 50
-    ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
+    ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
     : value >= 30
-    ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-    : 'bg-red-50 text-red-600 ring-1 ring-red-200'
+    ? 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20'
+    : 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20'
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums', cls)}>
       {value} %
@@ -230,21 +230,21 @@ function ProjectionCard({
   const onTrack        = targetCash > 0 ? projected >= targetCash : null
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      <div className="flex items-start justify-between gap-4 mb-4">
+    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col gap-4 h-full">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Projection fin de mois</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1 tabular-nums">{dollar(projected)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Projection fin de mois</p>
+          <p className="text-3xl font-bold text-white mt-1.5 tabular-nums tracking-tight">{dollar(projected)}</p>
+          <p className="text-xs text-gray-600 mt-1">
             {dollar(Math.round(dailyRate))}/jour · {daysRemaining} jour{daysRemaining !== 1 ? 's' : ''} restant{daysRemaining !== 1 ? 's' : ''}
           </p>
         </div>
         {onTrack !== null && (
           <span className={cn(
-            'shrink-0 flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full',
+            'shrink-0 flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl',
             onTrack
-              ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
-              : 'bg-red-50 text-red-600 ring-1 ring-red-200',
+              ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
+              : 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20',
           )}>
             {onTrack ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
             {onTrack ? 'En bonne voie' : 'Sous l\'objectif'}
@@ -252,25 +252,25 @@ function ProjectionCard({
         )}
       </div>
 
-      <div className="space-y-1.5 mb-3">
-        <div className="flex justify-between text-xs text-gray-400">
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-xs text-gray-600">
           <span>Avancement du mois</span>
           <span>{monthPct} % ({dayOfMonth}/{daysInMonth} jours)</span>
         </div>
-        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div className="h-full bg-gray-300 rounded-full" style={{ width: `${monthPct}%` }} />
+        <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+          <div className="h-full bg-white/20 rounded-full" style={{ width: `${monthPct}%` }} />
         </div>
       </div>
 
       {targetCash > 0 && (
         <div className="space-y-1.5">
-          <div className="flex justify-between text-xs text-gray-400">
-            <span>Cash collecté</span>
-            <span className="tabular-nums">{dollar(cashCollected)} / {dollar(targetCash)}</span>
+          <div className="flex justify-between text-xs text-gray-600">
+            <span>vs objectif</span>
+            <span className="tabular-nums text-gray-400">{dollar(cashCollected)} / {dollar(targetCash)}</span>
           </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
+          <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden relative">
             <div
-              className="absolute h-full bg-violet-100 rounded-full"
+              className="absolute h-full bg-violet-400/20 rounded-full"
               style={{ width: `${Math.min((projected / targetCash) * 100, 100)}%` }}
             />
             <div
@@ -278,9 +278,9 @@ function ProjectionCard({
               style={{ width: `${Math.min((cashCollected / targetCash) * 100, 100)}%` }}
             />
           </div>
-          <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-            <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded-sm bg-violet-600 inline-block" />Collecté</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded-sm bg-violet-100 inline-block" />Projeté</span>
+          <div className="flex items-center gap-3 text-xs text-gray-600 mt-1">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 rounded-sm bg-violet-600 inline-block" />Collecté</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 rounded-sm bg-violet-400/20 inline-block" />Projeté</span>
           </div>
         </div>
       )}
@@ -383,16 +383,16 @@ function TableauSetters({ rows }: { rows: SetterRow[] }) {
   }))
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
-        <TrendingUp size={15} className="text-blue-500" />
-        <h3 className="text-sm font-semibold text-gray-900">Performance setters</h3>
+    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-2">
+        <TrendingUp size={15} className="text-blue-400" />
+        <h3 className="text-sm font-semibold text-gray-200">Performance setters</h3>
         <div className="ml-auto"><ExportCsvButton filename="setters" data={csvData} /></div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+            <tr className="border-b border-white/[0.06] text-xs font-medium text-gray-600 uppercase tracking-wider">
               <th className="px-4 py-3 text-left">Setter</th>
               <th className="px-4 py-3 text-right">Tentatives</th>
               <th className="px-4 py-3 text-right">Contacts</th>
@@ -404,28 +404,28 @@ function TableauSetters({ rows }: { rows: SetterRow[] }) {
               <th className="px-4 py-3 text-right">No Show</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-white/[0.04]">
             {rows.map((r, i) => (
-              <tr key={i} className="hover:bg-gray-50/60 transition-colors">
-                <td className="px-4 py-3 font-semibold text-gray-800">{r.nom}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.attempts}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.contacts}</td>
+              <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                <td className="px-4 py-3 font-semibold text-white">{r.nom}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-400">{r.attempts}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-400">{r.contacts}</td>
                 <td className="px-4 py-3 text-right"><PctBadgeSetter value={r.contactRate} /></td>
-                <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{r.rdv}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-semibold text-white">{r.rdv}</td>
                 <td className="px-4 py-3 text-right"><PctBadgeSetter value={r.bookRate} /></td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.showed}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-400">{r.showed}</td>
                 <td className="px-4 py-3 text-right"><PctBadgeSetter value={r.showRate} /></td>
                 <td className="px-4 py-3 text-right tabular-nums text-red-400">{r.no_show}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-gray-100 bg-gray-50/60 font-semibold text-gray-700 text-xs">
-              <td className="px-4 py-3 text-gray-500 uppercase tracking-wide">Total équipe</td>
+            <tr className="border-t border-white/[0.06] bg-white/[0.02] font-semibold text-gray-400 text-xs">
+              <td className="px-4 py-3 text-gray-600 uppercase tracking-wide">Total équipe</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.attempts}</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.contacts}</td>
               <td className="px-4 py-3 text-right"><PctBadgeSetter value={pct(totals.contacts, totals.attempts)} /></td>
-              <td className="px-4 py-3 text-right tabular-nums">{totals.rdv}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-white">{totals.rdv}</td>
               <td className="px-4 py-3 text-right"><PctBadgeSetter value={pct(totals.rdv, totals.contacts)} /></td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.showed}</td>
               <td className="px-4 py-3 text-right"><PctBadgeSetter value={pct(totals.showed, totals.rdvAgenda)} /></td>
@@ -454,15 +454,15 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
   }, 0)
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50 flex items-start justify-between gap-4">
+    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-white/[0.06] flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques</h3>
-          <p className="text-xs text-gray-400 mt-0.5">5 paliers · 50k → 70k → 85k → 100k → 130k de cash collecté</p>
+          <h3 className="text-sm font-semibold text-gray-200">Bonus automatiques</h3>
+          <p className="text-xs text-gray-600 mt-0.5">5 paliers · 50k → 70k → 85k → 100k → 130k de cash collecté</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-xs text-gray-400">Total à verser</p>
-          <p className={cn('text-base font-bold', totalBonus > 0 ? 'text-green-600' : 'text-gray-300')}>
+          <p className="text-xs text-gray-600">Total à verser</p>
+          <p className={cn('text-base font-bold', totalBonus > 0 ? 'text-emerald-400' : 'text-gray-700')}>
             {totalBonus > 0 ? `+${dollar(totalBonus)}` : '—'}
           </p>
         </div>
@@ -470,7 +470,7 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+            <tr className="border-b border-white/[0.06] text-xs font-medium text-gray-600 uppercase tracking-wider">
               <th className="px-4 py-3 text-left">Nom</th>
               <th className="px-4 py-3 text-left">Rôle</th>
               <th className="px-4 py-3 text-right">Cash collecté</th>
@@ -478,33 +478,33 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
               <th className="px-4 py-3 text-right">Bonus</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-white/[0.04]">
             {all.map((item, i) => {
               const bonus = item.palier
                 ? (item.role === 'closer' ? item.palier.closer : item.palier.setter)
                 : null
               return (
-                <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-800">{item.nom}</td>
+                <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-4 py-3 font-medium text-white">{item.nom}</td>
                   <td className="px-4 py-3">
                     <span className={cn(
                       'text-xs px-2 py-0.5 rounded-full font-medium',
-                      item.role === 'closer' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700',
+                      item.role === 'closer' ? 'bg-violet-500/10 text-violet-400' : 'bg-blue-500/10 text-blue-400',
                     )}>
                       {item.role}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-600">{dollar(item.collected)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-400">{dollar(item.collected)}</td>
                   <td className="px-4 py-3 text-right">
                     {item.palier
-                      ? <span className="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 font-medium">{dollar(item.palier.seuil)}</span>
-                      : <span className="text-gray-300 text-xs">—</span>
+                      ? <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 font-medium">{dollar(item.palier.seuil)}</span>
+                      : <span className="text-gray-700 text-xs">—</span>
                     }
                   </td>
                   <td className="px-4 py-3 text-right">
                     {bonus !== null
-                      ? <span className="font-semibold text-green-600 tabular-nums">+{dollar(bonus)}</span>
-                      : <span className="text-gray-300 text-xs">—</span>
+                      ? <span className="font-semibold text-emerald-400 tabular-nums">+{dollar(bonus)}</span>
+                      : <span className="text-gray-700 text-xs">—</span>
                     }
                   </td>
                 </tr>
@@ -513,9 +513,9 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
           </tbody>
           {totalBonus > 0 && (
             <tfoot>
-              <tr className="border-t border-gray-100 bg-gray-50/60">
-                <td colSpan={4} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total à verser</td>
-                <td className="px-4 py-3 text-right font-bold text-green-600 tabular-nums">+{dollar(totalBonus)}</td>
+              <tr className="border-t border-white/[0.06] bg-white/[0.02]">
+                <td colSpan={4} className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Total à verser</td>
+                <td className="px-4 py-3 text-right font-bold text-emerald-400 tabular-nums">+{dollar(totalBonus)}</td>
               </tr>
             </tfoot>
           )}
@@ -968,13 +968,14 @@ export default async function DashboardPage({
 
   // ── Full business view (all roles) ───────────────────────────────
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="min-h-[calc(100vh-4rem)] bg-[#0d0d14]">
+    <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
 
       {/* Header */}
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-white tracking-tight">
               {isCurrentPeriod && isMoisMode ? `Bonjour, ${prenom} 👋` : periodLabel}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
@@ -991,67 +992,143 @@ export default async function DashboardPage({
       </div>
 
       {!hasData && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-16 text-center">
+        <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl px-6 py-16 text-center">
           <p className="text-4xl mb-4">📊</p>
-          <p className="text-base font-semibold text-gray-700">Aucune donnée pour cette période</p>
-          <p className="text-sm text-gray-400 mt-1">Importe tes données via Cash / Stats → Importer CSV</p>
+          <p className="text-base font-semibold text-gray-300">Aucune donnée pour cette période</p>
+          <p className="text-sm text-gray-600 mt-1">Importe tes données via Cash / Stats → Importer CSV</p>
         </div>
       )}
 
       {hasData && <>
 
-      {/* KPI cards + Projection */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Cash collecté"
-          value={dollar(cashCollected)}
-          icon={Wallet}
-          color="blue"
-          subtitle={recCollected > 0
-            ? `⚡ ${dollar(dealsCollected)} deals · 🔄 ${dollar(recCollected)} réc.`
-            : `Revenus deals : ${dollar(cashRevenu)}`}
-          trend={cashTrend !== null ? {
-            label: `${cashTrend > 0 ? '+' : ''}${cashTrend} % vs période préc.`,
-            direction: cashTrend > 0 ? 'up' : cashTrend < 0 ? 'down' : 'neutral',
-          } : undefined}
-        />
-        <KpiCard
-          title="Appels schedulés"
-          value={scheduled}
-          icon={Phone}
-          color="violet"
-          subtitle={`${shows} shows · ${showRate} % show rate`}
-        />
-        <KpiCard
-          title="Closes"
-          value={closes}
-          icon={Target}
-          color="green"
-          subtitle={`Close rate : ${closeRate} % · ⚡ ${nOnTheSpotDash} spot · 🔄 ${nFollowUpDash} FU`}
-        />
-        {/* Projection card — mois mode only */}
-        <div className="sm:col-span-2 lg:col-span-1">
-          {isMoisMode ? (
-            <ProjectionCard
-              cashCollected={cashCollected}
-              targetCash={goalRaw?.target_cash ?? 0}
-              dayOfMonth={dayOfMonth}
-              daysInMonth={daysInMonth}
-              isCurrentMonth={isCurrentMonthSel}
-            />
-          ) : (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col items-center justify-center h-full text-center">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Période</p>
-              <p className="text-lg font-bold text-gray-700">{periodLabel}</p>
-              <p className="text-xs text-gray-400 mt-1">vs période préc. : {cashTrend !== null ? `${cashTrend > 0 ? '+' : ''}${cashTrend} %` : '—'}</p>
+      {/* ── Row 1 : Cash hero + Projection ───────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Cash collecté — hero card */}
+        <div className="lg:col-span-2 bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col gap-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Cash collecté</p>
+              <p className="text-5xl font-bold text-white tabular-nums tracking-tight leading-none">
+                {dollar(cashCollected)}
+              </p>
+              {recCollected > 0 && (
+                <p className="text-sm text-gray-500 mt-2">
+                  <span className="text-blue-400 font-medium">{dollar(dealsCollected)}</span> deals
+                  &nbsp;·&nbsp;
+                  <span className="text-violet-400 font-medium">{dollar(recCollected)}</span> récurrents
+                </p>
+              )}
             </div>
-          )}
+            {cashTrend !== null && (
+              <div className={cn(
+                'shrink-0 flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl',
+                cashTrend > 0
+                  ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
+                  : cashTrend < 0
+                  ? 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20'
+                  : 'bg-white/5 text-gray-500',
+              )}>
+                {cashTrend > 0 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                {cashTrend > 0 ? '+' : ''}{cashTrend} % vs période préc.
+              </div>
+            )}
+          </div>
+
+          {/* Progress bar toward goal */}
+          {(goalRaw?.target_cash ?? 0) > 0 && (() => {
+            const targetC = goalRaw!.target_cash
+            const pctVal  = Math.min(100, Math.round((cashCollected / targetC) * 100))
+            const barColor = pctVal >= 80 ? 'bg-emerald-500' : pctVal >= 50 ? 'bg-amber-400' : 'bg-violet-600'
+            return (
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Objectif mensuel</span>
+                  <span className="text-gray-400 tabular-nums">{dollar(cashCollected)} / {dollar(targetC)}</span>
+                </div>
+                <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${pctVal}%` }} />
+                </div>
+                <p className="text-xs text-gray-600">{pctVal} % de l&apos;objectif atteint</p>
+              </div>
+            )
+          })()}
+
+          {/* Bottom stats strip */}
+          <div className="flex items-center gap-6 pt-2 border-t border-white/[0.06]">
+            <div>
+              <p className="text-xs text-gray-600 mb-0.5">Revenue deals</p>
+              <p className="text-sm font-semibold text-gray-300 tabular-nums">{dollar(cashRevenu)}</p>
+            </div>
+            <div className="w-px h-8 bg-white/[0.06]" />
+            <div>
+              <p className="text-xs text-gray-600 mb-0.5">On-the-spot</p>
+              <p className="text-sm font-semibold text-gray-300 tabular-nums">{nOnTheSpotDash} deal{nOnTheSpotDash !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="w-px h-8 bg-white/[0.06]" />
+            <div>
+              <p className="text-xs text-gray-600 mb-0.5">Follow-up</p>
+              <p className="text-sm font-semibold text-gray-300 tabular-nums">{nFollowUpDash} deal{nFollowUpDash !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Projection */}
+        {isMoisMode ? (
+          <ProjectionCard
+            cashCollected={cashCollected}
+            targetCash={goalRaw?.target_cash ?? 0}
+            dayOfMonth={dayOfMonth}
+            daysInMonth={daysInMonth}
+            isCurrentMonth={isCurrentMonthSel}
+          />
+        ) : (
+          <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col items-center justify-center text-center">
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Période</p>
+            <p className="text-xl font-bold text-white">{periodLabel}</p>
+            <p className="text-xs text-gray-500 mt-2">
+              vs préc. : {cashTrend !== null ? `${cashTrend > 0 ? '+' : ''}${cashTrend} %` : '—'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Row 2 : Stats deals + Leaderboard ────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Mini KPI cards */}
+        <div className="flex flex-col gap-4">
+          <KpiCard
+            title="Closes ce mois"
+            value={closes}
+            icon={Target}
+            color="green"
+            subtitle={`On-the-spot : ${nOnTheSpotDash} · Follow-up : ${nFollowUpDash}`}
+          />
+          <KpiCard
+            title="Appels schedulés"
+            value={scheduled}
+            icon={Phone}
+            color="violet"
+            subtitle={`${shows} shows · ${showRate} % show rate`}
+          />
+          <KpiCard
+            title="Close rate"
+            value={`${closeRate} %`}
+            icon={TrendingUp}
+            color="blue"
+            subtitle={`Show rate : ${showRate} %`}
+          />
+        </div>
+
+        {/* Leaderboard — prend 2 colonnes */}
+        <div className="lg:col-span-2">
+          <LeaderboardSection leaderboard={leaderboardData} />
         </div>
       </div>
 
-      {/* Santé des récurrents */}
+      {/* ── Santé des récurrents ──────────────────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Santé des récurrents</p>
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Santé des récurrents</p>
         <RecurrentsHealthSection
           occsAujourdhui={occsAujourdhuiHealth}
           occsRetard={occsRetardHealth}
@@ -1060,7 +1137,7 @@ export default async function DashboardPage({
         />
       </div>
 
-      {/* Objectifs — mois mode only */}
+      {/* ── Objectifs ─────────────────────────────────────────────── */}
       {isMoisMode && (
         <GoalSection
           targetCash={goalRaw?.target_cash ?? 0}
@@ -1075,44 +1152,36 @@ export default async function DashboardPage({
         />
       )}
 
-      {/* Funnel + Trend côte à côte */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
-            <Target size={15} className="text-violet-500" />
-            <h3 className="text-sm font-semibold text-gray-900">Funnel de conversion</h3>
-            <span className="ml-auto text-xs text-gray-400">
+      {/* ── Funnel + Tendance ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-2">
+            <Target size={15} className="text-violet-400" />
+            <h3 className="text-sm font-semibold text-gray-200">Funnel de conversion</h3>
+            <span className="ml-auto text-xs text-gray-600">
               {scheduled > 0 ? `Close rate global : ${pct(closes, scheduled)} %` : ''}
             </span>
           </div>
           <div className="p-5">
             {scheduled > 0
               ? <FunnelCard steps={funnelSteps} />
-              : <p className="text-sm text-gray-400 text-center py-6">Aucune donnée closer pour cette période</p>
+              : <p className="text-sm text-gray-600 text-center py-6">Aucune donnée closer pour cette période</p>
             }
           </div>
         </div>
-
         <TrendChart data={chartData} weeklyData={weeklyChartData} />
       </div>
 
-      {/* Leaderboard — visible par tous */}
-      <LeaderboardSection leaderboard={leaderboardData} />
-
-      {/* Closers */}
+      {/* ── Performance closers ───────────────────────────────────── */}
       <ClosersTable rows={closerRows} history={closerHistory} />
 
-      {/* Setters */}
-      {setterRows.length > 0 && (
-        <TableauSetters rows={setterRows} />
-      )}
+      {/* ── Performance setters ───────────────────────────────────── */}
+      {setterRows.length > 0 && <TableauSetters rows={setterRows} />}
 
-      {/* Bonus — mois mode only */}
-      {isMoisMode && (
-        <SectionBonus closers={bonusClosers} setters={bonusSetters} />
-      )}
+      {/* ── Bonus ─────────────────────────────────────────────────── */}
+      {isMoisMode && <SectionBonus closers={bonusClosers} setters={bonusSetters} />}
 
-      {/* Quick cash entry (admin only) */}
+      {/* ── Quick cash entry ──────────────────────────────────────── */}
       <QuickCashModal
         closers={closerProfiles.map(p => ({ id: p.id, full_name: p.full_name, role: p.role }))}
         setters={setterProfiles.map(p => ({ id: p.id, full_name: p.full_name, role: p.role }))}
@@ -1120,6 +1189,7 @@ export default async function DashboardPage({
 
       </>}
 
+    </div>
     </div>
   )
 }
