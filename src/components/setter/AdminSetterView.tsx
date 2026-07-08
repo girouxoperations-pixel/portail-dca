@@ -101,7 +101,7 @@ function computeKpis(rows: SetterEntry[]) {
     attempts, contacts, rdv, rdv_agenda, showed, no_show, disqualified, cancelled, deals,
     contactRate: pct(contacts, attempts),
     bookRate:    pct(rdv, contacts),
-    showRate:    pct(showed, rdv),
+    showRate:    pct(showed, rdv_agenda),
     dealRate:    pct(deals, showed),
   }
 }
@@ -375,7 +375,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
   const weeklyStats = useMemo(() => {
     type WeekRow = {
       isoYear: number; week: number; weekStart: string; weekEnd: string
-      attempts: number; contacts: number; rdv: number; showed: number; noShow: number
+      attempts: number; contacts: number; rdv: number; rdvAgenda: number; showed: number; noShow: number
       deals: number; cashDeals: number; cashRecurrents: number
     }
     const map = new Map<string, WeekRow>()
@@ -384,12 +384,13 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
     for (const e of filtrees) {
       const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
       const key = `${isoYear}-${String(week).padStart(2, '0')}`
-      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, showed: 0, noShow: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
-      cur.attempts += e.attempts
-      cur.contacts += e.contacts
-      cur.rdv      += e.rdv_booked
-      cur.showed   += e.showed
-      cur.noShow   += e.no_show
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, rdvAgenda: 0, showed: 0, noShow: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
+      cur.attempts  += e.attempts
+      cur.contacts  += e.contacts
+      cur.rdv       += e.rdv_booked
+      cur.rdvAgenda += e.rdv_agenda
+      cur.showed    += e.showed
+      cur.noShow    += e.no_show
       map.set(key, cur)
     }
 
@@ -397,7 +398,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
     for (const e of filteredCashEntries) {
       const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
       const key = `${isoYear}-${String(week).padStart(2, '0')}`
-      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, showed: 0, noShow: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, rdvAgenda: 0, showed: 0, noShow: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
       const isRecurring = e.close_type === 'recurring' || (e.notes?.startsWith('Récurrent') ?? false)
       if (isRecurring) {
         cur.cashRecurrents += e.collected ?? 0
@@ -493,7 +494,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
             <DeltaBadge current={kpis.rdv} prev={kpisPrev.rdv} />
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-            <MetricCard label="Taux de show"    value={`${kpis.showRate} %`}    icon={TrendingUp}   color="amber"  sub={`${kpis.showed} / ${kpis.rdv} RDV`} />
+            <MetricCard label="Taux de show"    value={`${kpis.showRate} %`}    icon={TrendingUp}   color="amber"  sub={`${kpis.showed} / ${kpis.rdv_agenda} à l'agenda`} />
             <DeltaBadge current={kpis.showRate} prev={kpisPrev.showRate} />
           </div>
         </div>
@@ -587,7 +588,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                     <td className="px-4 py-3 text-right tabular-nums text-blue-700">{s.rdv_agenda}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(s.rdv, s.contacts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.showed}</td>
-                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.showed, s.rdv)} bold /></td>
+                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.showed, s.rdv_agenda)} bold /></td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{s.deals > 0 ? s.deals : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-400">{s.no_show}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.disqualified}</td>
@@ -660,7 +661,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                       <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{w.rdv}</td>
                       <td className="px-4 py-3 text-right"><PctBadge value={pct(w.rdv, w.contacts)} /></td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-600">{w.showed}</td>
-                      <td className="px-4 py-3 text-right"><PctBadge value={pct(w.showed, w.rdv)} bold /></td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(w.showed, w.rdvAgenda)} bold /></td>
                       <td className="px-4 py-3 text-right tabular-nums font-bold text-green-700">{w.deals > 0 ? w.deals : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-semibold text-blue-700">{w.cashDeals > 0 ? dollar(w.cashDeals) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-violet-600">{w.cashRecurrents > 0 ? dollar(w.cashRecurrents) : <span className="text-gray-300">—</span>}</td>
@@ -678,8 +679,9 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   const totNoSho = weeklyStats.reduce((s, w) => s + w.noShow, 0)
                   const totTent  = weeklyStats.reduce((s, w) => s + w.attempts, 0)
                   const totCont  = weeklyStats.reduce((s, w) => s + w.contacts, 0)
-                  const totRdv   = weeklyStats.reduce((s, w) => s + w.rdv, 0)
-                  const totShow  = weeklyStats.reduce((s, w) => s + w.showed, 0)
+                  const totRdv     = weeklyStats.reduce((s, w) => s + w.rdv, 0)
+                  const totRdvAg   = weeklyStats.reduce((s, w) => s + w.rdvAgenda, 0)
+                  const totShow    = weeklyStats.reduce((s, w) => s + w.showed, 0)
                   return (
                     <tr className="border-t-2 border-gray-200 bg-gray-50 text-xs font-bold text-gray-700">
                       <td className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
@@ -689,7 +691,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                       <td className="px-4 py-3 text-right tabular-nums">{totRdv}</td>
                       <td className="px-4 py-3 text-right"><PctBadge value={pct(totRdv, totCont)} /></td>
                       <td className="px-4 py-3 text-right tabular-nums">{totShow}</td>
-                      <td className="px-4 py-3 text-right"><PctBadge value={pct(totShow, totRdv)} bold /></td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(totShow, totRdvAg)} bold /></td>
                       <td className="px-4 py-3 text-right tabular-nums text-green-700">{totDeals}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totCash)}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-violet-600">{dollar(totRecur)}</td>
@@ -736,6 +738,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   <th className="px-4 py-2.5 text-right">Show %</th>
                   <th className="px-4 py-2.5 text-right">Deals</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
+                  <th className="px-4 py-2.5 text-right">Disqualif.</th>
                   <th className="px-4 py-2.5 text-left">Notes</th>
                   {isAdmin && <th className="px-4 py-2.5" />}
                 </tr>
@@ -754,9 +757,10 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                     <td className="px-4 py-3 text-right tabular-nums text-blue-700">{e.rdv_agenda}</td>
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(e.rdv_booked, e.contacts)} /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">{e.showed}</td>
-                    <td className="px-4 py-3 text-right"><PctBadge value={pct(e.showed, e.rdv_booked)} bold /></td>
+                    <td className="px-4 py-3 text-right"><PctBadge value={pct(e.showed, e.rdv_agenda)} bold /></td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{e.deals > 0 ? e.deals : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-400">{e.no_show}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-500">{e.disqualified > 0 ? e.disqualified : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
                     {isAdmin && (
                       <td className="px-4 py-3 text-right">
