@@ -155,6 +155,38 @@ export async function ajouterBonusPeriode(
   return { inserted: toInsert.length, skipped: items.length - toInsert.length }
 }
 
+export async function ajouterBonusManuel(data: {
+  personId:    string
+  role:        'closer' | 'setter'
+  periodLabel: string
+  month:       number
+  year:        number
+  montant:     number
+  label:       string
+}) {
+  const { userId } = await requireRole(['admin'])
+  const db = createAdminClient()
+  const isCloser = data.role === 'closer'
+
+  const { error } = await db.from('paye_entries').insert({
+    period_label:      data.periodLabel,
+    month:             data.month,
+    year:              data.year,
+    client_name:       data.label.trim() || '— Bonus —',
+    closer_id:         isCloser ? data.personId : null,
+    setter_id:         isCloser ? null : data.personId,
+    montant:           data.montant,
+    commission:        isCloser ? data.montant : 0,
+    commission_setter: isCloser ? 0 : data.montant,
+    statut:            'En attente',
+    notes:             `Bonus — ${data.label.trim() || 'Manuel'}`,
+    created_by:        userId,
+  })
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/payes')
+}
+
 export async function assignerMVP(
   personId: string,
   personRole: string,

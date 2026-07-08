@@ -162,6 +162,7 @@ interface SetterRow {
   attempts:    number
   contacts:    number
   rdv:         number
+  rdvAgenda:   number
   showed:      number
   no_show:     number
   contactRate: number
@@ -365,13 +366,14 @@ function TableauSetters({ rows }: { rows: SetterRow[] }) {
 
   const totals = rows.reduce(
     (acc, r) => ({
-      attempts: acc.attempts + r.attempts,
-      contacts: acc.contacts + r.contacts,
-      rdv:      acc.rdv      + r.rdv,
-      showed:   acc.showed   + r.showed,
-      no_show:  acc.no_show  + r.no_show,
+      attempts:  acc.attempts  + r.attempts,
+      contacts:  acc.contacts  + r.contacts,
+      rdv:       acc.rdv       + r.rdv,
+      rdvAgenda: acc.rdvAgenda + r.rdvAgenda,
+      showed:    acc.showed    + r.showed,
+      no_show:   acc.no_show   + r.no_show,
     }),
-    { attempts: 0, contacts: 0, rdv: 0, showed: 0, no_show: 0 },
+    { attempts: 0, contacts: 0, rdv: 0, rdvAgenda: 0, showed: 0, no_show: 0 },
   )
 
   const csvData = rows.map(r => ({
@@ -426,7 +428,7 @@ function TableauSetters({ rows }: { rows: SetterRow[] }) {
               <td className="px-4 py-3 text-right tabular-nums">{totals.rdv}</td>
               <td className="px-4 py-3 text-right"><PctBadgeSetter value={pct(totals.rdv, totals.contacts)} /></td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.showed}</td>
-              <td className="px-4 py-3 text-right"><PctBadgeSetter value={pct(totals.showed, totals.rdv)} /></td>
+              <td className="px-4 py-3 text-right"><PctBadgeSetter value={pct(totals.showed, totals.rdvAgenda)} /></td>
               <td className="px-4 py-3 text-right tabular-nums text-red-400">{totals.no_show}</td>
             </tr>
           </tfoot>
@@ -609,7 +611,7 @@ export default async function DashboardPage({
     supabase.from('closer_entries')
       .select('user_id, entry_date, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
     supabase.from('setter_entries')
-      .select('user_id, entry_date, attempts, contacts, rdv_booked, showed, no_show, disqualified, cancelled')
+      .select('user_id, entry_date, attempts, contacts, rdv_booked, rdv_agenda, showed, no_show, disqualified, cancelled')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
     db.from('recurring_occurrences')
@@ -683,16 +685,17 @@ export default async function DashboardPage({
   const entriesThisMonth = entriesByMonth.get(selMonthKey)
 
   // ── Aggregate setter_entries for selected period ───────────────────
-  type SetterAgg = { attempts: number; contacts: number; rdv: number; showed: number; no_show: number }
+  type SetterAgg = { attempts: number; contacts: number; rdv: number; rdvAgenda: number; showed: number; no_show: number }
   const setterByUser = new Map<string, SetterAgg>()
   for (const e of setterEntriesMois ?? []) {
-    const cur = setterByUser.get(e.user_id) ?? { attempts: 0, contacts: 0, rdv: 0, showed: 0, no_show: 0 }
+    const cur = setterByUser.get(e.user_id) ?? { attempts: 0, contacts: 0, rdv: 0, rdvAgenda: 0, showed: 0, no_show: 0 }
     setterByUser.set(e.user_id, {
-      attempts: cur.attempts + e.attempts,
-      contacts: cur.contacts + e.contacts,
-      rdv:      cur.rdv      + e.rdv_booked,
-      showed:   cur.showed   + e.showed,
-      no_show:  cur.no_show  + e.no_show,
+      attempts:  cur.attempts  + e.attempts,
+      contacts:  cur.contacts  + e.contacts,
+      rdv:       cur.rdv       + e.rdv_booked,
+      rdvAgenda: cur.rdvAgenda + e.rdv_agenda,
+      showed:    cur.showed    + e.showed,
+      no_show:   cur.no_show   + e.no_show,
     })
   }
 
@@ -702,7 +705,7 @@ export default async function DashboardPage({
       ...s,
       contactRate: pct(s.contacts, s.attempts),
       bookRate:    pct(s.rdv, s.contacts),
-      showRate:    pct(s.showed, s.rdv),
+      showRate:    pct(s.showed, s.rdvAgenda),
     }))
     .sort((a, b) => b.rdv - a.rdv)
 

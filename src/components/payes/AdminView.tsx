@@ -1,15 +1,14 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { CheckCircle2, Clock, Star, ChevronDown, ChevronUp, LayoutGrid, Table2, Pencil, History } from 'lucide-react'
+import { CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutGrid, Table2, Pencil, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  basculerStatut, assignerMVP,
+  basculerStatut,
   approuverPeriode, approuverPayesBatch, modifierPaye,
-  ajouterBonusPeriode,
+  ajouterBonusManuel,
 } from '@/app/(portal)/payes/actions'
-import { PALIERS, dollar, getPalier, MOIS_FR } from '@/lib/constants'
-import BonusCard  from '@/components/ui/BonusCard'
+import { dollar, MOIS_FR } from '@/lib/constants'
 import Badge      from '@/components/ui/Badge'
 import Modal      from '@/components/ui/Modal'
 import PageHeader from '@/components/layout/PageHeader'
@@ -38,21 +37,11 @@ interface Profil {
   role: string
 }
 
-interface BonusItem {
-  uid:      string
-  nom:      string
-  role:     'closer' | 'setter'
-  collected: number
-  palier:   typeof PALIERS[number] | null
-}
-
 interface Props {
   entrees:         PayeEntry[]
   closers:         Profil[]
   setters:         Profil[]
   allProfiles:     Profil[]
-  bonusClosers:    BonusItem[]
-  bonusSetters:    BonusItem[]
   teamMembers:     Profil[]
   isAdmin:         boolean
   periodesCourant: { label: string; month: number; year: number }[]
@@ -82,175 +71,134 @@ interface EmployeeGroup {
   pendingIds: string[]
 }
 
-// ── Section bonus ─────────────────────────────────────────────────────
+// ── Section bonus manuel ──────────────────────────────────────────────
 
-function SectionBonus({ bonusClosers, bonusSetters, isAdmin, teamMembers, periodes, periodeActuelle }: {
-  bonusClosers:    BonusItem[]
-  bonusSetters:    BonusItem[]
-  isAdmin:         boolean
-  teamMembers:     Profil[]
-  periodes:        { label: string; month: number; year: number }[]
-  periodeActuelle: { label: string; month: number; year: number }
-}) {
-  const [mvpOuvert, setMvpOuvert]       = useState(false)
-  const [pendingBonus, startBonus]       = useTransition()
-  const [bonusMsg, setBonusMsg]          = useState<string | null>(null)
-
-  const bonusItems = [
-    ...bonusClosers.filter(b => b.palier !== null).map(b => ({
-      uid: b.uid, role: 'closer' as const, bonus: b.palier!.closer, seuil: b.palier!.seuil,
-    })),
-    ...bonusSetters.filter(b => b.palier !== null).map(b => ({
-      uid: b.uid, role: 'setter' as const, bonus: b.palier!.setter, seuil: b.palier!.seuil,
-    })),
-  ]
-
-  function handleVerserBonus() {
-    if (bonusItems.length === 0) return
-    startBonus(async () => {
-      const result = await ajouterBonusPeriode(bonusItems, periodeActuelle)
-      const msg = result.inserted > 0
-        ? `${result.inserted} bonus ajouté${result.inserted !== 1 ? 's' : ''} à la paie${result.skipped > 0 ? ` · ${result.skipped} déjà présent${result.skipped !== 1 ? 's' : ''}` : ''}`
-        : `Tous les bonus sont déjà dans la paie (${result.skipped})`
-      setBonusMsg(msg)
-      setTimeout(() => setBonusMsg(null), 5000)
-    })
-  }
-
-  return (
-    <>
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">Bonus automatiques — période en cours</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Calculés sur le cash collecté cette période</p>
-          </div>
-          {isAdmin && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {bonusItems.length > 0 && (
-                <button
-                  onClick={handleVerserBonus}
-                  disabled={pendingBonus}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <CheckCircle2 size={13} />
-                  {pendingBonus ? 'Versement…' : `Verser ${bonusItems.length} bonus à la paie`}
-                </button>
-              )}
-              <button
-                onClick={() => setMvpOuvert(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold rounded-lg transition-colors"
-              >
-                <Star size={13} />
-                Assigner MVP du mois
-              </button>
-            </div>
-          )}
-        </div>
-        {bonusMsg && (
-          <div className="px-5 py-2 bg-green-50 border-b border-green-100">
-            <p className="text-xs text-green-700 font-medium">{bonusMsg}</p>
-          </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-50">
-          <div className="px-5">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">Closers</p>
-            {bonusClosers.length === 0
-              ? <p className="text-sm text-gray-400 pb-4">Aucune donnée</p>
-              : bonusClosers.map(b => (
-                  <BonusCard key={b.uid} nom={b.nom} collected={b.collected} palier={b.palier} type="closer" />
-                ))
-            }
-          </div>
-          <div className="px-5">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">Setters</p>
-            {bonusSetters.length === 0
-              ? <p className="text-sm text-gray-400 pb-4">Aucune donnée</p>
-              : bonusSetters.map(b => (
-                  <BonusCard key={b.uid} nom={b.nom} collected={b.collected} palier={b.palier} type="setter" />
-                ))
-            }
-          </div>
-        </div>
-      </div>
-
-      {mvpOuvert && (
-        <ModalMVP
-          teamMembers={teamMembers}
-          periodes={periodes}
-          onClose={() => setMvpOuvert(false)}
-        />
-      )}
-    </>
-  )
-}
-
-// ── Modal MVP ─────────────────────────────────────────────────────────
-
-function ModalMVP({ teamMembers, periodes, onClose }: {
-  teamMembers: Profil[]
-  periodes:    { label: string; month: number; year: number }[]
-  onClose:     () => void
+function SectionBonus({ isAdmin, teamMembers, periodes, bonusEntrees }: {
+  isAdmin:      boolean
+  teamMembers:  Profil[]
+  periodes:     { label: string; month: number; year: number }[]
+  bonusEntrees: PayeEntry[]
 }) {
   const [periodeIdx, setPeriodeIdx] = useState(0)
   const [personId,   setPersonId]   = useState(teamMembers[0]?.id ?? '')
-  const [pending, startTransition]  = useTransition()
+  const [montant,    setMontant]     = useState('')
+  const [label,      setLabel]       = useState('')
+  const [pending,    startTransition] = useTransition()
+  const [msg,        setMsg]          = useState<string | null>(null)
 
-  const person = teamMembers.find(m => m.id === personId)
+  const periode = periodes[periodeIdx]
+  const person  = teamMembers.find(m => m.id === personId)
 
-  function handleAssigner() {
-    if (!person) return
-    const p = periodes[periodeIdx]
+  function handleAjouter() {
+    if (!person || !montant || Number(montant) <= 0 || !periode) return
     startTransition(async () => {
-      await assignerMVP(person.id, person.role, p.label, p.month, p.year)
-      onClose()
+      await ajouterBonusManuel({
+        personId:    person.id,
+        role:        person.role as 'closer' | 'setter',
+        periodLabel: periode.label,
+        month:       periode.month,
+        year:        periode.year,
+        montant:     Number(montant),
+        label:       label.trim() || 'Bonus',
+      })
+      setMontant('')
+      setLabel('')
+      setMsg('Bonus ajouté à la paie')
+      setTimeout(() => setMsg(null), 4000)
     })
   }
 
   return (
-    <Modal titre="Assigner le MVP du mois" onClose={onClose} maxWidth="max-w-sm">
-      <div className="p-6 space-y-4">
-        <div className="bg-amber-50 rounded-lg px-4 py-3 flex items-center gap-3">
-          <Star size={18} className="text-amber-500 shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-amber-800">Bonus MVP</p>
-            <p className="text-xs text-amber-600">+500 $ — une seule attribution par période</p>
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-50">
+        <h3 className="text-sm font-semibold text-gray-900">Bonus</h3>
+        <p className="text-xs text-gray-400 mt-0.5">Ajouter un bonus manuel à la paie d&apos;un employé</p>
+      </div>
+
+      {isAdmin && (
+        <div className="px-5 py-4 border-b border-gray-50">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-500">Employé</label>
+              <select value={personId} onChange={e => setPersonId(e.target.value)} className={INPUT_CLS}>
+                {teamMembers.map(m => (
+                  <option key={m.id} value={m.id}>{m.full_name ?? m.id} ({m.role})</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-500">Période</label>
+              <select value={periodeIdx} onChange={e => setPeriodeIdx(Number(e.target.value))} className={INPUT_CLS}>
+                {periodes.map((p, i) => (
+                  <option key={p.label} value={i}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-500">Montant ($)</label>
+              <input
+                type="number" min="1" step="0.01" placeholder="500"
+                value={montant} onChange={e => setMontant(e.target.value)}
+                className={INPUT_CLS}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-500">Description</label>
+              <input
+                type="text" placeholder="ex. MVP du mois"
+                value={label} onChange={e => setLabel(e.target.value)}
+                className={INPUT_CLS}
+              />
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={handleAjouter}
+              disabled={pending || !montant || Number(montant) <= 0}
+              className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              <CheckCircle2 size={14} />
+              {pending ? 'Ajout…' : 'Ajouter à la paie'}
+            </button>
+            {msg && <p className="text-xs text-green-600 font-medium">{msg}</p>}
           </div>
         </div>
+      )}
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Membre de l&apos;équipe</label>
-          <select value={personId} onChange={e => setPersonId(e.target.value)} className={INPUT_CLS}>
-            {teamMembers.map(m => (
-              <option key={m.id} value={m.id}>{m.full_name ?? m.id} ({m.role})</option>
-            ))}
-          </select>
+      {bonusEntrees.length > 0 ? (
+        <div className="divide-y divide-gray-50">
+          {bonusEntrees.map(e => {
+            const uid  = e.closer_id ?? e.setter_id ?? ''
+            const role = e.closer_id ? 'closer' : 'setter'
+            const comm = e.closer_id ? e.commission : e.commission_setter
+            return (
+              <div key={e.id} className="px-5 py-3 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{e.client_name}</p>
+                  <p className="text-xs text-gray-400">{e.period_label} · {uid}</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={cn(
+                    'text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide',
+                    role === 'closer' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600',
+                  )}>{role}</span>
+                  <span className="text-sm font-bold tabular-nums text-amber-600">{dollar(comm)}</span>
+                  <Badge variant={e.statut === 'Payé' ? 'green' : 'amber'}
+                    icon={e.statut === 'Payé' ? <CheckCircle2 size={9} /> : <Clock size={9} />}>
+                    {e.statut}
+                  </Badge>
+                </div>
+              </div>
+            )
+          })}
         </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">Période</label>
-          <select value={periodeIdx} onChange={e => setPeriodeIdx(Number(e.target.value))} className={INPUT_CLS}>
-            {periodes.map((p, i) => (
-              <option key={p.label} value={i}>{p.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
-            Annuler
-          </button>
-          <button
-            onClick={handleAssigner} disabled={pending || !person}
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
-          >
-            {pending ? 'Attribution…' : 'Assigner 500 $'}
-          </button>
-        </div>
-      </div>
-    </Modal>
+      ) : (
+        <p className="px-5 py-6 text-sm text-gray-400">Aucun bonus enregistré</p>
+      )}
+    </div>
   )
 }
+
 
 // ── Carte employé ─────────────────────────────────────────────────────
 
@@ -742,8 +690,7 @@ function HistGroupSection({ label, totalComm, payeComm, employees }: {
 // ── Vue principale admin / CSM ────────────────────────────────────────
 
 export default function AdminView({
-  entrees, allProfiles,
-  bonusClosers, bonusSetters, teamMembers,
+  entrees, allProfiles, teamMembers,
   isAdmin, periodesCourant, periodeDefaut,
 }: Props) {
   const [modeGlobal, setModeGlobal]             = useState<'periode' | 'historique'>('periode')
@@ -830,6 +777,11 @@ export default function AdminView({
   const pendingPeriode = grouped.reduce((s, g) => s + g.pendingCommission, 0)
   const allPendingIds  = grouped.flatMap(g => g.pendingIds)
 
+  const bonusEntrees = useMemo(
+    () => entrees.filter(e => e.notes?.startsWith('Bonus')),
+    [entrees],
+  )
+
   // ── Historique groupé ──────────────────────────────────────────────
   const entreesHist = useMemo(() => {
     if (groupModeHist !== 'perso') return entrees
@@ -915,12 +867,10 @@ export default function AdminView({
       </div>
 
       <SectionBonus
-        bonusClosers={bonusClosers}
-        bonusSetters={bonusSetters}
         isAdmin={isAdmin}
         teamMembers={teamMembers}
         periodes={periodesCourant}
-        periodeActuelle={periodeActuelle}
+        bonusEntrees={bonusEntrees}
       />
 
       {/* ── Historique groupé ─────────────────────────────────────────── */}

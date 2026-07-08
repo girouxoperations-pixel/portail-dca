@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { CheckCircle2, Clock, Trophy, Award, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dollar, MOIS_FR } from '@/lib/constants'
 import type { PeriodeItem } from '@/lib/payroll'
@@ -218,25 +218,11 @@ export default function PersonnelView({
 
       <PageHeader titre="Ma Paie" subtitle="Commissions et historique" />
 
-      {/* Bonus / résumé global */}
-      <div className={cn(
-        'rounded-xl border p-5 flex items-center gap-4',
-        bonusMois !== null ? 'bg-amber-50 border-amber-100' : 'bg-white border-gray-100 shadow-sm',
-      )}>
-        {bonusMois !== null
-          ? <Trophy size={32} className="text-amber-400 shrink-0" />
-          : <Award  size={32} className="text-gray-200 shrink-0" />
-        }
+      {/* Résumé global */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-800">
-            {bonusMois !== null
-              ? `Bonus automatique ce mois : +${dollar(bonusMois)}`
-              : 'Pas encore de bonus atteint ce mois'}
-          </p>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {dollar(myCollected)} collecté
-            {myBonus ? ` — Palier ${dollar(myBonus.seuil)} atteint` : ' — Palier suivant : 50 000 $'}
-          </p>
+          <p className="text-sm font-semibold text-gray-800">Commissions totales</p>
+          <p className="text-xs text-gray-500 mt-0.5">{dollar(myCollected)} collecté cette période</p>
         </div>
         <div className="shrink-0 text-right">
           <p className="text-2xl font-bold tabular-nums text-gray-900">{dollar(globalKpis.total)}</p>
