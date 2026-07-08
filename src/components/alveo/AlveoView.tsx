@@ -46,7 +46,7 @@ interface Props {
 // ── Helpers ───────────────────────────────────────────────────────────
 
 const dollar = (n: number) =>
-  n.toLocaleString('fr-CA', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+  n.toLocaleString('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })
 
 function parseMonthLabel(dateStr: string | null): string {
   if (!dateStr) return 'Sans date'
@@ -97,8 +97,8 @@ function PayBadge({
       className={[
         'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all',
         isPaid
-          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
-          : 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25',
+          ? 'bg-emerald-100 text-emerald-600 border border-emerald-300 hover:bg-emerald-200'
+          : 'bg-red-50 text-red-500 border border-red-200 hover:bg-red-100',
         pending ? 'opacity-50 cursor-wait' : 'cursor-pointer',
       ].join(' ')}
     >
@@ -146,10 +146,10 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white">Nouveau deal Alveo</h3>
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-300">
+        <h3 className="text-sm font-semibold text-gray-900">Nouveau deal Alveo</h3>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
           <X size={16} />
         </button>
       </div>
@@ -158,7 +158,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
         <div className="col-span-2">
           <label className="block text-xs text-gray-500 mb-1">Client *</label>
           <input
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-500"
             placeholder="Prénom Nom"
             value={form.client_name}
             onChange={e => set('client_name', e.target.value)}
@@ -169,7 +169,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
           <label className="block text-xs text-gray-500 mb-1">Date du deal</label>
           <input
             type="date"
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-violet-500"
             value={form.deal_date}
             onChange={e => set('deal_date', e.target.value)}
           />
@@ -178,7 +178,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
         <div>
           <label className="block text-xs text-gray-500 mb-1">Méthode</label>
           <select
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-violet-500"
             value={form.methode}
             onChange={e => set('methode', e.target.value)}
           >
@@ -192,7 +192,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
           <input
             type="number"
             step="0.01"
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-500"
             placeholder="4000"
             value={form.montant}
             onChange={e => set('montant', e.target.value)}
@@ -204,7 +204,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
           <input
             type="number"
             step="0.01"
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-500"
             placeholder="0"
             value={form.collected}
             onChange={e => set('collected', e.target.value)}
@@ -214,7 +214,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
         <div>
           <label className="block text-xs text-gray-500 mb-1">Setter</label>
           <input
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-500"
             placeholder="Prénom"
             value={form.setter_name}
             onChange={e => set('setter_name', e.target.value)}
@@ -224,7 +224,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
         <div>
           <label className="block text-xs text-gray-500 mb-1">Closer</label>
           <input
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-500"
             placeholder="Prénom"
             value={form.closer_name}
             onChange={e => set('closer_name', e.target.value)}
@@ -234,7 +234,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
         <div className="col-span-2 md:col-span-4">
           <label className="block text-xs text-gray-500 mb-1">Notes</label>
           <input
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-500"
             placeholder="Optionnel"
             value={form.notes}
             onChange={e => set('notes', e.target.value)}
@@ -244,14 +244,14 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
 
       {montant > 0 && (
         <p className="mt-2 text-xs text-gray-500">
-          Commission setter : <span className="text-blue-400">{dollar(commS)}</span>
+          Commission setter : <span className="text-blue-600">{dollar(commS)}</span>
           &nbsp;·&nbsp;
-          Commission closer : <span className="text-violet-400">{dollar(commC)}</span>
+          Commission closer : <span className="text-violet-600">{dollar(commC)}</span>
           &nbsp;·&nbsp;versées en 3 mensualités
         </p>
       )}
 
-      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
       <div className="flex gap-2 mt-3">
         <button
@@ -264,7 +264,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
         </button>
         <button
           onClick={onClose}
-          className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+          className="px-4 py-2 rounded-lg text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
         >
           Annuler
         </button>
@@ -299,35 +299,35 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
   return (
     <>
       <tr className={[
-        'border-b border-white/5 transition-colors',
+        'border-b border-gray-100 transition-colors',
         isCancelled
-          ? 'opacity-40 bg-white/[0.01]'
-          : 'hover:bg-white/[0.02]',
+          ? 'opacity-40 bg-gray-50'
+          : 'hover:bg-gray-50',
       ].join(' ')}>
         {/* Date */}
-        <td className="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">
+        <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
           {formatDate(deal.deal_date)}
         </td>
 
         {/* Client */}
         <td className="px-3 py-2.5">
-          <span className="text-sm text-white font-medium">{deal.client_name}</span>
+          <span className="text-sm text-gray-900 font-medium">{deal.client_name}</span>
           {deal.notes && (
-            <span className="ml-1.5 text-xs text-gray-600">{deal.notes}</span>
+            <span className="ml-1.5 text-xs text-gray-500">{deal.notes}</span>
           )}
           {isCancelled && (
-            <span className="ml-2 text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">Annulé</span>
+            <span className="ml-2 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Annulé</span>
           )}
         </td>
 
         {/* Setter */}
-        <td className="px-3 py-2.5 text-xs text-blue-300">{deal.setter_name ?? '—'}</td>
+        <td className="px-3 py-2.5 text-xs text-blue-600">{deal.setter_name ?? '—'}</td>
 
         {/* Closer */}
-        <td className="px-3 py-2.5 text-xs text-violet-300">{deal.closer_name ?? '—'}</td>
+        <td className="px-3 py-2.5 text-xs text-violet-600">{deal.closer_name ?? '—'}</td>
 
         {/* Montant */}
-        <td className="px-3 py-2.5 text-xs text-gray-300 text-right font-mono">
+        <td className="px-3 py-2.5 text-xs text-gray-700 text-right font-mono">
           {dollar(deal.montant)}
         </td>
 
@@ -338,7 +338,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
               <input
                 type="number"
                 step="0.01"
-                className="w-24 bg-white/10 border border-violet-500 rounded px-2 py-0.5 text-xs text-white text-right"
+                className="w-24 bg-white border border-violet-500 rounded px-2 py-0.5 text-xs text-gray-900 text-right"
                 value={collectedVal}
                 onChange={e => setCollectedVal(e.target.value)}
                 onBlur={saveCollected}
@@ -350,8 +350,8 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
             <button
               onClick={() => isAdmin && setEditCollected(true)}
               className={deal.collected >= deal.montant
-                ? 'text-emerald-400 font-mono'
-                : 'text-amber-400 font-mono hover:text-amber-300'}
+                ? 'text-emerald-600 font-mono'
+                : 'text-amber-600 font-mono hover:text-amber-500'}
               title={isAdmin ? 'Cliquer pour modifier' : undefined}
             >
               {dollar(deal.collected)}
@@ -362,7 +362,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
         {/* À collecter */}
         <td className={[
           'px-3 py-2.5 text-xs text-right font-mono font-medium',
-          aCollecter <= 0 ? 'text-emerald-500' : 'text-red-400',
+          aCollecter <= 0 ? 'text-emerald-600' : 'text-red-500',
         ].join(' ')}>
           {aCollecter <= 0 ? '✓' : dollar(aCollecter)}
         </td>
@@ -391,7 +391,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setExpanded(e => !e)}
-                className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-300 rounded transition-colors"
+                className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 rounded transition-colors"
               >
                 {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
@@ -400,7 +400,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
                   disabled={pending}
                   onClick={() => startTransition(() => annulerDeal(deal.id))}
                   title="Annuler ce deal"
-                  className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-amber-400 rounded transition-colors"
+                  className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-amber-500 rounded transition-colors"
                 >
                   <Ban size={12} />
                 </button>
@@ -413,7 +413,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
                   }
                 }}
                 title="Supprimer"
-                className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-red-400 rounded transition-colors"
+                className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 rounded transition-colors"
               >
                 <Trash2 size={12} />
               </button>
@@ -423,22 +423,22 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
       </tr>
 
       {expanded && (
-        <tr className="border-b border-white/5 bg-white/[0.01]">
+        <tr className="border-b border-gray-100 bg-gray-50">
           <td colSpan={isAdmin ? 10 : 9} className="px-6 py-3">
             <div className="grid grid-cols-3 gap-6 text-xs">
               <div>
                 <p className="text-gray-500 mb-1">Commission setter</p>
-                <p className="text-blue-300 font-mono">{dollar(deal.commission_setter)}</p>
-                <p className="text-gray-600 mt-0.5">({dollar(deal.commission_setter / 3)} × 3 mois)</p>
+                <p className="text-blue-600 font-mono">{dollar(deal.commission_setter)}</p>
+                <p className="text-gray-400 mt-0.5">({dollar(deal.commission_setter / 3)} × 3 mois)</p>
               </div>
               <div>
                 <p className="text-gray-500 mb-1">Commission closer</p>
-                <p className="text-violet-300 font-mono">{dollar(deal.commission_closer)}</p>
-                <p className="text-gray-600 mt-0.5">({dollar(deal.commission_closer / 3)} × 3 mois)</p>
+                <p className="text-violet-600 font-mono">{dollar(deal.commission_closer)}</p>
+                <p className="text-gray-400 mt-0.5">({dollar(deal.commission_closer / 3)} × 3 mois)</p>
               </div>
               <div>
                 <p className="text-gray-500 mb-1">Méthode</p>
-                <p className="text-gray-300">{deal.methode}</p>
+                <p className="text-gray-700">{deal.methode}</p>
               </div>
             </div>
           </td>
@@ -465,13 +465,13 @@ function MonthSection({
 
   return (
     <>
-      <tr className="bg-white/[0.02]">
+      <tr className="bg-gray-100">
         <td
           colSpan={isAdmin ? 10 : 9}
-          className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-white/5"
+          className="px-3 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-200"
         >
           <span className="capitalize">{label}</span>
-          <span className="ml-3 text-gray-600 normal-case font-normal">
+          <span className="ml-3 text-gray-500 normal-case font-normal">
             {deals.length} deal{deals.length !== 1 ? 's' : ''}
             &nbsp;·&nbsp;
             Collecté : {dollar(totalCollected)}
@@ -537,13 +537,13 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   }, [deals])
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#0d0d14', color: '#e5e7eb' }}>
+    <div className="min-h-screen bg-white">
       <div className="max-w-[1400px] mx-auto px-4 py-8">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-white">Tracker Alveo</h1>
+            <h1 className="text-xl font-bold text-gray-900">Tracker Alveo</h1>
             <p className="text-sm text-gray-500 mt-0.5">Suivi des financements et commissions</p>
           </div>
           {isAdmin && (
@@ -560,16 +560,16 @@ export default function AlveoView({ deals, isAdmin }: Props) {
         {/* Stats cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[
-            { label: 'Deals actifs',          value: deals.filter(d => d.statut === 'actif').length.toString(), color: 'text-white' },
-            { label: 'Montant total',          value: dollar(stats.totalMontant),   color: 'text-white' },
-            { label: 'Collecté',               value: dollar(stats.totalCollected),  color: 'text-emerald-400' },
-            { label: 'À collecter (Alveo)',    value: dollar(stats.aCollecter),      color: stats.aCollecter > 0 ? 'text-red-400' : 'text-emerald-400' },
+            { label: 'Deals actifs',       value: deals.filter(d => d.statut === 'actif').length.toString(), color: 'text-gray-900' },
+            { label: 'Montant total',       value: dollar(stats.totalMontant),   color: 'text-gray-900' },
+            { label: 'Collecté',            value: dollar(stats.totalCollected),  color: 'text-emerald-600' },
+            { label: 'À collecter (Alveo)', value: dollar(stats.aCollecter),      color: stats.aCollecter > 0 ? 'text-red-500' : 'text-emerald-600' },
             { label: 'Comm. en attente',
               value: dollar(stats.pendingSetter + stats.pendingCloser),
-              color: (stats.pendingSetter + stats.pendingCloser) > 0 ? 'text-amber-400' : 'text-emerald-400',
+              color: (stats.pendingSetter + stats.pendingCloser) > 0 ? 'text-amber-600' : 'text-emerald-600',
             },
           ].map(card => (
-            <div key={card.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div key={card.label} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-xs text-gray-500 mb-1">{card.label}</p>
               <p className={`text-lg font-bold font-mono ${card.color}`}>{card.value}</p>
             </div>
@@ -578,8 +578,8 @@ export default function AlveoView({ deals, isAdmin }: Props) {
 
         {/* Pending commissions per person */}
         {(stats.pendingSetter > 0 || stats.pendingCloser > 0) && (
-          <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
-            <p className="text-xs font-semibold text-amber-400 mb-2">Commissions en attente par personne</p>
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-xs font-semibold text-amber-700 mb-2">Commissions en attente par personne</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {allPersons.map(person => {
                 const pending = deals
@@ -589,8 +589,8 @@ export default function AlveoView({ deals, isAdmin }: Props) {
                 if (pending === 0) return null
                 return (
                   <div key={person} className="flex items-center justify-between">
-                    <span className="text-xs text-gray-300">{person}</span>
-                    <span className="text-xs font-mono text-amber-400">{dollar(pending)}</span>
+                    <span className="text-xs text-gray-700">{person}</span>
+                    <span className="text-xs font-mono text-amber-700 font-semibold">{dollar(pending)}</span>
                   </div>
                 )
               })}
@@ -603,7 +603,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
 
         {/* Filters */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex rounded-lg border border-white/10 overflow-hidden">
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
             {(['actif', 'tous', 'annulé'] as const).map(s => (
               <button
                 key={s}
@@ -612,7 +612,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
                   'px-3 py-1.5 text-xs font-medium transition-colors capitalize',
                   filterStatut === s
                     ? 'bg-violet-600 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5',
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50',
                 ].join(' ')}
               >
                 {s}
@@ -623,7 +623,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
           <select
             value={filterPerson}
             onChange={e => setFilterPerson(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-violet-500"
+            className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-violet-500"
           >
             <option value="tous">Toutes les personnes</option>
             {allPersons.map(p => (
@@ -631,28 +631,28 @@ export default function AlveoView({ deals, isAdmin }: Props) {
             ))}
           </select>
 
-          <span className="text-xs text-gray-600 ml-auto">
+          <span className="text-xs text-gray-400 ml-auto">
             {filtered.length} deal{filtered.length !== 1 ? 's' : ''}
           </span>
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+        <div className="rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-white/10 bg-white/[0.02]">
+                <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500">Date</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500">Client</th>
-                  <th className="px-3 py-2.5 text-xs font-semibold text-blue-500">Setter</th>
-                  <th className="px-3 py-2.5 text-xs font-semibold text-violet-500">Closer</th>
+                  <th className="px-3 py-2.5 text-xs font-semibold text-blue-600">Setter</th>
+                  <th className="px-3 py-2.5 text-xs font-semibold text-violet-600">Closer</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 text-right">Montant</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 text-right">Collecté</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 text-right">À coll.</th>
-                  <th className="px-2 py-2.5 text-xs font-semibold text-blue-500">
+                  <th className="px-2 py-2.5 text-xs font-semibold text-blue-600">
                     Setter M1 M2 M3
                   </th>
-                  <th className="px-2 py-2.5 text-xs font-semibold text-violet-500">
+                  <th className="px-2 py-2.5 text-xs font-semibold text-violet-600">
                     Closer M1 M2 M3
                   </th>
                   {isAdmin && <th className="px-2 py-2.5" />}
@@ -661,7 +661,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
               <tbody>
                 {grouped.size === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 10 : 9} className="px-6 py-12 text-center text-sm text-gray-600">
+                    <td colSpan={isAdmin ? 10 : 9} className="px-6 py-12 text-center text-sm text-gray-400">
                       Aucun deal trouvé
                     </td>
                   </tr>
@@ -681,21 +681,21 @@ export default function AlveoView({ deals, isAdmin }: Props) {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 mt-4 text-xs text-gray-600">
+        <div className="flex items-center gap-4 mt-4 text-xs text-gray-400">
           <span className="flex items-center gap-1.5">
-            <span className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
-              <Check size={9} className="text-emerald-400" />
+            <span className="w-4 h-4 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center">
+              <Check size={9} className="text-emerald-600" />
             </span>
             Payé
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-4 h-4 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+            <span className="w-4 h-4 rounded-full bg-red-50 border border-red-200 flex items-center justify-center">
               <X size={9} className="text-red-400" />
             </span>
             En attente
           </span>
-          <span className="text-gray-700">· Cliquer sur M1/M2/M3 pour marquer comme payé</span>
-          {isAdmin && <span className="text-gray-700">· Cliquer sur le montant collecté pour le modifier</span>}
+          <span>· Cliquer sur M1/M2/M3 pour marquer comme payé → ajoute automatiquement à la paie</span>
+          {isAdmin && <span>· Cliquer sur le montant collecté pour le modifier</span>}
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { currentPeriode }    from '@/lib/payroll'
 
 async function requireAdminOrCsm() {
   const supabase = await createClient()
@@ -102,6 +103,16 @@ export async function togglePaiement(paymentId: string, paid: boolean) {
   const { userId } = await requireAdminOrCsm()
   const db = createAdminClient()
 
+  // Fetch payment + deal details before updating
+  const { data: payment } = await db
+    .from('alveo_payments')
+    .select('*, alveo_deals(*)')
+    .eq('id', paymentId)
+    .single()
+
+  if (!payment) throw new Error('Paiement introuvable')
+  const deal = payment.alveo_deals as Record<string, unknown>
+
   const { error } = await db
     .from('alveo_payments')
     .update({
@@ -112,7 +123,51 @@ export async function togglePaiement(paymentId: string, paid: boolean) {
     .eq('id', paymentId)
 
   if (error) throw new Error(error.message)
+
+  if (paid) {
+    // Determine current payroll period
+    const periode = currentPeriode(new Date())
+
+    // Try to match person name to a profile (by first name)
+    const personName = (payment.person_role === 'setter'
+      ? (deal.setter_name as string)
+      : (deal.closer_name as string)) ?? ''
+
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, full_name')
+      .in('role', ['closer', 'setter'])
+
+    const firstName = personName.toLowerCase().split(/[\s\-–]/)[0]
+    const matched = (profiles ?? []).find(p =>
+      (p.full_name ?? '').toLowerCase().startsWith(firstName)
+    )
+
+    const isCloser = payment.person_role === 'closer'
+
+    await db.from('paye_entries').insert({
+      period_label:      periode.label,
+      month:             periode.month,
+      year:              periode.year,
+      client_name:       `${deal.client_name as string} — Alveo M${payment.mois as number}`,
+      closer_id:         isCloser ? (matched?.id ?? null) : null,
+      setter_id:         !isCloser ? (matched?.id ?? null) : null,
+      montant:           deal.montant as number,
+      commission:        isCloser ? (payment.amount as number) : 0,
+      commission_setter: !isCloser ? (payment.amount as number) : 0,
+      statut:            'Payé',
+      notes:             `Alveo|${paymentId}`,
+      created_by:        userId,
+    })
+  } else {
+    // Remove the auto-created paye_entry when unmarking
+    await db.from('paye_entries')
+      .delete()
+      .like('notes', `Alveo|${paymentId}`)
+  }
+
   revalidatePath('/alveo')
+  revalidatePath('/payes')
 }
 
 export async function annulerDeal(dealId: string) {
