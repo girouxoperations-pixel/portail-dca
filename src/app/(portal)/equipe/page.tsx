@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { Trophy } from 'lucide-react'
+import { Trophy, Calendar } from 'lucide-react'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import PersonCard            from '@/components/equipe/PersonCard'
@@ -17,17 +17,19 @@ export default async function EquipePage() {
 
   const { data: me } = await supabase
     .from('profiles').select('roles').eq('id', user.id).single()
-  const myRoles  = (me?.roles ?? []) as string[]
-  const isAdmin  = myRoles.some(r => ['admin', 'csm'].includes(r))
+  const myRoles = (me?.roles ?? []) as string[]
+  const isAdmin = myRoles.some(r => ['admin', 'csm'].includes(r))
 
-  const db       = createAdminClient()
-  const now      = new Date()
-  const year     = now.getFullYear()
-  const month    = now.getMonth() + 1
-  const dayOfMonth   = now.getDate()
-  const daysInMonth  = new Date(year, month, 0).getDate()
-  const dateMin  = `${year}-${String(month).padStart(2, '0')}-01`
-  const dateMax  = new Date(year, month, 1).toISOString().split('T')[0]
+  const db          = createAdminClient()
+  const now         = new Date()
+  const year        = now.getFullYear()
+  const month       = now.getMonth() + 1
+  const dayOfMonth  = now.getDate()
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const daysLeft    = daysInMonth - dayOfMonth
+  const monthPct    = Math.round((dayOfMonth / daysInMonth) * 100)
+  const dateMin     = `${year}-${String(month).padStart(2, '0')}-01`
+  const dateMax     = new Date(year, month, 1).toISOString().split('T')[0]
 
   const [
     { data: profiles },
@@ -55,7 +57,6 @@ export default async function EquipePage() {
 
   const goalMap = new Map((goals ?? []).map(g => [g.user_id, g]))
 
-  // Aggregate closer actuals
   const closerAgg = new Map<string, { cash: number; closes: number }>()
   for (const e of closerEntries ?? []) {
     const cur = closerAgg.get(e.user_id) ?? { cash: 0, closes: 0 }
@@ -65,7 +66,6 @@ export default async function EquipePage() {
     })
   }
 
-  // Aggregate setter actuals
   const setterAgg = new Map<string, { rdv: number; calls: number }>()
   for (const e of setterEntries ?? []) {
     const cur = setterAgg.get(e.user_id) ?? { rdv: 0, calls: 0 }
@@ -75,7 +75,6 @@ export default async function EquipePage() {
     })
   }
 
-  // Build closer cards sorted by cash desc
   const closerCards: PersonGoal[] = (profiles ?? [])
     .filter(p => p.role === 'closer')
     .map(p => {
@@ -83,15 +82,15 @@ export default async function EquipePage() {
       const a = closerAgg.get(p.id) ?? { cash: 0, closes: 0 }
       const projectedCash =
         a.cash > 0 && dayOfMonth > 0
-          ? Math.round(a.cash + (a.cash / dayOfMonth) * (daysInMonth - dayOfMonth))
+          ? Math.round(a.cash + (a.cash / dayOfMonth) * daysLeft)
           : null
       return {
         userId:        p.id,
         nom:           p.full_name ?? 'Inconnu',
         role:          'closer' as const,
         rank:          0,
-        targetCash:    g?.target_cash    ?? 0,
-        targetCloses:  g?.target_closes  ?? 0,
+        targetCash:    g?.target_cash   ?? 0,
+        targetCloses:  g?.target_closes ?? 0,
         targetRdv:     0,
         targetCalls:   0,
         actualCash:    a.cash,
@@ -107,7 +106,6 @@ export default async function EquipePage() {
     .sort((a, b) => b.actualCash - a.actualCash)
     .map((c, i) => ({ ...c, rank: i + 1 }))
 
-  // Build setter cards sorted by rdv desc
   const setterCards: PersonGoal[] = (profiles ?? [])
     .filter(p => p.role === 'setter')
     .map(p => {
@@ -137,25 +135,47 @@ export default async function EquipePage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2.5 rounded-xl bg-violet-100">
-          <Trophy size={18} className="text-violet-600" />
+
+      {/* Page header */}
+      <div className="bg-white border border-gray-150 rounded-2xl shadow-sm px-6 py-5 flex items-center gap-4">
+        <div className="p-2.5 rounded-xl bg-violet-100 shrink-0">
+          <Trophy size={20} className="text-violet-600" />
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Équipe</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-bold text-gray-900">Équipe</h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            Objectifs & progression — {MOIS_FR[month - 1]} {year}
+            Classement & objectifs du mois — {MOIS_FR[month - 1]} {year}
           </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 justify-end mb-2">
+            <Calendar size={11} />
+            <span>{daysLeft} jour{daysLeft !== 1 ? 's' : ''} restant{daysLeft !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="w-32">
+            <div className="flex justify-between text-xs text-gray-400 mb-1">
+              <span>Jour {dayOfMonth}</span>
+              <span>{monthPct} %</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-violet-400 transition-all duration-500"
+                style={{ width: `${monthPct}%` }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Closers */}
       {closerCards.length > 0 && (
         <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
-            Closers
-          </h2>
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Closers</h2>
+            <span className="text-xs bg-violet-50 text-violet-600 ring-1 ring-violet-100 px-2 py-0.5 rounded-full font-medium">
+              {closerCards.length}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {closerCards.map(c => (
               <PersonCard key={c.userId} {...c} />
@@ -167,9 +187,12 @@ export default async function EquipePage() {
       {/* Setters */}
       {setterCards.length > 0 && (
         <section>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
-            Setters
-          </h2>
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Setters</h2>
+            <span className="text-xs bg-blue-50 text-blue-600 ring-1 ring-blue-100 px-2 py-0.5 rounded-full font-medium">
+              {setterCards.length}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {setterCards.map(c => (
               <PersonCard key={c.userId} {...c} />
@@ -183,6 +206,7 @@ export default async function EquipePage() {
           <p className="text-sm text-gray-400">Aucun closer ou setter trouvé.</p>
         </div>
       )}
+
     </div>
   )
 }
