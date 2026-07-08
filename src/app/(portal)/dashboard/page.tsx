@@ -230,7 +230,7 @@ function ProjectionCard({
   const onTrack        = targetCash > 0 ? projected >= targetCash : null
 
   return (
-    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col gap-4 h-full">
+    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col gap-4 h-full">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Projection fin de mois</p>
@@ -383,7 +383,7 @@ function TableauSetters({ rows }: { rows: SetterRow[] }) {
   }))
 
   return (
-    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
+    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
       <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-2">
         <TrendingUp size={15} className="text-blue-400" />
         <h3 className="text-sm font-semibold text-gray-200">Performance setters</h3>
@@ -454,7 +454,7 @@ function SectionBonus({ closers, setters }: { closers: BonusItem[]; setters: Bon
   }, 0)
 
   return (
-    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
+    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
       <div className="px-5 py-4 border-b border-white/[0.06] flex items-start justify-between gap-4">
         <div>
           <h3 className="text-sm font-semibold text-gray-200">Bonus automatiques</h3>
@@ -968,7 +968,7 @@ export default async function DashboardPage({
 
   // ── Full business view (all roles) ───────────────────────────────
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#0d0d14]">
+    <div className="min-h-[calc(100vh-4rem)] bg-[#181929]">
     <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
 
       {/* Header */}
@@ -992,7 +992,7 @@ export default async function DashboardPage({
       </div>
 
       {!hasData && (
-        <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl px-6 py-16 text-center">
+        <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl px-6 py-16 text-center">
           <p className="text-4xl mb-4">📊</p>
           <p className="text-base font-semibold text-gray-300">Aucune donnée pour cette période</p>
           <p className="text-sm text-gray-600 mt-1">Importe tes données via Cash / Stats → Importer CSV</p>
@@ -1005,7 +1005,7 @@ export default async function DashboardPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
         {/* Cash collecté — hero card */}
-        <div className="lg:col-span-2 bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col gap-5">
+        <div className="lg:col-span-2 bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Cash collecté</p>
@@ -1083,7 +1083,7 @@ export default async function DashboardPage({
             isCurrentMonth={isCurrentMonthSel}
           />
         ) : (
-          <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col items-center justify-center text-center">
+          <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl p-6 flex flex-col items-center justify-center text-center">
             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Période</p>
             <p className="text-xl font-bold text-white">{periodLabel}</p>
             <p className="text-xs text-gray-500 mt-2">
@@ -1154,7 +1154,7 @@ export default async function DashboardPage({
 
       {/* ── Funnel + Tendance ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
+        <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-2">
             <Target size={15} className="text-violet-400" />
             <h3 className="text-sm font-semibold text-gray-200">Funnel de conversion</h3>

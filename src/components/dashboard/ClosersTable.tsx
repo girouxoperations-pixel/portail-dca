@@ -62,14 +62,14 @@ export default function ClosersTable({ rows, history }: Props) {
 
   if (rows.length === 0) {
     return (
-      <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl p-10 text-center">
+      <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl p-10 text-center">
         <p className="text-sm text-gray-600">Aucune stat closer pour cette période</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
+    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl shadow-xl overflow-hidden">
       <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-2">
         <Users size={15} className="text-violet-400" />
         <h3 className="text-sm font-semibold text-gray-200">Performance closers</h3>
@@ -168,7 +168,7 @@ export default function ClosersTable({ rows, history }: Props) {
                   <XAxis dataKey="mois" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
                   <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a24', color: '#e5e7eb' }}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#252639', color: '#e5e7eb' }}
                     formatter={(v, name) =>
                       name === 'cash' ? [`${dollar(Number(v))}`, 'Cash'] : [Number(v), 'Closes']
                     }

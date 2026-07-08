@@ -28,7 +28,7 @@ function CustomTooltip({ active, payload, label }: {
 }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-[#1a1a24] border border-white/10 shadow-2xl rounded-xl px-4 py-3 text-sm">
+    <div className="bg-[#252639] border border-white/10 shadow-2xl rounded-xl px-4 py-3 text-sm">
       <p className="font-semibold text-gray-300 mb-2">{label}</p>
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center justify-between gap-6">
@@ -52,7 +52,7 @@ export default function TrendChart({ data, weeklyData }: Props) {
   if (active.length === 0) return null
 
   return (
-    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
+    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
       <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-semibold text-gray-200">Tendance</h3>

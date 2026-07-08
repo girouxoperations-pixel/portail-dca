@@ -75,7 +75,7 @@ export default function GoalSection({
   const hasGoals = targetCash > 0 || targetCloses > 0 || targetRevenue > 0
 
   return (
-    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
+    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
       <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Target size={15} className="text-violet-400" />

@@ -37,7 +37,7 @@ export default function KpiCard({ title, value, icon: Icon, color, subtitle, tre
     'bg-white/5 text-gray-500 ring-1 ring-white/10'
 
   return (
-    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-4 shadow-xl">
+    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-4 shadow-xl">
       <div className="flex items-center justify-between">
         <div className={cn('rounded-xl p-2.5', c.iconBg)}>
           <Icon size={18} className={c.iconText} />

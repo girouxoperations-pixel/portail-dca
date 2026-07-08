@@ -51,7 +51,7 @@ export default function LeaderboardSection({ leaderboard }: { leaderboard: Recor
   }
 
   return (
-    <div className="bg-[#13131a] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl h-full flex flex-col">
+    <div className="bg-[#1e1f2e] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl h-full flex flex-col">
       <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Leaderboard</p>
         <div className="flex gap-1">
