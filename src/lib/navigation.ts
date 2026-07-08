@@ -13,6 +13,7 @@ import {
   BookUser,
   ListTodo,
   MessagesSquare,
+  CreditCard,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -42,6 +43,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
+    { label: 'Alveo',       href: '/alveo',        icon: CreditCard      },
     { label: 'Admin',       href: '/admin',        icon: ShieldCheck     },
   ],
   csm: [
@@ -57,6 +59,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Clientes CSM', href: '/csm',         icon: BookUser        },
     { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
+    { label: 'Alveo',       href: '/alveo',        icon: CreditCard      },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
   ],
   cm: [
