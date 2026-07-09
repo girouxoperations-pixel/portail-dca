@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import CashCollectView from '@/components/cashcollect/CashCollectView'
+import { nowQC }        from '@/lib/dates'
 
 export default async function CashCollectPage() {
   const supabase = await createClient()
@@ -20,7 +21,7 @@ export default async function CashCollectPage() {
   if (role !== 'admin' && role !== 'csm') redirect('/dashboard')
 
   const db    = createAdminClient()
-  const annee = new Date().getFullYear()
+  const { year: annee } = nowQC()
 
   const [
     { data: entrees },

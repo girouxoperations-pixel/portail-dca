@@ -3,6 +3,7 @@
 import { revalidatePath }    from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { todayQC }           from '@/lib/dates'
 import { periodLabel }       from '@/lib/payroll'
 
 const TAUX_CLOSER = 0.10
@@ -212,7 +213,7 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
     setter_id:   string | null
   }
 
-  const today              = new Date().toISOString().split('T')[0]
+  const today              = todayQC()
   const [year, month]      = today.split('-').map(Number)
   const label              = periodLabel(today)
   const commission         = Math.round(montantRecu * TAUX_CLOSER * 100) / 100
@@ -309,7 +310,7 @@ export async function marquerRecuAvecSolde(
     setter_id:   string | null
   }
 
-  const today            = new Date().toISOString().split('T')[0]
+  const today            = todayQC()
   const [year, month]    = today.split('-').map(Number)
   const label            = periodLabel(today)
   const commission       = Math.round(montantRecu * TAUX_CLOSER * 100) / 100
@@ -404,7 +405,7 @@ export async function marquerRecuAvecSoldes(
     setter_id:   string | null
   }
 
-  const today         = new Date().toISOString().split('T')[0]
+  const today         = todayQC()
   const [year, month] = today.split('-').map(Number)
   const label         = periodLabel(today)
   const commission    = Math.round(montantRecu * TAUX_CLOSER * 100) / 100

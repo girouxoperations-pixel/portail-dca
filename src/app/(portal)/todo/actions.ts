@@ -3,6 +3,7 @@
 import { revalidatePath }    from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { todayQC }           from '@/lib/dates'
 
 // ── Prospect follow-ups ──────────────────────────────────────────────
 export async function addProspectFollowup(formData: FormData) {
@@ -39,7 +40,7 @@ export async function toggleProspectFollowup(id: string, done: boolean) {
 
   const { error } = await db.from('prospect_followups').update({
     done,
-    done_date: done ? new Date().toISOString().split('T')[0] : null,
+    done_date: done ? todayQC() : null,
   }).eq('id', id)
   if (error) throw error
   revalidatePath('/todo')
@@ -83,7 +84,7 @@ export async function setProspectStatut(id: string, statut: 'actif' | 'contacté
   const { error } = await db.from('prospect_followups').update({
     statut,
     done,
-    done_date: done ? new Date().toISOString().split('T')[0] : null,
+    done_date: done ? todayQC() : null,
   }).eq('id', id)
   if (error) throw error
   revalidatePath('/todo')
@@ -158,7 +159,7 @@ export async function toggleSuiviMessage(
 
   const { error } = await query.update({
     [`message${messageNum}_done`]: done,
-    [`message${messageNum}_date`]: done ? new Date().toISOString().split('T')[0] : null,
+    [`message${messageNum}_date`]: done ? todayQC() : null,
   }).eq('id', followupId)
 
   if (error) throw error

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { todayQC }           from '@/lib/dates'
 
 async function verifyAdminOrCsm() {
   const supabase = await createClient()
@@ -44,7 +45,7 @@ export async function toggleText(
   const db = createAdminClient()
   const { error } = await db.from('csm_clients').update({
     [`text_${field}_done`]: done,
-    [`text_${field}_date`]: done ? new Date().toISOString().split('T')[0] : null,
+    [`text_${field}_date`]: done ? todayQC() : null,
   }).eq('id', clientId)
   if (error) throw error
   revalidatePath('/csm')

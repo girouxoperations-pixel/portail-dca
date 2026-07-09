@@ -6,6 +6,7 @@ import PersonnelView  from '@/components/payes/PersonnelView'
 
 import { getPalier } from '@/lib/constants'
 import { currentPeriode, genPeriodes } from '@/lib/payroll'
+import { dateQC }                      from '@/lib/dates'
 // getPalier kept for PersonnelView (my own bonus tier display)
 
 // ── Page ─────────────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ export default async function PayesPage() {
   if (!profil) redirect('/login')
 
   const db      = createAdminClient()
-  const now     = new Date()
+  const now     = dateQC()
   const annee   = now.getFullYear()
 
   const periode     = currentPeriode(now)

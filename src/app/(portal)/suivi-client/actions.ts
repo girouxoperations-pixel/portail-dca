@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { todayQC }           from '@/lib/dates'
 
 export async function toggleMessage(
   followupId: string,
@@ -28,7 +29,7 @@ export async function toggleMessage(
     .from('client_followups')
     .update({
       [`message${messageNum}_done`]: done,
-      [`message${messageNum}_date`]: done ? new Date().toISOString().split('T')[0] : null,
+      [`message${messageNum}_date`]: done ? todayQC() : null,
     })
     .eq('id', followupId)
 
@@ -55,7 +56,7 @@ export async function toggleMessageAdmin(
     .from('client_followups')
     .update({
       [`message${messageNum}_done`]: done,
-      [`message${messageNum}_date`]: done ? new Date().toISOString().split('T')[0] : null,
+      [`message${messageNum}_date`]: done ? todayQC() : null,
     })
     .eq('id', followupId)
 

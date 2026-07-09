@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { todayQC }           from '@/lib/dates'
 import { periodLabel }       from '@/lib/payroll'
 
 const TAUX_CLOSER = 0.10
@@ -259,7 +260,7 @@ export async function marquerRecuCloser(occurrenceId: string, montantRecu: numbe
   const deal = occ.recurring_deals as { client_name: string; closer_id: string | null; setter_id: string | null }
   if (deal.closer_id !== userId) throw new Error('Non autorisé')
 
-  const today         = new Date().toISOString().split('T')[0]
+  const today         = todayQC()
   const [year, month] = today.split('-').map(Number)
   const label         = periodLabel(today)
   const commission    = Math.round(montantRecu * TAUX_CLOSER * 100) / 100

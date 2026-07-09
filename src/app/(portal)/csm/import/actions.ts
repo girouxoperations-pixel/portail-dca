@@ -3,6 +3,7 @@
 import { revalidatePath }    from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { dateQC }            from '@/lib/dates'
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -22,7 +23,7 @@ const FR_MONTHS: Record<string, string> = {
 }
 
 function smartYear(month: string, day: string): string {
-  const now = new Date()
+  const now = dateQC()
   const currentYear = now.getFullYear()
   const candidate = new Date(`${currentYear}-${month}-${day}T00:00`)
   const cutoff = new Date(now)

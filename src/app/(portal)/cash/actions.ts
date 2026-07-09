@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { periodLabel }       from '@/lib/payroll'
+import { nowQC }             from '@/lib/dates'
 
 const TAUX_CLOSER = 0.10
 const TAUX_SETTER = 0.05
@@ -314,9 +315,9 @@ export async function importerRecurringDeals(
   }
 
   // Fall back to current month if caller didn't provide valid values
-  const now = new Date()
-  const cy = collectYear  || now.getFullYear()
-  const cm = collectMonth || now.getMonth() + 1
+  const { year: _cy, month: _cm } = nowQC()
+  const cy = collectYear  || _cy
+  const cm = collectMonth || _cm
 
   let created = 0
   let updated = 0

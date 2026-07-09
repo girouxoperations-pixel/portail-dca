@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { todayQC, dateQC }   from '@/lib/dates'
 import KpiCard               from '@/components/dashboard/KpiCard'
 import TrendChart            from '@/components/dashboard/TrendChart'
 import GoalSection           from '@/components/dashboard/GoalSection'
@@ -54,7 +55,7 @@ function serverComputeRange(
   customStart?: string,
   customEnd?: string,
 ): ServerRange {
-  const now = new Date()
+  const now = dateQC()
 
   if (periode === 'personnalise' && customStart && customEnd && customStart <= customEnd) {
     const endDate = new Date(customEnd + 'T00:00:00')
@@ -541,7 +542,7 @@ export default async function DashboardPage({
     .from('profiles').select('full_name, role').eq('id', user.id).single()
 
   const params = await searchParams
-  const now    = new Date()
+  const now    = dateQC()
 
   // ── Period resolution ────────────────────────────────────────────────
   let periode: Periode = (params.p as Periode) ?? 'mois'
@@ -570,7 +571,7 @@ export default async function DashboardPage({
 
   const db = createAdminClient()
 
-  const todayStr    = now.toISOString().split('T')[0]
+  const todayStr    = todayQC()
   const weekEndDate = new Date(now)
   weekEndDate.setDate(now.getDate() + 7)
   const weekEndStr  = weekEndDate.toISOString().split('T')[0]

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { todayQC }           from '@/lib/dates'
 
 const ALLOWED = ['admin', 'csm', 'cm']
 
@@ -51,7 +52,7 @@ export async function toggleCmMessage(
 
   const { error } = await db.from('cm_followups').update({
     [`message_${messageNum}`]:      done,
-    [`message_${messageNum}_date`]: done ? new Date().toISOString().split('T')[0] : null,
+    [`message_${messageNum}_date`]: done ? todayQC() : null,
   }).eq('id', followupId)
   if (error) throw new Error(error.message)
   revalidatePath('/cm')

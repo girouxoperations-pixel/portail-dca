@@ -3,6 +3,7 @@ import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import CloserTodoView        from './CloserTodoView'
 import AdminTodoView         from './AdminTodoView'
+import { dateQC }           from '@/lib/dates'
 import type { SuiviTask, VersementTask, ProspectTask } from './types'
 
 export default async function TodoPage() {
@@ -22,7 +23,7 @@ export default async function TodoPage() {
 
   const db = createAdminClient()
 
-  const sixtyDaysAgo = new Date()
+  const sixtyDaysAgo = dateQC()
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
   const cutoff = sixtyDaysAgo.toISOString().split('T')[0]
 

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import AdminView from '@/components/admin/AdminView'
+import { dateQC } from '@/lib/dates'
 
 const MOIS_FR = [
   'Janvier','Février','Mars','Avril','Mai','Juin',
@@ -23,7 +24,7 @@ export default async function AdminPage() {
   if (!userRoles.some(r => ['admin', 'csm'].includes(r))) redirect('/dashboard')
 
   const db  = createAdminClient()
-  const now = new Date()
+  const now = dateQC()
   const moisDebut = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
   const [

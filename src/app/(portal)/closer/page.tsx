@@ -3,6 +3,7 @@ import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import AdminView  from '@/components/closer/AdminView'
 import CloserView from '@/components/closer/CloserView'
+import { dateQC } from '@/lib/dates'
 
 export default async function CloserPage() {
   const supabase = await createClient()
@@ -45,7 +46,7 @@ export default async function CloserPage() {
   }
 
   // ── Vue closer ──────────────────────────────────────────────────
-  const now = new Date()
+  const now = dateQC()
   const [{ data: entrees }, { data: deals }, { data: setters }, { data: recurrents }, { data: goalRaw }, { data: prospectsRaw }] = await Promise.all([
     db.from('closer_entries')
       .select('*')

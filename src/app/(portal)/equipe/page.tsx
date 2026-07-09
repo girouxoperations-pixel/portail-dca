@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { Trophy, Calendar } from 'lucide-react'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { nowQC }             from '@/lib/dates'
 import PersonCard            from '@/components/equipe/PersonCard'
 import type { PersonGoal }   from '@/components/equipe/PersonCard'
 
@@ -21,10 +22,7 @@ export default async function EquipePage() {
   const isAdmin = myRoles.some(r => ['admin', 'csm'].includes(r))
 
   const db          = createAdminClient()
-  const now         = new Date()
-  const year        = now.getFullYear()
-  const month       = now.getMonth() + 1
-  const dayOfMonth  = now.getDate()
+  const { year, month, day: dayOfMonth } = nowQC()
   const daysInMonth = new Date(year, month, 0).getDate()
   const daysLeft    = daysInMonth - dayOfMonth
   const monthPct    = Math.round((dayOfMonth / daysInMonth) * 100)

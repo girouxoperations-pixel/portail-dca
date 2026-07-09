@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { nowQC }             from '@/lib/dates'
 
 // ── Guard : admin seulement ──────────────────────────────────────────
 async function requireAdmin() {
@@ -85,9 +86,8 @@ export async function assignerMVP(formData: FormData) {
   const memberId = (formData.get('member_id') as string)?.trim()
   if (!memberId) throw new Error('Membre requis')
 
-  const now   = new Date()
-  const month = now.getMonth() + 1
-  const year  = now.getFullYear()
+  const { month, year, day: _day } = nowQC()
+  const now = new Date(year, month - 1, _day)
 
   // Vérifier qu'aucun MVP n'a déjà été assigné ce mois
   const { data: existing } = await db
