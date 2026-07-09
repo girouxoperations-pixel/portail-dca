@@ -140,7 +140,7 @@ export default async function EquipePage() {
         isAdmin,
       }
     })
-    .sort((a, b) => b.actualRdv - a.actualRdv)
+    .sort((a, b) => b.actualCash - a.actualCash)
     .map((c, i) => ({ ...c, rank: i + 1 }))
 
   return (
