@@ -733,6 +733,7 @@ export default async function DashboardPage({
   function isLbDeal(e: { close_type: string | null; notes: string | null }) {
     if (e.close_type === 'recurring') return false
     if (e.notes?.startsWith('Récurrent')) return false
+    if (e.notes?.startsWith('Alveo')) return false
     return true
   }
 
@@ -823,13 +824,13 @@ export default async function DashboardPage({
   const cashCollected = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
   const nOnTheSpotDash  = (cashMois ?? []).filter(e => e.close_type === 'on_the_spot').length
   const nFollowUpDash   = (cashMois ?? []).filter(e => e.close_type === 'follow_up').length
-  const nDealsFromCash  = (cashMois ?? []).filter(e => !e.notes?.startsWith('Récurrent') && e.close_type !== 'recurring').length
+  const nDealsFromCash  = (cashMois ?? []).filter(e => !e.notes?.startsWith('Récurrent') && !e.notes?.startsWith('Alveo') && e.close_type !== 'recurring').length
 
   const dealsCollected = (cashMois ?? [])
-    .filter(e => !e.notes?.startsWith('Récurrent'))
+    .filter(e => !e.notes?.startsWith('Récurrent') && !e.notes?.startsWith('Alveo'))
     .reduce((s, e) => s + (e.collected ?? 0), 0)
   const recCollected = (cashMois ?? [])
-    .filter(e => e.notes?.startsWith('Récurrent'))
+    .filter(e => e.notes?.startsWith('Récurrent') || e.notes?.startsWith('Alveo'))
     .reduce((s, e) => s + (e.collected ?? 0), 0)
   const cashParDeal    = nDealsFromCash > 0 ? Math.round(dealsCollected / nDealsFromCash) : 0
   const prevCollected = (cashPrevMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
