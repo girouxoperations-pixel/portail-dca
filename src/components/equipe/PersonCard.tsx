@@ -232,6 +232,11 @@ export default function PersonCard({
           editing ? (
             <div className="grid grid-cols-2 gap-3">
               <div>
+                <label className="text-xs text-gray-500 mb-1 block">Obj. cash ($)</label>
+                <input type="number" min="0" step="1000" value={cash}
+                  onChange={e => setCash(Number(e.target.value))} className={INPUT_CLS} />
+              </div>
+              <div>
                 <label className="text-xs text-gray-500 mb-1 block">Obj. RDV (nb)</label>
                 <input type="number" min="0" step="1" value={rdv}
                   onChange={e => setRdv(Number(e.target.value))} className={INPUT_CLS} />
@@ -244,6 +249,7 @@ export default function PersonCard({
             </div>
           ) : (
             <>
+              <ProgressBar value={actualCash}  goal={targetCash}  label="Cash collecté"    format={dollar} />
               <ProgressBar value={actualRdv}   goal={targetRdv}   label="RDV bookés"       format={n => String(n)} />
               <ProgressBar value={actualCalls} goal={targetCalls} label="Appels tentatives" format={n => String(n)} />
             </>

@@ -34,6 +34,7 @@ export default async function EquipePage() {
     { data: goals },
     { data: closerEntries },
     { data: setterEntries },
+    { data: cashEntries },
   ] = await Promise.all([
     db.from('profiles')
       .select('id, full_name, role')
@@ -51,6 +52,11 @@ export default async function EquipePage() {
       .select('user_id, rdv_booked, attempts')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
+    db.from('cash_entries')
+      .select('set_by, collected, close_type, notes')
+      .gte('entry_date', dateMin)
+      .lt('entry_date', dateMax)
+      .not('set_by', 'is', null),
   ])
 
   const goalMap = new Map((goals ?? []).map(g => [g.user_id, g]))
@@ -71,6 +77,15 @@ export default async function EquipePage() {
       rdv:   cur.rdv   + (e.rdv_booked ?? 0),
       calls: cur.calls + (e.attempts   ?? 0),
     })
+  }
+
+  // Setter cash from cash_entries.set_by (exclude recurring)
+  const setterCashAgg = new Map<string, number>()
+  for (const e of cashEntries ?? []) {
+    if (!e.set_by) continue
+    if (e.close_type === 'recurring') continue
+    if ((e.notes as string | null)?.startsWith('Récurrent')) continue
+    setterCashAgg.set(e.set_by, (setterCashAgg.get(e.set_by) ?? 0) + (e.collected ?? 0))
   }
 
   const closerCards: PersonGoal[] = (profiles ?? [])
@@ -109,16 +124,17 @@ export default async function EquipePage() {
     .map(p => {
       const g = goalMap.get(p.id)
       const a = setterAgg.get(p.id) ?? { rdv: 0, calls: 0 }
+      const sCash = setterCashAgg.get(p.id) ?? 0
       return {
         userId:        p.id,
         nom:           p.full_name ?? 'Inconnu',
         role:          'setter' as const,
         rank:          0,
-        targetCash:    0,
+        targetCash:    g?.target_cash  ?? 0,
         targetCloses:  0,
         targetRdv:     g?.target_rdv   ?? 0,
         targetCalls:   g?.target_calls ?? 0,
-        actualCash:    0,
+        actualCash:    sCash,
         actualCloses:  0,
         actualRdv:     a.rdv,
         actualCalls:   a.calls,
