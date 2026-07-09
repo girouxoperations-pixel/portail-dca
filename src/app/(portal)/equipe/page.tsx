@@ -53,21 +53,17 @@ export default async function EquipePage() {
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
     db.from('cash_entries')
-      .select('set_by, collected, close_type, notes')
+      .select('closed_by, set_by, collected')
       .gte('entry_date', dateMin)
-      .lt('entry_date', dateMax)
-      .not('set_by', 'is', null),
+      .lt('entry_date', dateMax),
   ])
 
   const goalMap = new Map((goals ?? []).map(g => [g.user_id, g]))
 
-  const closerAgg = new Map<string, { cash: number; closes: number }>()
+  // Closes count only (cash now comes from cash_entries)
+  const closerClosesAgg = new Map<string, number>()
   for (const e of closerEntries ?? []) {
-    const cur = closerAgg.get(e.user_id) ?? { cash: 0, closes: 0 }
-    closerAgg.set(e.user_id, {
-      cash:   cur.cash   + (e.cash_collected ?? 0),
-      closes: cur.closes + (e.closes ?? 0),
-    })
+    closerClosesAgg.set(e.user_id, (closerClosesAgg.get(e.user_id) ?? 0) + (e.closes ?? 0))
   }
 
   const setterAgg = new Map<string, { rdv: number; calls: number }>()
@@ -79,23 +75,23 @@ export default async function EquipePage() {
     })
   }
 
-  // Setter cash from cash_entries.set_by (exclude recurring)
+  // Cash total (récurrents + nouveaux deals) par closer et setter
+  const closerCashAgg = new Map<string, number>()
   const setterCashAgg = new Map<string, number>()
   for (const e of cashEntries ?? []) {
-    if (!e.set_by) continue
-    if (e.close_type === 'recurring') continue
-    if ((e.notes as string | null)?.startsWith('Récurrent')) continue
-    setterCashAgg.set(e.set_by, (setterCashAgg.get(e.set_by) ?? 0) + (e.collected ?? 0))
+    if (e.closed_by) closerCashAgg.set(e.closed_by, (closerCashAgg.get(e.closed_by) ?? 0) + (e.collected ?? 0))
+    if (e.set_by)    setterCashAgg.set(e.set_by,    (setterCashAgg.get(e.set_by)    ?? 0) + (e.collected ?? 0))
   }
 
   const closerCards: PersonGoal[] = (profiles ?? [])
     .filter(p => p.role === 'closer')
     .map(p => {
-      const g = goalMap.get(p.id)
-      const a = closerAgg.get(p.id) ?? { cash: 0, closes: 0 }
+      const g      = goalMap.get(p.id)
+      const cash   = closerCashAgg.get(p.id) ?? 0
+      const closes = closerClosesAgg.get(p.id) ?? 0
       const projectedCash =
-        a.cash > 0 && dayOfMonth > 0
-          ? Math.round(a.cash + (a.cash / dayOfMonth) * daysLeft)
+        cash > 0 && dayOfMonth > 0
+          ? Math.round(cash + (cash / dayOfMonth) * daysLeft)
           : null
       return {
         userId:        p.id,
@@ -106,8 +102,8 @@ export default async function EquipePage() {
         targetCloses:  g?.target_closes ?? 0,
         targetRdv:     0,
         targetCalls:   0,
-        actualCash:    a.cash,
-        actualCloses:  a.closes,
+        actualCash:    cash,
+        actualCloses:  closes,
         actualRdv:     0,
         actualCalls:   0,
         projectedCash,
