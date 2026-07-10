@@ -5,17 +5,18 @@ import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export type MonthStat = {
-  year:         number
-  month:        number
+  year:          number
+  month:         number
   cashCollected: number
-  nDeals:       number
-  closes:       number
-  rdv:          number
-  calls:        number
-  targetCash:   number
-  targetCloses: number
-  targetRdv:    number
-  targetCalls:  number
+  cashDeals:     number
+  nDeals:        number
+  closes:        number
+  rdv:           number
+  calls:         number
+  targetCash:    number
+  targetCloses:  number
+  targetRdv:     number
+  targetCalls:   number
 }
 
 export async function getHistoriqueUser(
@@ -51,7 +52,7 @@ export async function getHistoriqueUser(
 
   const getOrCreate = (year: number, month: number): MonthStat => {
     const key = `${year}-${String(month).padStart(2, '0')}`
-    if (!map.has(key)) map.set(key, { year, month, cashCollected: 0, nDeals: 0, closes: 0, rdv: 0, calls: 0, targetCash: 0, targetCloses: 0, targetRdv: 0, targetCalls: 0 })
+    if (!map.has(key)) map.set(key, { year, month, cashCollected: 0, cashDeals: 0, nDeals: 0, closes: 0, rdv: 0, calls: 0, targetCash: 0, targetCloses: 0, targetRdv: 0, targetCalls: 0 })
     return map.get(key)!
   }
 
@@ -59,7 +60,10 @@ export async function getHistoriqueUser(
     const s = getOrCreate(e.year!, e.month!)
     const isRec = e.close_type === 'recurring' || e.close_type === 'financement' || e.notes?.startsWith('Récurrent')
     s.cashCollected += e.collected ?? 0
-    if (!isRec && role === 'closer') s.nDeals++
+    if (!isRec) {
+      s.cashDeals += e.collected ?? 0
+      s.nDeals++
+    }
   }
 
   for (const e of closerRes.data ?? []) {

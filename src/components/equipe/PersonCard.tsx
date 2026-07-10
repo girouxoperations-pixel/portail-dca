@@ -93,18 +93,20 @@ function ProgressBar({
 }
 
 function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
-  const totCash   = rows.reduce((s, r) => s + r.cashCollected, 0)
-  const totDeals  = rows.reduce((s, r) => s + r.nDeals, 0)
-  const avgCash   = totDeals > 0 ? Math.round(totCash / totDeals) : 0
+  const totCash      = rows.reduce((s, r) => s + r.cashCollected, 0)
+  const totCashDeals = rows.reduce((s, r) => s + r.cashDeals, 0)
+  const totDeals     = rows.reduce((s, r) => s + r.nDeals, 0)
+  const avgCash      = totDeals > 0 ? Math.round(totCashDeals / totDeals) : 0
 
   return (
     <div className="px-5 pb-5 space-y-4">
       {/* Summary chips */}
       <div className="grid grid-cols-2 gap-2">
         {[
-          { label: 'Cash total',     val: dollar(totCash) },
-          { label: 'Moy. cash/deal', val: avgCash > 0 ? dollar(avgCash) : '—' },
-          { label: 'Deals total',    val: String(totDeals) },
+          { label: 'Cash total',        val: dollar(totCash) },
+          { label: 'Cash new deals',    val: dollar(totCashDeals) },
+          { label: 'Deals total',       val: String(totDeals) },
+          { label: 'Moy. cash/deal',    val: avgCash > 0 ? dollar(avgCash) : '—' },
         ].map(({ label, val }) => (
           <div key={label} className="bg-gray-50 rounded-xl px-3 py-2">
             <p className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</p>
@@ -120,15 +122,16 @@ function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
             <tr className="bg-gray-50 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
               <th className="px-3 py-2 text-left">Mois</th>
               <th className="px-3 py-2 text-right">Deals</th>
-              <th className="px-3 py-2 text-right">Cash</th>
+              <th className="px-3 py-2 text-right">Cash deals</th>
               <th className="px-3 py-2 text-right">Moy./deal</th>
-              <th className="px-3 py-2 text-right">Obj. cash</th>
+              <th className="px-3 py-2 text-right">Cash total</th>
+              <th className="px-3 py-2 text-right">Obj.</th>
               <th className="px-3 py-2 text-right">%</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {rows.map(r => {
-              const avg = r.nDeals > 0 ? Math.round(r.cashCollected / r.nDeals) : 0
+              const avg = r.nDeals > 0 ? Math.round(r.cashDeals / r.nDeals) : 0
               return (
                 <tr key={`${r.year}-${r.month}`} className="hover:bg-violet-50/20">
                   <td className="px-3 py-2 font-medium text-gray-700 whitespace-nowrap">
@@ -136,10 +139,13 @@ function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-600">{r.nDeals || '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold text-violet-700">
-                    {r.cashCollected > 0 ? dollar(r.cashCollected) : <span className="text-gray-300">—</span>}
+                    {r.cashDeals > 0 ? dollar(r.cashDeals) : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">
                     {avg > 0 ? dollar(avg) : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-700">
+                    {r.cashCollected > 0 ? dollar(r.cashCollected) : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-400">
                     {r.targetCash > 0 ? dollar(r.targetCash) : <span className="text-gray-200">—</span>}
@@ -155,8 +161,9 @@ function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
             <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold text-gray-700">
               <td className="px-3 py-2 text-[10px] uppercase tracking-wide text-gray-400">Total</td>
               <td className="px-3 py-2 text-right tabular-nums">{totDeals}</td>
-              <td className="px-3 py-2 text-right tabular-nums text-violet-700">{dollar(totCash)}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-violet-700">{dollar(totCashDeals)}</td>
               <td className="px-3 py-2 text-right tabular-nums text-gray-600">{avgCash > 0 ? dollar(avgCash) : '—'}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{dollar(totCash)}</td>
               <td className="px-3 py-2 text-right" colSpan={2} />
             </tr>
           </tfoot>
@@ -167,20 +174,25 @@ function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
 }
 
 function HistoriqueSetter({ rows }: { rows: MonthStat[] }) {
-  const totCash  = rows.reduce((s, r) => s + r.cashCollected, 0)
-  const totRdv   = rows.reduce((s, r) => s + r.rdv, 0)
-  const totCalls = rows.reduce((s, r) => s + r.calls, 0)
-  const avgRdv   = totCalls > 0 ? Math.round((totRdv / totCalls) * 100) : 0
+  const totCash      = rows.reduce((s, r) => s + r.cashCollected, 0)
+  const totCashDeals = rows.reduce((s, r) => s + r.cashDeals, 0)
+  const totDeals     = rows.reduce((s, r) => s + r.nDeals, 0)
+  const totRdv       = rows.reduce((s, r) => s + r.rdv, 0)
+  const totCalls     = rows.reduce((s, r) => s + r.calls, 0)
+  const avgCash      = totDeals > 0 ? Math.round(totCashDeals / totDeals) : 0
+  const avgBook      = totCalls > 0 ? Math.round((totRdv / totCalls) * 100) : 0
 
   return (
     <div className="px-5 pb-5 space-y-4">
       {/* Summary chips */}
       <div className="grid grid-cols-2 gap-2">
         {[
-          { label: 'Cash total',   val: dollar(totCash) },
-          { label: 'RDV total',    val: String(totRdv) },
-          { label: 'Appels total', val: String(totCalls) },
-          { label: 'Book rate',    val: avgRdv > 0 ? `${avgRdv}%` : '—' },
+          { label: 'Cash total',     val: dollar(totCash) },
+          { label: 'Cash new deals', val: dollar(totCashDeals) },
+          { label: 'Deals total',    val: String(totDeals) },
+          { label: 'Moy. cash/deal', val: avgCash > 0 ? dollar(avgCash) : '—' },
+          { label: 'RDV total',      val: String(totRdv) },
+          { label: 'Book rate',      val: avgBook > 0 ? `${avgBook}%` : '—' },
         ].map(({ label, val }) => (
           <div key={label} className="bg-gray-50 rounded-xl px-3 py-2">
             <p className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</p>
@@ -195,33 +207,34 @@ function HistoriqueSetter({ rows }: { rows: MonthStat[] }) {
           <thead>
             <tr className="bg-gray-50 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
               <th className="px-3 py-2 text-left">Mois</th>
-              <th className="px-3 py-2 text-right">Cash</th>
-              <th className="px-3 py-2 text-right">%</th>
+              <th className="px-3 py-2 text-right">Deals</th>
+              <th className="px-3 py-2 text-right">Cash deals</th>
+              <th className="px-3 py-2 text-right">Moy./deal</th>
+              <th className="px-3 py-2 text-right">Cash total</th>
               <th className="px-3 py-2 text-right">RDV</th>
-              <th className="px-3 py-2 text-right">% obj. RDV</th>
-              <th className="px-3 py-2 text-right">Appels</th>
               <th className="px-3 py-2 text-right">Book%</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {rows.map(r => {
-              const bookRate = r.calls > 0 ? Math.round((r.rdv / r.calls) * 100) : 0
+              const avg      = r.nDeals > 0 ? Math.round(r.cashDeals / r.nDeals) : 0
+              const bookRate = r.calls  > 0 ? Math.round((r.rdv / r.calls) * 100) : 0
               return (
                 <tr key={`${r.year}-${r.month}`} className="hover:bg-blue-50/20">
                   <td className="px-3 py-2 font-medium text-gray-700 whitespace-nowrap">
                     {MOIS_FR[r.month - 1]} {r.year}
                   </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-600">{r.nDeals || '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-700">
+                    {r.cashDeals > 0 ? dollar(r.cashDeals) : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">
+                    {avg > 0 ? dollar(avg) : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-700">
                     {r.cashCollected > 0 ? dollar(r.cashCollected) : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-3 py-2 text-right">
-                    <PctBadge value={r.cashCollected} goal={r.targetCash} />
-                  </td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-700 font-semibold">{r.rdv || '—'}</td>
-                  <td className="px-3 py-2 text-right">
-                    <PctBadge value={r.rdv} goal={r.targetRdv} />
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{r.calls || '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">
                     {bookRate > 0 ? `${bookRate}%` : <span className="text-gray-300">—</span>}
                   </td>
@@ -232,12 +245,12 @@ function HistoriqueSetter({ rows }: { rows: MonthStat[] }) {
           <tfoot>
             <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold text-gray-700">
               <td className="px-3 py-2 text-[10px] uppercase tracking-wide text-gray-400">Total</td>
-              <td className="px-3 py-2 text-right tabular-nums text-blue-700">{dollar(totCash)}</td>
-              <td className="px-3 py-2 text-right" />
+              <td className="px-3 py-2 text-right tabular-nums">{totDeals}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-blue-700">{dollar(totCashDeals)}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-gray-600">{avgCash > 0 ? dollar(avgCash) : '—'}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{dollar(totCash)}</td>
               <td className="px-3 py-2 text-right tabular-nums">{totRdv}</td>
-              <td className="px-3 py-2 text-right" />
-              <td className="px-3 py-2 text-right tabular-nums">{totCalls}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{avgRdv > 0 ? `${avgRdv}%` : '—'}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{avgBook > 0 ? `${avgBook}%` : '—'}</td>
             </tr>
           </tfoot>
         </table>
