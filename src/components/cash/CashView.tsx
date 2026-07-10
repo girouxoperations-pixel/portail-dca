@@ -1198,6 +1198,7 @@ export default function CashView({
                         <th className="px-5 py-3 text-right">Nb deals</th>
                         <th className="px-5 py-3 text-right">Revenue deals</th>
                         <th className="px-5 py-3 text-right text-violet-500">Cash deals</th>
+                        <th className="px-5 py-3 text-right text-gray-400">Cash moy./deal</th>
                         <th className="px-5 py-3 text-right text-blue-500">Cash récurrents</th>
                         <th className="px-5 py-3 text-right font-bold text-gray-500">Cash total</th>
                       </tr>
@@ -1218,6 +1219,9 @@ export default function CashView({
                           <td className="px-5 py-3 text-right tabular-nums font-semibold text-violet-700">
                             {w.cashDeal > 0 ? dollar(w.cashDeal) : <span className="text-gray-200">—</span>}
                           </td>
+                          <td className="px-5 py-3 text-right tabular-nums text-gray-500">
+                            {w.nDeals > 0 ? dollar(Math.round(w.cashDeal / w.nDeals)) : <span className="text-gray-200">—</span>}
+                          </td>
                           <td className="px-5 py-3 text-right tabular-nums font-semibold text-blue-600">
                             {w.cashRec > 0 ? dollar(w.cashRec) : <span className="text-gray-200">—</span>}
                           </td>
@@ -1233,6 +1237,7 @@ export default function CashView({
                         <td className="px-5 py-3 text-right tabular-nums">{totW.nDeals}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-gray-600">{dollar(totW.revenueDeal)}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-violet-700">{dollar(totW.cashDeal)}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-gray-600">{totW.nDeals > 0 ? dollar(Math.round(totW.cashDeal / totW.nDeals)) : '—'}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-blue-600">{dollar(totW.cashRec)}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-gray-900">{dollar(totW.cashDeal + totW.cashRec)}</td>
                       </tr>
