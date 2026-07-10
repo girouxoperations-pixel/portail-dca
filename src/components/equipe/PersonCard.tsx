@@ -95,7 +95,6 @@ function ProgressBar({
 function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
   const totCash   = rows.reduce((s, r) => s + r.cashCollected, 0)
   const totDeals  = rows.reduce((s, r) => s + r.nDeals, 0)
-  const totCloses = rows.reduce((s, r) => s + r.closes, 0)
   const avgCash   = totDeals > 0 ? Math.round(totCash / totDeals) : 0
 
   return (
@@ -103,10 +102,9 @@ function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
       {/* Summary chips */}
       <div className="grid grid-cols-2 gap-2">
         {[
-          { label: 'Cash total',    val: dollar(totCash) },
+          { label: 'Cash total',     val: dollar(totCash) },
           { label: 'Moy. cash/deal', val: avgCash > 0 ? dollar(avgCash) : '—' },
-          { label: 'Deals total',   val: String(totDeals) },
-          { label: 'Closes total',  val: String(totCloses) },
+          { label: 'Deals total',    val: String(totDeals) },
         ].map(({ label, val }) => (
           <div key={label} className="bg-gray-50 rounded-xl px-3 py-2">
             <p className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</p>
@@ -124,7 +122,6 @@ function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
               <th className="px-3 py-2 text-right">Deals</th>
               <th className="px-3 py-2 text-right">Cash</th>
               <th className="px-3 py-2 text-right">Moy./deal</th>
-              <th className="px-3 py-2 text-right">Closes</th>
               <th className="px-3 py-2 text-right">Obj. cash</th>
               <th className="px-3 py-2 text-right">%</th>
             </tr>
@@ -144,7 +141,6 @@ function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">
                     {avg > 0 ? dollar(avg) : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-600">{r.closes || '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-400">
                     {r.targetCash > 0 ? dollar(r.targetCash) : <span className="text-gray-200">—</span>}
                   </td>
@@ -161,7 +157,6 @@ function HistoriqueCloser({ rows }: { rows: MonthStat[] }) {
               <td className="px-3 py-2 text-right tabular-nums">{totDeals}</td>
               <td className="px-3 py-2 text-right tabular-nums text-violet-700">{dollar(totCash)}</td>
               <td className="px-3 py-2 text-right tabular-nums text-gray-600">{avgCash > 0 ? dollar(avgCash) : '—'}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{totCloses}</td>
               <td className="px-3 py-2 text-right" colSpan={2} />
             </tr>
           </tfoot>
