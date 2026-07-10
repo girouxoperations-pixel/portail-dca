@@ -86,6 +86,7 @@ function formatDate(dateStr: string) {
 function getSourceType(e: CashEntry, recurringIds: Set<string>): SourceType {
   if (recurringIds.has(e.id)) return 'recurrent'
   if (e.close_type === 'recurring') return 'recurrent'
+  if (e.close_type === 'financement') return 'recurrent'
   if (e.notes?.startsWith('Récurrent')) return 'recurrent'
   return 'deal'
 }
@@ -130,6 +131,13 @@ function TypeBadge({ type, closeType }: { type: SourceType; closeType?: string |
     return (
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 whitespace-nowrap">
         <Clock size={9} />Follow up
+      </span>
+    )
+  }
+  if (closeType === 'financement') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 whitespace-nowrap">
+        <RefreshCw size={9} />Financement
       </span>
     )
   }
@@ -299,14 +307,14 @@ function ModalForm({
 
           <Champ label="Type de close">
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-              {(['on_the_spot', 'follow_up'] as const).map((v, i) => (
+              {(['on_the_spot', 'follow_up', 'financement'] as const).map((v, i) => (
                 <label key={v} className={cn(
                   'flex-1 text-center py-2.5 cursor-pointer font-medium transition-colors',
-                  i === 0 ? 'border-r border-gray-200' : '',
+                  i < 2 ? 'border-r border-gray-200' : '',
                   'has-[:checked]:bg-violet-600 has-[:checked]:text-white text-gray-500 hover:bg-gray-50',
                 )}>
                   <input type="radio" name="close_type" value={v} defaultChecked={entry?.close_type === v || (!entry && v === 'on_the_spot')} className="sr-only" />
-                  {v === 'on_the_spot' ? 'On the spot' : 'Follow up'}
+                  {v === 'on_the_spot' ? 'On the spot' : v === 'follow_up' ? 'Follow up' : 'Financement'}
                 </label>
               ))}
             </div>
@@ -1252,7 +1260,7 @@ export default function CashView({
         // Build counts[week][dow] — use ALL entries for the year, not just the filtered period
         const counts: Record<number, Record<number, number>> = {}
         for (let w = 1; w <= 52; w++) counts[w] = {}
-        const deals = entrees.filter(e => !recurringIds.has(e.id) && e.close_type !== 'recurring')
+        const deals = entrees.filter(e => !recurringIds.has(e.id) && e.close_type !== 'recurring' && e.close_type !== 'financement')
         deals.forEach(e => {
           const w = weekOfYear(e.entry_date)
           if (!w) return

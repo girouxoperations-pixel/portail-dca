@@ -105,9 +105,10 @@ function PctBadge({ value, bold = false }: { value: number; bold?: boolean }) {
 
 function CloseTypeBadge({ type }: { type: string | null }) {
   if (!type) return <span className="text-gray-300 text-xs">—</span>
-  return type === 'on_the_spot'
-    ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200"><Zap size={10} />Spot</span>
-    : <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-200"><RefreshCw size={10} />FU</span>
+  if (type === 'on_the_spot') return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200"><Zap size={10} />Spot</span>
+  if (type === 'follow_up')   return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-200"><RefreshCw size={10} />FU</span>
+  if (type === 'financement') return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200"><RefreshCw size={10} />Financement</span>
+  return <span className="text-gray-300 text-xs">—</span>
 }
 
 // ── Modal ajout entrée journalière ────────────────────────────────────
@@ -441,14 +442,14 @@ function ModalDeal({
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-gray-600">Type de close</label>
           <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-            {(['on_the_spot', 'follow_up'] as const).map((v, i) => (
+            {(['on_the_spot', 'follow_up', 'financement'] as const).map((v, i) => (
               <label key={v} className={cn(
                 'flex-1 text-center py-2.5 cursor-pointer font-medium transition-colors',
-                i === 0 ? 'border-r border-gray-300' : '',
+                i < 2 ? 'border-r border-gray-300' : '',
                 'has-[:checked]:bg-violet-600 has-[:checked]:text-white text-gray-500 hover:bg-gray-50',
               )}>
                 <input type="radio" name="close_type" value={v} defaultChecked={v === 'on_the_spot'} className="sr-only" />
-                {v === 'on_the_spot' ? '⚡ On the spot' : '🔄 Follow up'}
+                {v === 'on_the_spot' ? '⚡ On the spot' : v === 'follow_up' ? '🔄 Follow up' : '💳 Financement'}
               </label>
             ))}
           </div>

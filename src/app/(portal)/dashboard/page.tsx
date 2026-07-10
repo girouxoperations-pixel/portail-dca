@@ -732,6 +732,7 @@ export default async function DashboardPage({
 
   function isLbDeal(e: { close_type: string | null; notes: string | null }) {
     if (e.close_type === 'recurring') return false
+    if (e.close_type === 'financement') return false
     if (e.notes?.startsWith('Récurrent')) return false
     if (e.notes?.startsWith('Alveo')) return false
     return true
@@ -822,15 +823,19 @@ export default async function DashboardPage({
   // ── KPIs ─────────────────────────────────────────────────────────
   const cashRevenu    = (cashMois ?? []).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
   const cashCollected = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
-  const nOnTheSpotDash  = (cashMois ?? []).filter(e => e.close_type === 'on_the_spot').length
-  const nFollowUpDash   = (cashMois ?? []).filter(e => e.close_type === 'follow_up').length
-  const nDealsFromCash  = (cashMois ?? []).filter(e => !e.notes?.startsWith('Récurrent') && !e.notes?.startsWith('Alveo') && e.close_type !== 'recurring').length
+  const isRecEntry = (e: { close_type: string | null; notes: string | null }) =>
+    e.close_type === 'recurring' || e.close_type === 'financement' ||
+    e.notes?.startsWith('Récurrent') || e.notes?.startsWith('Alveo')
+
+  const nOnTheSpotDash  = (cashMois ?? []).filter(e => !isRecEntry(e) && e.close_type === 'on_the_spot').length
+  const nFollowUpDash   = (cashMois ?? []).filter(e => !isRecEntry(e) && e.close_type === 'follow_up').length
+  const nDealsFromCash  = (cashMois ?? []).filter(e => !isRecEntry(e)).length
 
   const dealsCollected = (cashMois ?? [])
-    .filter(e => !e.notes?.startsWith('Récurrent') && !e.notes?.startsWith('Alveo'))
+    .filter(e => !isRecEntry(e))
     .reduce((s, e) => s + (e.collected ?? 0), 0)
   const recCollected = (cashMois ?? [])
-    .filter(e => e.notes?.startsWith('Récurrent') || e.notes?.startsWith('Alveo'))
+    .filter(e => isRecEntry(e))
     .reduce((s, e) => s + (e.collected ?? 0), 0)
   const cashParDeal    = nDealsFromCash > 0 ? Math.round(dealsCollected / nDealsFromCash) : 0
   const prevCollected = (cashPrevMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)

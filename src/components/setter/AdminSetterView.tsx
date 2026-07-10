@@ -399,7 +399,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
       const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
       const key = `${isoYear}-${String(week).padStart(2, '0')}`
       const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, rdvAgenda: 0, showed: 0, noShow: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
-      const isRecurring = e.close_type === 'recurring' || (e.notes?.startsWith('Récurrent') ?? false)
+      const isRecurring = e.close_type === 'recurring' || e.close_type === 'financement' || (e.notes?.startsWith('Récurrent') ?? false)
       if (isRecurring) {
         cur.cashRecurrents += e.collected ?? 0
       } else {

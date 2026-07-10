@@ -116,10 +116,10 @@ export default function QuickCashModal({ closers, setters }: Props) {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-gray-600">Type de close</label>
                   <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-                    {(['on_the_spot', 'follow_up'] as const).map((v, i) => (
+                    {(['on_the_spot', 'follow_up', 'financement'] as const).map((v, i) => (
                       <label key={v} className={[
                         'flex-1 text-center py-2.5 cursor-pointer font-medium transition-colors',
-                        i === 0 ? 'border-r border-gray-300' : '',
+                        i < 2 ? 'border-r border-gray-300' : '',
                         'has-[:checked]:bg-violet-600 has-[:checked]:text-white text-gray-500 hover:bg-gray-50',
                       ].join(' ')}>
                         <input
@@ -127,7 +127,7 @@ export default function QuickCashModal({ closers, setters }: Props) {
                           defaultChecked={v === 'on_the_spot'}
                           className="sr-only"
                         />
-                        {v === 'on_the_spot' ? '⚡ On the spot' : '🔄 Follow up'}
+                        {v === 'on_the_spot' ? '⚡ On the spot' : v === 'follow_up' ? '🔄 Follow up' : '💳 Financement'}
                       </label>
                     ))}
                   </div>
