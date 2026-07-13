@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Search, X, Download, Users, CheckCircle2, AlertCircle, XCircle } from 'lucide-react'
+import { useState, useMemo, useTransition } from 'react'
+import { Search, X, Download, Users, CheckCircle2, AlertCircle, XCircle, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
+import { updateCsmClientContact } from '@/app/(portal)/clients/actions'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -94,6 +95,78 @@ function MethBadge({ m }: { m: string | null }) {
   return <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded', cls)}>{label}</span>
 }
 
+// ── Modal édition contact (2026) ───────────────────────────────────
+
+const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
+const METHODES = ['Interac', 'Crédit', 'Financement'] as const
+
+function ModalEditContact({ client, onClose }: { client: LiveClient; onClose: () => void }) {
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const data = {
+      phone:   (fd.get('phone')   as string) || null,
+      email:   (fd.get('email')   as string) || null,
+      methode: (fd.get('methode') as string) || null,
+    }
+    setError(null)
+    startTransition(async () => {
+      try {
+        await updateCsmClientContact(client.id, data)
+        onClose()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur')
+      }
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Modifier les coordonnées</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{client.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-lg leading-none">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-gray-600">Téléphone</label>
+            <input name="phone" type="tel" defaultValue={client.phone ?? ''} placeholder="(514) 000-0000" className={INPUT} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-gray-600">Email</label>
+            <input name="email" type="email" defaultValue={client.email ?? ''} placeholder="cliente@exemple.com" className={INPUT} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-gray-600">Méthode de paiement</label>
+            <select name="methode" defaultValue={client.methode ?? ''} className={INPUT}>
+              <option value="">— Non spécifiée —</option>
+              {METHODES.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+              Annuler
+            </button>
+            <button type="submit" disabled={pending}
+              className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+              {pending ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── CSV export ─────────────────────────────────────────────────────
+
 function exportCSV(clients: AnyClient[], year: number) {
   const headers = ['Nom', 'Téléphone', 'Email', 'Date entrée', 'Date sortie', 'Méthode', 'Montant qui reste', 'Statut', 'Notes']
   const rows = clients.map(c => [
@@ -123,8 +196,9 @@ export default function ClientsView({
   historical: HistoricalClient[]
   clients2026: LiveClient[]
 }) {
-  const [year,   setYear]   = useState<2024 | 2025 | 2026>(2026)
-  const [search, setSearch] = useState('')
+  const [year,        setYear]        = useState<2024 | 2025 | 2026>(2026)
+  const [search,      setSearch]      = useState('')
+  const [editClient,  setEditClient]  = useState<LiveClient | null>(null)
 
   const clients: AnyClient[] = useMemo(() => {
     if (year === 2026) return clients2026
@@ -272,10 +346,13 @@ export default function ClientsView({
                   <th className="px-4 py-3 text-left whitespace-nowrap">Date sortie</th>
                   <th className="px-4 py-3 text-left">Méthode</th>
                   <th className="px-4 py-3 text-left whitespace-nowrap">Montant qui reste</th>
+                  {year === 2026 && <th className="px-4 py-3 w-8" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.map((c, idx) => (
+                {filtered.map((c, idx) => {
+                  const missingContact = !c.phone || !c.email || !c.methode
+                  return (
                   <tr key={c.id} className={cn(
                     'hover:bg-gray-50/50 transition-colors',
                     c.status === 'dropped' && 'opacity-60',
@@ -288,13 +365,13 @@ export default function ClientsView({
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                       {c.phone
                         ? <a href={`tel:${c.phone}`} className="hover:text-violet-600 transition-colors">{c.phone}</a>
-                        : '—'
+                        : <span className="text-gray-200">—</span>
                       }
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">
                       {c.email
                         ? <a href={`mailto:${c.email}`} className="hover:text-violet-600 transition-colors">{c.email}</a>
-                        : '—'
+                        : <span className="text-gray-200">—</span>
                       }
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(c.entry_date)}</td>
@@ -303,13 +380,34 @@ export default function ClientsView({
                     <td className="px-4 py-3">
                       <BalanceCell montantReste={c.montant_reste ?? null} status={c.status} />
                     </td>
+                    {year === 2026 && (
+                      <td className="px-2 py-3">
+                        <button
+                          onClick={() => setEditClient(c as LiveClient)}
+                          title={missingContact ? 'Compléter les infos' : 'Modifier'}
+                          className={cn(
+                            'p-1.5 rounded-lg transition-colors',
+                            missingContact
+                              ? 'text-amber-400 hover:text-amber-600 hover:bg-amber-50'
+                              : 'text-gray-200 hover:text-violet-500 hover:bg-violet-50',
+                          )}
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {editClient && (
+        <ModalEditContact client={editClient} onClose={() => setEditClient(null)} />
+      )}
     </div>
   )
 }

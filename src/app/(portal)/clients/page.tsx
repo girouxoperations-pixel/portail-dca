@@ -25,6 +25,7 @@ export default async function ClientsPage() {
     .from('csm_clients')
     .select(`
       id, name, enrollment_date, payment_type, status, closer_id,
+      phone, email, methode,
       cash_entries!cash_entry_id (
         id, client_phone, client_email, methode,
         montant_courant, collected, a_collecter
@@ -57,13 +58,13 @@ export default async function ClientsPage() {
       id:           c.id,
       year:         2026 as const,
       name:         c.name,
-      phone:        ce?.client_phone ?? null,
-      email:        ce?.client_email ?? null,
+      phone:        ce?.client_phone ?? c.phone ?? null,
+      email:        ce?.client_email ?? c.email ?? null,
       entry_date:   c.enrollment_date,
       exit_date:    c.enrollment_date
         ? (() => { const d = new Date(c.enrollment_date + 'T00:00:00'); d.setDate(d.getDate() + 90); return d.toISOString().split('T')[0] })()
         : null,
-      methode:      ce?.methode ?? null,
+      methode:      ce?.methode ?? c.methode ?? null,
       montant_courant: ce?.montant_courant ?? null,
       montant_reste: montantReste,
       payment_type: c.payment_type,
