@@ -15,6 +15,7 @@ import {
   MessagesSquare,
   CreditCard,
   Trophy,
+  Archive,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -43,6 +44,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Alveo',       href: '/alveo',        icon: CreditCard      },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
     { label: 'Clientes CSM', href: '/csm',         icon: BookUser        },
+    { label: 'Clients',     href: '/clients',      icon: Archive         },
     { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
