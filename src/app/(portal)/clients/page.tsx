@@ -60,7 +60,9 @@ export default async function ClientsPage() {
       phone:        ce?.client_phone ?? null,
       email:        ce?.client_email ?? null,
       entry_date:   c.enrollment_date,
-      exit_date:    null as string | null,
+      exit_date:    c.enrollment_date
+        ? (() => { const d = new Date(c.enrollment_date + 'T00:00:00'); d.setDate(d.getDate() + 90); return d.toISOString().split('T')[0] })()
+        : null,
       methode:      ce?.methode ?? null,
       montant_courant: ce?.montant_courant ?? null,
       montant_reste: montantReste,
