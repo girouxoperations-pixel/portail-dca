@@ -33,6 +33,8 @@ export async function creerCashCollect(formData: FormData) {
   const entryDate      = formData.get('entry_date') as string
   const [year, month]  = entryDate.split('-').map(Number)
   const clientName     = (formData.get('client_name') as string) || null
+  const clientPhone    = (formData.get('client_phone') as string) || null
+  const clientEmail    = (formData.get('client_email') as string) || null
   const montantCourant = Number(formData.get('montant_courant'))
   const collected      = Number(formData.get('collected'))
   const methode        = (formData.get('methode') as string) || null
@@ -47,6 +49,8 @@ export async function creerCashCollect(formData: FormData) {
     .insert({
       entry_date:      entryDate,
       client_name:     clientName,
+      client_phone:    clientPhone,
+      client_email:    clientEmail,
       montant_courant: montantCourant,
       collected,
       methode,
