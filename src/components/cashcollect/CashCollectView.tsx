@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown, Zap, RefreshCw, X, ChevronDown, ChevronUp, RefreshCcw, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, Wallet, TrendingDown, Zap, RefreshCw, X, RefreshCcw, Search, Monitor, Film } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   creerCashCollect, modifierCashEntry, supprimerCashCollect, ajouterVersementNouveauRecurrent,
@@ -30,6 +30,7 @@ interface CashEntry {
   month: number | null
   year: number | null
   notes: string | null
+  source_type: 'webi' | 'vsl' | null
 }
 
 const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
@@ -401,6 +402,25 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
         </div>
 
         <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Source</label>
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+            {([
+              { value: 'webi', label: 'Webi', Icon: Monitor },
+              { value: 'vsl',  label: 'VSL',  Icon: Film    },
+            ] as const).map(({ value, label, Icon }, i) => (
+              <label key={value} className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-2.5 cursor-pointer font-medium transition-colors',
+                i > 0 && 'border-l border-gray-200',
+                'has-[:checked]:bg-violet-600 has-[:checked]:text-white text-gray-500 hover:bg-gray-50',
+              )}>
+                <input type="radio" name="source_type" value={value} className="sr-only" />
+                <Icon size={13} />{label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Notes (optionnel)</label>
           <textarea name="notes" rows={2} placeholder="Remarques..." className={`${INPUT_CLS} resize-none`} />
         </div>
@@ -496,6 +516,25 @@ function ModalModifier({ entry, closers, setters, onClose }: { entry: CashEntry;
               <option value="">— Aucun —</option>
               {setters.map(s => <option key={s.id} value={s.id}>{s.full_name ?? s.id}</option>)}
             </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Source</label>
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+            {([
+              { value: 'webi', label: 'Webi', Icon: Monitor },
+              { value: 'vsl',  label: 'VSL',  Icon: Film    },
+            ] as const).map(({ value, label, Icon }, i) => (
+              <label key={value} className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-2.5 cursor-pointer font-medium transition-colors',
+                i > 0 && 'border-l border-gray-200',
+                'has-[:checked]:bg-violet-600 has-[:checked]:text-white text-gray-500 hover:bg-gray-50',
+              )}>
+                <input type="radio" name="source_type" value={value} defaultChecked={entry.source_type === value} className="sr-only" />
+                <Icon size={13} />{label}
+              </label>
+            ))}
           </div>
         </div>
 
@@ -711,10 +750,19 @@ function DealRow({ e, profileMap, pending, isAdmin, onEdit, onDelete }: {
   onEdit: () => void
   onDelete: () => void
 }) {
+  const sourceBadge = e.source_type === 'webi'
+    ? <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-600"><Monitor size={9} />Webi</span>
+    : e.source_type === 'vsl'
+    ? <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-600"><Film size={9} />VSL</span>
+    : null
+
   return (
     <tr className="hover:bg-gray-50/50 transition-colors">
       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(e.entry_date, MOIS_COURT)}</td>
-      <td className="px-4 py-3 font-medium text-gray-800 max-w-[140px] truncate">{e.client_name ?? '—'}</td>
+      <td className="px-4 py-3 max-w-[140px]">
+        <div className="font-medium text-gray-800 truncate">{e.client_name ?? '—'}</div>
+        {sourceBadge && <div className="mt-0.5">{sourceBadge}</div>}
+      </td>
       <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">{dollar(e.montant_courant)}</td>
       <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(e.collected)}</td>
       <td className="px-4 py-3 text-right tabular-nums">
@@ -834,6 +882,17 @@ export default function CashCollectView({
     aCollecter: deals.reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
   }), [deals])
 
+  const sourceStats = useMemo(() => {
+    const webi = deals.filter(e => e.source_type === 'webi')
+    const vsl  = deals.filter(e => e.source_type === 'vsl')
+    const none = deals.filter(e => !e.source_type)
+    return {
+      webi: { n: webi.length, cash: webi.reduce((s, e) => s + e.collected, 0) },
+      vsl:  { n: vsl.length,  cash: vsl.reduce((s, e) => s + e.collected, 0)  },
+      none: { n: none.length, cash: none.reduce((s, e) => s + e.collected, 0) },
+    }
+  }, [deals])
+
   const totauxRec = useMemo(() => ({
     collected: recurrents.reduce((s, e) => s + (e.collected ?? 0), 0),
   }), [recurrents])
@@ -942,6 +1001,35 @@ export default function CashCollectView({
           sub={`Total reçu : ${dollar(totalCollecte)}`}
         />
       </div>
+
+      {/* ── Source stats (Webi / VSL) ─────────────────────────── */}
+      {deals.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 flex flex-wrap items-center gap-4">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Source deals</span>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-sky-50 text-sky-700">
+              <Monitor size={11} />Webi
+            </span>
+            <span className="text-sm font-semibold text-gray-800 tabular-nums">{sourceStats.webi.n} deal{sourceStats.webi.n !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-gray-400">·</span>
+            <span className="text-sm font-semibold text-sky-600 tabular-nums">{dollar(sourceStats.webi.cash)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-purple-50 text-purple-700">
+              <Film size={11} />VSL
+            </span>
+            <span className="text-sm font-semibold text-gray-800 tabular-nums">{sourceStats.vsl.n} deal{sourceStats.vsl.n !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-gray-400">·</span>
+            <span className="text-sm font-semibold text-purple-600 tabular-nums">{dollar(sourceStats.vsl.cash)}</span>
+          </div>
+          {sourceStats.none.n > 0 && (
+            <div className="flex items-center gap-1.5 text-gray-400">
+              <span className="text-xs">Non tagué :</span>
+              <span className="text-sm font-medium">{sourceStats.none.n}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Section Nouvelles deals ───────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

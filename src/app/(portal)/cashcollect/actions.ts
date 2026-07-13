@@ -42,6 +42,7 @@ export async function creerCashCollect(formData: FormData) {
   const setBy          = (formData.get('set_by') as string) || null
   const notes          = (formData.get('notes') as string) || null
   const onboardingDate = (formData.get('onboarding_date') as string) || null
+  const sourceType     = (formData.get('source_type') as string) || null
 
   // 1. Insert cash entry
   const { data: cashEntry, error: cashErr } = await db
@@ -60,6 +61,7 @@ export async function creerCashCollect(formData: FormData) {
       month,
       year,
       notes,
+      source_type:     sourceType,
       created_by:      userId,
     })
     .select('id')
@@ -172,11 +174,12 @@ export async function modifierCashEntry(id: string, formData: FormData) {
   const closedBy       = (formData.get('closed_by') as string) || null
   const setBy          = (formData.get('set_by') as string) || null
   const notes          = (formData.get('notes') as string) || null
+  const sourceType     = (formData.get('source_type') as string) || null
 
   // 1. Update cash entry
   const { error: cashErr } = await db
     .from('cash_entries')
-    .update({ entry_date: entryDate, client_name: clientName, montant_courant: montantCourant, collected, methode, closed_by: closedBy, set_by: setBy, month, year, notes })
+    .update({ entry_date: entryDate, client_name: clientName, montant_courant: montantCourant, collected, methode, closed_by: closedBy, set_by: setBy, month, year, notes, source_type: sourceType })
     .eq('id', id)
 
   if (cashErr) throw new Error(cashErr.message)
