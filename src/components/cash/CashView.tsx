@@ -21,6 +21,8 @@ interface CashEntry {
   id: string
   entry_date: string
   client_name: string | null
+  client_phone: string | null
+  client_email: string | null
   montant_courant: number
   collected: number
   a_collecter: number
@@ -251,6 +253,12 @@ function ModalForm({
           <div className="grid grid-cols-2 gap-4">
             <Champ label="Nom du client">
               <input name="client_name" placeholder="Entreprise Dupont" defaultValue={entry?.client_name ?? ''} className={INPUT_CLS} />
+            </Champ>
+            <Champ label="Téléphone">
+              <input name="client_phone" type="tel" placeholder="+1 (514) 000-0000" defaultValue={entry?.client_phone ?? ''} className={INPUT_CLS} />
+            </Champ>
+            <Champ label="Email">
+              <input name="client_email" type="email" placeholder="client@exemple.com" defaultValue={entry?.client_email ?? ''} className={INPUT_CLS} />
             </Champ>
             <Champ label="Date d'onboarding">
               <input name="onboarding_date" type="date" defaultValue={entry?.onboarding_date ?? ''} className={INPUT_CLS} />

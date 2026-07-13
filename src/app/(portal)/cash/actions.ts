@@ -41,6 +41,8 @@ export async function creerCash(formData: FormData) {
   const { error } = await db.from('cash_entries').insert({
     entry_date:       entryDate,
     client_name:      (formData.get('client_name') as string) || null,
+    client_phone:     (formData.get('client_phone') as string) || null,
+    client_email:     (formData.get('client_email') as string) || null,
     montant_courant:  Number(formData.get('montant_courant')),
     collected:        Number(formData.get('collected')),
     methode:          (formData.get('methode') as string) || null,
@@ -71,6 +73,8 @@ export async function modifierCash(id: string, formData: FormData) {
     .update({
       entry_date:       entryDate,
       client_name:      (formData.get('client_name') as string) || null,
+      client_phone:     (formData.get('client_phone') as string) || null,
+      client_email:     (formData.get('client_email') as string) || null,
       montant_courant:  Number(formData.get('montant_courant')),
       collected:        Number(formData.get('collected')),
       methode:          (formData.get('methode') as string) || null,

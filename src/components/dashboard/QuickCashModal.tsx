@@ -76,6 +76,17 @@ export default function QuickCashModal({ closers, setters }: Props) {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">Téléphone</label>
+                    <input name="client_phone" type="tel" placeholder="+1 (514) 000-0000" className={INPUT} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">Email</label>
+                    <input name="client_email" type="email" placeholder="client@exemple.com" className={INPUT} />
+                  </div>
+                </div>
+
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-gray-600">Date d&apos;onboarding</label>
                   <input name="onboarding_date" type="date" className={INPUT} />

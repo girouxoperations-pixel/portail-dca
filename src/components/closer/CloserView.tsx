@@ -334,6 +334,14 @@ function ModalDeal({
             <label className="text-xs font-medium text-gray-600">Client</label>
             <input name="client_name" type="text" placeholder="Nom du client" className={INPUT_CLS} />
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-gray-600">Téléphone</label>
+            <input name="client_phone" type="tel" placeholder="+1 (514) 000-0000" className={INPUT_CLS} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-gray-600">Email</label>
+            <input name="client_email" type="email" placeholder="client@exemple.com" className={INPUT_CLS} />
+          </div>
         </div>
 
         {/* Setter */}
