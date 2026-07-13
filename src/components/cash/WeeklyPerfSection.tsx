@@ -59,20 +59,24 @@ const INPUT_CLS =
 // ── Modal form ────────────────────────────────────────────────────
 
 function ModalForm({
-  entry, source, year, quarter, existingWeeks, onClose,
+  entry, source, year, quarter, existingWeeks, ccDealsForWeek, onClose,
 }: {
   entry: WeeklyPerf | null
   source: 'webi' | 'vsl'
   year: number
   quarter: number
   existingWeeks: number[]
+  ccDealsForWeek: (week: number) => number
   onClose: () => void
 }) {
   const [pending, startTransition] = useTransition()
+  const [selectedWeek, setSelectedWeek] = useState(entry?.week_number ?? (Array.from({ length: 13 }, (_, i) => i + 1).find(w => !existingWeeks.includes(w)) ?? 1))
   const isEdit = entry !== null
 
   const availableWeeks = Array.from({ length: 13 }, (_, i) => i + 1)
     .filter(w => isEdit || !existingWeeks.includes(w))
+
+  const ccCount = ccDealsForWeek(selectedWeek)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -116,7 +120,8 @@ function ModalForm({
             <label className="text-sm font-medium text-gray-700">Semaine</label>
             <select
               name="week_number"
-              defaultValue={entry?.week_number ?? availableWeeks[0]}
+              value={selectedWeek}
+              onChange={e => setSelectedWeek(Number(e.target.value))}
               required
               className={INPUT_CLS}
             >
@@ -124,6 +129,11 @@ function ModalForm({
                 <option key={w} value={w}>W{w}</option>
               ))}
             </select>
+            {ccCount > 0 && (
+              <p className="text-[11px] text-violet-600 font-medium">
+                {ccCount} deal{ccCount > 1 ? 's' : ''} {source === 'webi' ? 'Webi' : 'VSL'} dans Cash Collect cette semaine
+              </p>
+            )}
           </div>
 
           <div className="border-t border-gray-50 pt-4">
@@ -148,7 +158,21 @@ function ModalForm({
                 defaultVal={entry?.showed ?? 0}
               />
 
-              <Row label="Closes" name="closed" defaultVal={entry?.closed ?? 0} />
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700 flex items-center justify-between">
+                  Closes
+                  {ccCount > 0 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600">
+                      {ccCount} Cash Collect
+                    </span>
+                  )}
+                </label>
+                <input
+                  name="closed" type="number" min="0" step="1"
+                  defaultValue={entry?.closed ?? ccCount}
+                  className={INPUT_CLS}
+                />
+              </div>
             </div>
           </div>
 
@@ -282,17 +306,33 @@ function weekToMonth(q: number, w: number): number {
   return first + 2
 }
 
+function dateToQuarterWeek(dateStr: string): { year: number; quarter: number; week_number: number } {
+  const d = new Date(dateStr + 'T00:00:00')
+  const y = d.getFullYear()
+  const quarter = Math.floor(d.getMonth() / 3) + 1
+  const quarterStart = new Date(y, (quarter - 1) * 3, 1)
+  const dayOfQuarter = Math.floor((d.getTime() - quarterStart.getTime()) / (1000 * 60 * 60 * 24))
+  const week_number = Math.min(13, Math.floor(dayOfQuarter / 7) + 1)
+  return { year: y, quarter, week_number }
+}
+
 const MOIS_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
 
 type Period = 'year' | 1 | 2 | 3 | 4 | 'month'
 
 // ── Main component ────────────────────────────────────────────────
 
+export interface SourcedDeal {
+  entry_date: string
+  source_type: 'webi' | 'vsl'
+}
+
 export default function WeeklyPerfSection({
-  perfs, isAdmin,
+  perfs, isAdmin, sourcedDeals = [],
 }: {
   perfs: WeeklyPerf[]
   isAdmin: boolean
+  sourcedDeals?: SourcedDeal[]
 }) {
   const now = new Date()
   const [source, setSource]         = useState<'webi' | 'vsl'>('webi')
@@ -336,6 +376,19 @@ export default function WeeklyPerfSection({
       .map(p => p.week_number),
     [perfs, source, year, activeQuarter],
   )
+
+  const dealsByWeek = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const d of sourcedDeals) {
+      const { year: y, quarter, week_number } = dateToQuarterWeek(d.entry_date)
+      const key = `${y}-${quarter}-${week_number}-${d.source_type}`
+      m.set(key, (m.get(key) ?? 0) + 1)
+    }
+    return m
+  }, [sourcedDeals])
+
+  const ccDealsForWeek = (w: number) =>
+    dealsByWeek.get(`${year}-${activeQuarter}-${w}-${source}`) ?? 0
 
   const sumRows = (rows: WeeklyPerf[]) => ({
     budget:       rows.reduce((s, p) => s + (p.budget       ?? 0), 0),
@@ -497,7 +550,9 @@ export default function WeeklyPerfSection({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filtered.map(p => (
+                  {filtered.map(p => {
+                    const cc = dealsByWeek.get(`${p.year}-${p.quarter}-${p.week_number}-webi`) ?? 0
+                    return (
                     <tr key={p.id} className="hover:bg-orange-50/20 transition-colors">
                       <td className="px-3 py-2.5 font-bold text-gray-700 sticky left-0 bg-white whitespace-nowrap">
                         {(period === 'year' || period === 'month') ? `Q${p.quarter}W${p.week_number}` : `W${p.week_number}`}
@@ -508,7 +563,16 @@ export default function WeeklyPerfSection({
                       <td className={cn(td, 'text-gray-700')}>{p.booked}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.showed}</td>
                       <td className={cn(td, 'text-gray-700')}>{fmtPct(p.showed, p.booked)}</td>
-                      <td className={cn(td, 'font-bold text-gray-900')}>{p.closed}</td>
+                      <td className={cn(td, 'font-bold text-gray-900')}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {p.closed}
+                          {cc > 0 && (
+                            <span className="text-[10px] font-semibold px-1 py-0.5 rounded bg-violet-50 text-violet-500" title="Deals Cash Collect">
+                              CC:{cc}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className={cn(td, 'text-gray-700')}>{fmtPct(p.closed, p.showed)}</td>
                       <td className={cn(td, 'text-gray-700')}>{fmtPct(p.closed, p.booked)}</td>
                       <td className={cn(td, 'text-gray-700')}>{dollar(p.revenue)}</td>
@@ -522,7 +586,8 @@ export default function WeeklyPerfSection({
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-orange-50/40 font-bold text-gray-800 text-xs">
@@ -571,7 +636,9 @@ export default function WeeklyPerfSection({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filtered.map(p => (
+                  {filtered.map(p => {
+                    const cc = dealsByWeek.get(`${p.year}-${p.quarter}-${p.week_number}-vsl`) ?? 0
+                    return (
                     <tr key={p.id} className="hover:bg-sky-50/20 transition-colors">
                       <td className="px-3 py-2.5 font-bold text-gray-700 sticky left-0 bg-white whitespace-nowrap">
                         {(period === 'year' || period === 'month') ? `Q${p.quarter}W${p.week_number}` : `W${p.week_number}`}
@@ -580,7 +647,16 @@ export default function WeeklyPerfSection({
                       <td className={cn(td, 'text-gray-700')}>{p.leads}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.booked}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.showed}</td>
-                      <td className={cn(td, 'font-bold text-gray-900')}>{p.closed}</td>
+                      <td className={cn(td, 'font-bold text-gray-900')}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {p.closed}
+                          {cc > 0 && (
+                            <span className="text-[10px] font-semibold px-1 py-0.5 rounded bg-violet-50 text-violet-500" title="Deals Cash Collect">
+                              CC:{cc}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className={td}>{fmtRatio(p.budget, p.leads)}</td>
                       <td className={td}>{fmtRatio(p.budget, p.showed)}</td>
                       <td className={td}>{fmtRatio(p.budget, p.closed)}</td>
@@ -594,7 +670,8 @@ export default function WeeklyPerfSection({
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-sky-50/40 font-bold text-gray-800 text-xs">
@@ -627,6 +704,7 @@ export default function WeeklyPerfSection({
           year={year}
           quarter={activeQuarter}
           existingWeeks={existingWeeks}
+          ccDealsForWeek={ccDealsForWeek}
           onClose={() => setModal(null)}
         />
       )}

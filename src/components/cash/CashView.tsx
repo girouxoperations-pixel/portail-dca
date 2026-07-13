@@ -12,7 +12,7 @@ import {
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { creerCash, modifierCash, supprimerCash } from '@/app/(portal)/cash/actions'
-import WeeklyPerfSection, { type WeeklyPerf } from '@/components/cash/WeeklyPerfSection'
+import WeeklyPerfSection, { type WeeklyPerf, type SourcedDeal } from '@/components/cash/WeeklyPerfSection'
 import ImportModal from '@/components/cash/ImportModal'
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -1456,7 +1456,14 @@ export default function CashView({
 
       {/* ── Tab Perf hebdo ─────────────────────────────────────── */}
       {tab === 'hebdo' && (
-        <WeeklyPerfSection perfs={perfs} isAdmin={isAdmin} />
+        <WeeklyPerfSection
+          perfs={perfs}
+          isAdmin={isAdmin}
+          sourcedDeals={(entrees as { entry_date: string; source_type: string | null }[])
+            .filter((e): e is SourcedDeal & { entry_date: string; source_type: 'webi' | 'vsl' } =>
+              e.source_type === 'webi' || e.source_type === 'vsl'
+            )}
+        />
       )}
 
       {/* Modal entrée */}
