@@ -958,6 +958,7 @@ export default function CashView({
   const [filterEnd, setFilterEnd]     = useState(today)
   const [filterCloserId, setFilterCloserId] = useState('')
   const [filterSetterId, setFilterSetterId] = useState('')
+  const [filterSource,  setFilterSource]   = useState<'' | 'webi' | 'vsl'>('')
   const [search, setSearch]           = useState('')
   const [modalEntry, setModalEntry]       = useState<CashEntry | null>(null)
   const [showNouveauDeal, setShowNouveauDeal] = useState(false)
@@ -988,6 +989,7 @@ export default function CashView({
       if (e.entry_date < filterStart || e.entry_date > filterEnd) return false
       if (filterCloserId && e.closed_by !== filterCloserId) return false
       if (filterSetterId && e.set_by    !== filterSetterId) return false
+      if (filterSource && e.source_type !== filterSource) return false
       if (!q) return true
       const closerName = e.closed_by ? (profileMap.get(e.closed_by) ?? '').toLowerCase() : ''
       const setterName = e.set_by    ? (profileMap.get(e.set_by)    ?? '').toLowerCase() : ''
@@ -998,7 +1000,7 @@ export default function CashView({
         (e.notes ?? '').toLowerCase().includes(q)
       )
     })
-  }, [entrees, filterStart, filterEnd, filterCloserId, filterSetterId, search, profileMap])
+  }, [entrees, filterStart, filterEnd, filterCloserId, filterSetterId, filterSource, search, profileMap])
 
   // ── KPIs on filtered data ─────────────────────────────────────
   const totaux = useMemo(() => ({
@@ -1290,6 +1292,31 @@ export default function CashView({
             <option key={s.id} value={s.id}>{s.full_name ?? s.id}</option>
           ))}
         </select>
+
+        <div className="flex items-center gap-1">
+          {([
+            { val: '' as const,     label: 'Toutes sources' },
+            { val: 'webi' as const, label: 'Webi' },
+            { val: 'vsl' as const,  label: 'VSL'  },
+          ]).map(({ val, label }) => (
+            <button
+              key={val || 'all'}
+              onClick={() => setFilterSource(val)}
+              className={cn(
+                'px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                filterSource === val
+                  ? val === 'webi' ? 'bg-orange-500 text-white'
+                  : val === 'vsl'  ? 'bg-sky-500 text-white'
+                  : 'bg-gray-700 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+              )}
+            >
+              {val === 'webi' && <Monitor size={10} className="inline mr-1" />}
+              {val === 'vsl'  && <Film    size={10} className="inline mr-1" />}
+              {label}
+            </button>
+          ))}
+        </div>
 
         <div className="relative ml-auto">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
