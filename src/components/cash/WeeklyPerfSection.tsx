@@ -72,11 +72,14 @@ function ModalForm({
   onClose: () => void
 }) {
   const [pending, startTransition] = useTransition()
-  const [selectedWeek, setSelectedWeek] = useState(entry?.week_number ?? (Array.from({ length: 13 }, (_, i) => i + 1).find(w => !existingWeeks.includes(w)) ?? 1))
   const isEdit = entry !== null
-
-  const availableWeeks = Array.from({ length: 13 }, (_, i) => i + 1)
+  const qStart = (quarter - 1) * 13 + 1
+  const qEnd   = Math.min(quarter * 13, maxIsoWeek(year))
+  const availableWeeks = Array.from({ length: qEnd - qStart + 1 }, (_, i) => qStart + i)
     .filter(w => isEdit || !existingWeeks.includes(w))
+  const [selectedWeek, setSelectedWeek] = useState(
+    entry?.week_number ?? (availableWeeks[0] ?? qStart)
+  )
 
   const cc = ccDataForWeek(selectedWeek)
   const ccCount = cc.count
@@ -128,7 +131,10 @@ function ModalForm({
               required
               className={INPUT_CLS}
             >
-              {(isEdit ? Array.from({ length: 13 }, (_, i) => i + 1) : availableWeeks).map(w => (
+              {(isEdit
+                ? Array.from({ length: qEnd - qStart + 1 }, (_, i) => qStart + i)
+                : availableWeeks
+              ).map(w => (
                 <option key={w} value={w}>{fmtWeekLabel(year, quarter, w)}</option>
               ))}
             </select>
@@ -304,25 +310,42 @@ function SummaryPanel({
   )
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
+// ── ISO week helpers ──────────────────────────────────────────────
 
-// Approximate mapping of (quarter, week_number) → calendar month (1–12)
-// Splits 13 weeks per quarter into 3 months: w1-4, w5-9, w10-13
-function weekToMonth(q: number, w: number): number {
-  const first = (q - 1) * 3 + 1
-  if (w <= 4) return first
-  if (w <= 9) return first + 1
-  return first + 2
+function getIsoWeekInfo(dateStr: string): { isoYear: number; isoWeek: number } {
+  const d   = new Date(dateStr + 'T00:00:00')
+  const day = d.getDay() || 7                    // Mon=1 … Sun=7
+  const thu = new Date(d)
+  thu.setDate(d.getDate() + 4 - day)             // Thursday of the same ISO week
+  const isoYear = thu.getFullYear()
+  const jan4    = new Date(isoYear, 0, 4)
+  const isoWeek = Math.round(
+    ((thu.getTime() - jan4.getTime()) / 86400000 + (jan4.getDay() || 7) - 1) / 7,
+  ) + 1
+  return { isoYear, isoWeek }
 }
 
+function isoWeekToRange(isoYear: number, isoWeek: number): { start: Date; end: Date } {
+  const jan4     = new Date(isoYear, 0, 4)
+  const dow      = jan4.getDay() || 7
+  const week1Mon = new Date(jan4.getTime() - (dow - 1) * 86400000)
+  const start    = new Date(week1Mon.getTime() + (isoWeek - 1) * 7 * 86400000)
+  const end      = new Date(start.getTime() + 6 * 86400000)
+  return { start, end }
+}
+
+function maxIsoWeek(year: number): number {
+  const dec31 = new Date(year, 11, 31)
+  const jan1  = new Date(year, 0, 1)
+  return (dec31.getDay() === 4 || jan1.getDay() === 4) ? 53 : 52
+}
+
+function isoWeekToQuarter(w: number): number { return Math.min(4, Math.ceil(w / 13)) }
+
+// Also used for grouping Cash/Stats deals — keep old name as alias
 function dateToQuarterWeek(dateStr: string): { year: number; quarter: number; week_number: number } {
-  const d = new Date(dateStr + 'T00:00:00')
-  const y = d.getFullYear()
-  const quarter = Math.floor(d.getMonth() / 3) + 1
-  const quarterStart = new Date(y, (quarter - 1) * 3, 1)
-  const dayOfQuarter = Math.floor((d.getTime() - quarterStart.getTime()) / (1000 * 60 * 60 * 24))
-  const week_number = Math.min(13, Math.floor(dayOfQuarter / 7) + 1)
-  return { year: y, quarter, week_number }
+  const { isoYear, isoWeek } = getIsoWeekInfo(dateStr)
+  return { year: isoYear, quarter: isoWeekToQuarter(isoWeek), week_number: isoWeek }
 }
 
 const MOIS_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
@@ -330,17 +353,10 @@ const MOIS_MIN   = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'aoû', 
 
 type Period = 'year' | 1 | 2 | 3 | 4 | 'month'
 
-// ── Calendar dates from (year, quarter, weekNum) ─────────────────
+// ── Week label (Mon–Sun) ──────────────────────────────────────────
 
-function quarterWeekRange(year: number, quarter: number, weekNum: number): { start: Date; end: Date } {
-  const qStart = new Date(year, (quarter - 1) * 3, 1)
-  const start  = new Date(qStart.getTime() + (weekNum - 1) * 7 * 86400000)
-  const end    = new Date(start.getTime() + 6 * 86400000)
-  return { start, end }
-}
-
-function fmtWeekLabel(year: number, quarter: number, weekNum: number): string {
-  const { start, end } = quarterWeekRange(year, quarter, weekNum)
+function fmtWeekLabel(isoYear: number, _quarter: number, isoWeek: number): string {
+  const { start, end } = isoWeekToRange(isoYear, isoWeek)
   const sd = start.getDate(), sm = start.getMonth()
   const ed = end.getDate(),   em = end.getMonth()
   return sm === em
@@ -372,7 +388,7 @@ export default function WeeklyPerfSection({
   const [modal, setModal]           = useState<WeeklyPerf | null | 'new'>(null)
   const [pending, startTransition]  = useTransition()
 
-  // Quarter to use in the modal (for adding/editing entries)
+  // Quarter shown in the modal header
   const activeQuarter: number =
     typeof period === 'number' ? period
     : period === 'month' ? Math.ceil(selectedMonth / 3)
@@ -381,8 +397,13 @@ export default function WeeklyPerfSection({
   const matchesPeriod = (p: WeeklyPerf): boolean => {
     if (p.year !== year) return false
     if (period === 'year') return true
-    if (period === 'month') return weekToMonth(p.quarter, p.week_number) === selectedMonth
-    return p.quarter === period
+    if (period === 'month') {
+      // Check if this ISO week overlaps with selectedMonth
+      const { start, end } = isoWeekToRange(p.year, p.week_number)
+      return start.getMonth() + 1 === selectedMonth || end.getMonth() + 1 === selectedMonth
+    }
+    // Quarter filter: Q1=weeks 1-13, Q2=14-26, Q3=27-39, Q4=40+
+    return isoWeekToQuarter(p.week_number) === period
   }
 
   const filtered = useMemo(
@@ -399,12 +420,12 @@ export default function WeeklyPerfSection({
     [perfs, year, period, selectedMonth],
   )
 
-  // existingWeeks only applies within the activeQuarter (for modal validation)
+  // ISO weeks already entered for this source/year
   const existingWeeks = useMemo(
     () => perfs
-      .filter(p => p.source_type === source && p.year === year && p.quarter === activeQuarter)
+      .filter(p => p.source_type === source && p.year === year)
       .map(p => p.week_number),
-    [perfs, source, year, activeQuarter],
+    [perfs, source, year],
   )
 
   const dealsByWeek = useMemo(() => {
@@ -463,8 +484,11 @@ export default function WeeklyPerfSection({
   const th = 'px-3 py-2.5 text-right whitespace-nowrap'
   const td = 'px-3 py-2.5 text-right tabular-nums'
 
-  // Can only add entries when a specific quarter is active
-  const canAdd = period !== 'year' && existingWeeks.length < 13
+  // Can only add when a specific quarter is active and it still has available weeks
+  const activeQStart = (activeQuarter - 1) * 13 + 1
+  const activeQEnd   = Math.min(activeQuarter * 13, maxIsoWeek(year))
+  const canAdd = period !== 'year' &&
+    existingWeeks.filter(w => w >= activeQStart && w <= activeQEnd).length < (activeQEnd - activeQStart + 1)
 
   const ccForRow = (p: WeeklyPerf): CcData =>
     dealsByWeek.get(`${p.year}-${p.quarter}-${p.week_number}-${p.source_type}`) ?? { count: 0, montant: 0, collected: 0 }

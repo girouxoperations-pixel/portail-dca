@@ -146,10 +146,13 @@ export async function ajouterWeeklyPerf(formData: FormData) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()
 
+  const week_number = Number(formData.get('week_number'))
+  const quarter     = Math.min(4, Math.ceil(week_number / 13))
+
   const { error } = await db.from('weekly_perf').insert({
     year:         Number(formData.get('year')),
-    quarter:      Number(formData.get('quarter')),
-    week_number:  Number(formData.get('week_number')),
+    quarter,
+    week_number,
     source_type:  formData.get('source_type') as string,
     budget:       Number(formData.get('budget'))       || 0,
     leads:        Number(formData.get('leads'))        || 0,
