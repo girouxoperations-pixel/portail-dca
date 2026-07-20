@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutGrid, Table2, Pencil, History } from 'lucide-react'
+import { CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutGrid, Table2, Pencil, History, XCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   basculerStatut,
   approuverPeriode, approuverPayesBatch, modifierPaye,
-  ajouterBonusManuel,
+  ajouterBonusManuel, supprimerPaye,
 } from '@/app/(portal)/payes/actions'
 import { dollar, MOIS_FR } from '@/lib/constants'
 import Badge      from '@/components/ui/Badge'
@@ -53,22 +53,44 @@ interface Props {
 const INPUT_CLS =
   'w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500'
 
+type DealItem = {
+  id: string
+  client_name: string
+  montant: number
+  collected: number
+  maCommission: number
+  statut: string
+  notes: string | null
+  type: 'nouveau' | 'recurrent' | 'alveo'
+}
+
 interface EmployeeGroup {
   uid: string
   nom: string
   role: 'closer' | 'setter'
-  deals: Array<{
-    id: string
-    client_name: string
-    montant: number
-    collected: number
-    maCommission: number
-    statut: string
-    notes: string | null
-  }>
+  deals: DealItem[]
   totalCommission: number
   pendingCommission: number
   pendingIds: string[]
+}
+
+function StatutBadge({ statut }: { statut: string }) {
+  if (statut === 'Remboursé') return (
+    <Badge variant="red" icon={<XCircle size={9} />}>{statut}</Badge>
+  )
+  if (statut === 'Payé') return (
+    <Badge variant="green" icon={<CheckCircle2 size={9} />}>{statut}</Badge>
+  )
+  return <Badge variant="amber" icon={<Clock size={9} />}>{statut}</Badge>
+}
+
+function isRecurringNote(notes: string | null): boolean {
+  if (!notes) return false
+  return notes.startsWith('Récurrent') || notes.startsWith('Versement récurrent')
+}
+
+function isAlveoNote(notes: string | null): boolean {
+  return notes?.startsWith('Alveo|') ?? false
 }
 
 // ── Section bonus manuel ──────────────────────────────────────────────
@@ -183,10 +205,7 @@ function SectionBonus({ isAdmin, teamMembers, periodes, bonusEntrees }: {
                     role === 'closer' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600',
                   )}>{role}</span>
                   <span className="text-sm font-bold tabular-nums text-amber-600">{dollar(comm)}</span>
-                  <Badge variant={e.statut === 'Payé' ? 'green' : 'amber'}
-                    icon={e.statut === 'Payé' ? <CheckCircle2 size={9} /> : <Clock size={9} />}>
-                    {e.statut}
-                  </Badge>
+                  <StatutBadge statut={e.statut} />
                 </div>
               </div>
             )
@@ -200,18 +219,108 @@ function SectionBonus({ isAdmin, teamMembers, periodes, bonusEntrees }: {
 }
 
 
+// ── Deal table (shared between sections) ─────────────────────────────
+
+function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }: {
+  deals:    DealItem[]
+  role:     'closer' | 'setter'
+  isAdmin:  boolean
+  pending:  boolean
+  onEdit:   (id: string) => void
+  onToggle: (id: string, statut: string) => void
+  onDelete: (id: string) => void
+}) {
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="bg-gray-50/80 text-gray-400 font-medium">
+          <th className="px-5 py-2 text-left">Client</th>
+          <th className="px-4 py-2 text-right">Cash reçu</th>
+          <th className="px-4 py-2 text-right">Commission</th>
+          <th className="px-4 py-2 text-left">Statut</th>
+          {isAdmin && <th className="px-4 py-2 text-right">Action</th>}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-50">
+        {deals.map(d => (
+          <tr key={d.id} className="hover:bg-gray-50/50">
+            <td className="px-5 py-2.5 font-medium text-gray-800 max-w-[140px] truncate">{d.client_name}</td>
+            <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{dollar(d.collected)}</td>
+            <td className={cn(
+              'px-4 py-2.5 text-right tabular-nums font-semibold',
+              role === 'closer' ? 'text-violet-700' : 'text-blue-700',
+            )}>
+              {dollar(d.maCommission)}
+            </td>
+            <td className="px-4 py-2.5">
+              <StatutBadge statut={d.statut} />
+            </td>
+            {isAdmin && (
+              <td className="px-4 py-2.5 text-right">
+                <div className="flex items-center justify-end gap-1.5">
+                  {d.statut !== 'Remboursé' && (
+                    <button
+                      onClick={() => onEdit(d.id)}
+                      className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
+                      title="Modifier"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                  )}
+                  {d.statut !== 'Remboursé' && (
+                    <button
+                      onClick={() => onToggle(d.id, d.statut)}
+                      disabled={pending}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[10px] font-medium transition-colors disabled:opacity-40',
+                        d.statut === 'Payé'
+                          ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                          : 'bg-green-50 text-green-600 hover:bg-green-100',
+                      )}
+                    >
+                      {d.statut === 'Payé' ? '↩ En attente' : '✓ Payé'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onDelete(d.id)}
+                    disabled={pending}
+                    className="p-1 rounded text-gray-200 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    title="Supprimer la commission"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              </td>
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 // ── Carte employé ─────────────────────────────────────────────────────
 
-function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit }: {
+function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, onDelete }: {
   group:        EmployeeGroup
   isAdmin:      boolean
   pending:      boolean
   onApprouver:  (ids: string[]) => void
   onToggle:     (id: string, statut: string) => void
   onEdit:       (id: string) => void
+  onDelete:     (id: string) => void
 }) {
   const [ouvert, setOuvert] = useState(false)
   const allPaid = group.pendingIds.length === 0
+
+  const nouveaux       = group.deals.filter(d => d.type === 'nouveau')
+  const recurrents     = group.deals.filter(d => d.type === 'recurrent')
+  const alveos         = group.deals.filter(d => d.type === 'alveo')
+  const commNouveaux   = nouveaux.reduce((s, d) => s + d.maCommission, 0)
+  const commRecurrents = recurrents.reduce((s, d) => s + d.maCommission, 0)
+  const commAlveos     = alveos.reduce((s, d) => s + d.maCommission, 0)
+  const activeTypes    = [nouveaux, recurrents, alveos].filter(arr => arr.length > 0).length
+  const hasSections    = activeTypes > 1
 
   return (
     <div className={cn(
@@ -241,7 +350,11 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit }
             </span>
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
-            {group.deals.length} deal{group.deals.length !== 1 ? 's' : ''}
+            {nouveaux.length > 0 && `${nouveaux.length} deal${nouveaux.length !== 1 ? 's' : ''}`}
+            {nouveaux.length > 0 && (recurrents.length > 0 || alveos.length > 0) && ' · '}
+            {recurrents.length > 0 && `${recurrents.length} récurrent${recurrents.length !== 1 ? 's' : ''}`}
+            {recurrents.length > 0 && alveos.length > 0 && ' · '}
+            {alveos.length > 0 && `${alveos.length} Alveo`}
             {' · '}
             {allPaid
               ? <span className="text-green-600 font-medium">Tout payé ✓</span>
@@ -251,7 +364,18 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit }
         </div>
         <div className="shrink-0 text-right">
           <p className="text-lg font-bold tabular-nums text-gray-900">{dollar(group.totalCommission)}</p>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Commission totale</p>
+          {hasSections ? (
+            <div className="flex gap-2 text-[10px] justify-end mt-0.5 flex-wrap">
+              {commNouveaux > 0 && <span className="text-violet-500 font-medium">{dollar(commNouveaux)} new</span>}
+              {commNouveaux > 0 && commRecurrents > 0 && <span className="text-gray-300">·</span>}
+              {commRecurrents > 0 && <span className="text-blue-400 font-medium">{dollar(commRecurrents)} réc.</span>}
+              {commAlveos > 0 && commRecurrents > 0 && <span className="text-gray-300">·</span>}
+              {commAlveos > 0 && commNouveaux > 0 && commRecurrents === 0 && <span className="text-gray-300">·</span>}
+              {commAlveos > 0 && <span className="text-amber-500 font-medium">{dollar(commAlveos)} alveo</span>}
+            </div>
+          ) : (
+            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Commission totale</p>
+          )}
         </div>
       </div>
 
@@ -281,67 +405,64 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit }
       {/* Détail des deals */}
       {ouvert && (
         <div className="border-t border-gray-50">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-gray-50/80 text-gray-400 font-medium">
-                <th className="px-5 py-2 text-left">Client</th>
-                <th className="px-4 py-2 text-right">Cash reçu</th>
-                <th className="px-4 py-2 text-right">Commission</th>
-                <th className="px-4 py-2 text-left">Statut</th>
-                {isAdmin && <th className="px-4 py-2 text-right">Action</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {group.deals.map(d => (
-                <tr key={d.id} className="hover:bg-gray-50/50">
-                  <td className="px-5 py-2.5 font-medium text-gray-800 max-w-[140px] truncate">{d.client_name}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{dollar(d.collected)}</td>
-                  <td className={cn(
-                    'px-4 py-2.5 text-right tabular-nums font-semibold',
-                    group.role === 'closer' ? 'text-violet-700' : 'text-blue-700',
-                  )}>
-                    {dollar(d.maCommission)}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <Badge
-                      variant={d.statut === 'Payé' ? 'green' : 'amber'}
-                      icon={d.statut === 'Payé' ? <CheckCircle2 size={9} /> : <Clock size={9} />}
-                    >
-                      {d.statut}
-                    </Badge>
-                  </td>
-                  {isAdmin && (
-                    <td className="px-4 py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => onEdit(d.id)}
-                          className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
-                          title="Modifier"
-                        >
-                          <Pencil size={11} />
-                        </button>
-                        <button
-                          onClick={() => onToggle(d.id, d.statut)}
-                          disabled={pending}
-                          className={cn(
-                            'px-2 py-0.5 rounded text-[10px] font-medium transition-colors disabled:opacity-40',
-                            d.statut === 'Payé'
-                              ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                              : 'bg-green-50 text-green-600 hover:bg-green-100',
-                          )}
-                        >
-                          {d.statut === 'Payé' ? '↩ En attente' : '✓ Payé'}
-                        </button>
+          {hasSections ? (
+            <>
+              {nouveaux.length > 0 && (
+                <div>
+                  <div className="px-5 py-2 flex items-center justify-between bg-gray-50/60 border-b border-gray-100">
+                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Nouvelles deals</span>
+                    <span className={cn('text-xs font-bold tabular-nums', group.role === 'closer' ? 'text-violet-600' : 'text-blue-600')}>
+                      {dollar(commNouveaux)}
+                    </span>
+                  </div>
+                  <DealTable deals={nouveaux} role={group.role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
+                </div>
+              )}
+              {recurrents.length > 0 && (
+                <div className="border-t border-gray-100">
+                  <div className="px-5 py-2 flex items-center justify-between bg-blue-50/40 border-b border-blue-50">
+                    <span className="text-[11px] font-semibold text-blue-500 uppercase tracking-wider">Récurrents</span>
+                    <span className="text-xs font-bold tabular-nums text-blue-600">{dollar(commRecurrents)}</span>
+                  </div>
+                  <DealTable deals={recurrents} role={group.role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
+                </div>
+              )}
+              {alveos.length > 0 && (
+                <div className="border-t border-gray-100">
+                  <div className="px-5 py-2 flex items-center justify-between bg-amber-50/40 border-b border-amber-50">
+                    <span className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Alveo</span>
+                    <span className="text-xs font-bold tabular-nums text-amber-600">{dollar(commAlveos)}</span>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {alveos.map(d => (
+                      <div key={d.id} className="px-5 py-2.5 flex items-center justify-between">
+                        <span className="text-xs font-medium text-gray-700 truncate max-w-[200px]">{d.client_name}</span>
+                        <span className={cn('text-xs font-semibold tabular-nums', group.role === 'closer' ? 'text-violet-700' : 'text-blue-700')}>
+                          {dollar(d.maCommission)}
+                        </span>
                       </div>
-                    </td>
-                  )}
-                </tr>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : alveos.length > 0 ? (
+            <div className="divide-y divide-gray-50">
+              {alveos.map(d => (
+                <div key={d.id} className="px-5 py-2.5 flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-700 truncate max-w-[200px]">{d.client_name}</span>
+                  <span className={cn('text-xs font-semibold tabular-nums', group.role === 'closer' ? 'text-violet-700' : 'text-blue-700')}>
+                    {dollar(d.maCommission)}
+                  </span>
+                </div>
               ))}
-            </tbody>
-          </table>
-          {group.deals.some(d => d.notes) && (
+            </div>
+          ) : (
+            <DealTable deals={group.deals} role={group.role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
+          )}
+          {group.deals.some(d => d.notes && !isRecurringNote(d.notes) && !isAlveoNote(d.notes)) && (
             <div className="px-5 py-2 border-t border-gray-50">
-              {group.deals.filter(d => d.notes).map(d => (
+              {group.deals.filter(d => d.notes && !isRecurringNote(d.notes) && !isAlveoNote(d.notes)).map(d => (
                 <p key={d.id} className="text-[11px] text-gray-400 italic">{d.client_name} : {d.notes}</p>
               ))}
             </div>
@@ -576,35 +697,34 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
                   })}
                   <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{dollar(net)}</td>
                   <td className="px-4 py-3">
-                    <Badge
-                      variant={e.statut === 'Payé' ? 'green' : 'amber'}
-                      icon={e.statut === 'Payé' ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-                    >
-                      {e.statut}
-                    </Badge>
+                    <StatutBadge statut={e.statut} />
                   </td>
                   {isAdmin && (
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => onEdit(e.id)}
-                          className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
-                          title="Modifier"
-                        >
-                          <Pencil size={12} />
-                        </button>
-                        <button
-                          onClick={() => onToggle(e.id, e.statut)}
-                          disabled={pending}
-                          className={cn(
-                            'px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-40',
-                            e.statut === 'Payé'
-                              ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                              : 'bg-green-50 text-green-600 hover:bg-green-100',
-                          )}
-                        >
-                          {e.statut === 'Payé' ? '↩' : '✓ Payé'}
-                        </button>
+                        {e.statut !== 'Remboursé' && (
+                          <button
+                            onClick={() => onEdit(e.id)}
+                            className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
+                            title="Modifier"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        )}
+                        {e.statut !== 'Remboursé' && (
+                          <button
+                            onClick={() => onToggle(e.id, e.statut)}
+                            disabled={pending}
+                            className={cn(
+                              'px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-40',
+                              e.statut === 'Payé'
+                                ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                : 'bg-green-50 text-green-600 hover:bg-green-100',
+                            )}
+                          >
+                            {e.statut === 'Payé' ? '↩' : '✓ Payé'}
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}
@@ -758,6 +878,7 @@ export default function AdminView({
           maCommission: maComm,
           statut: e.statut,
           notes: e.notes,
+          type: isAlveoNote(e.notes) ? 'alveo' : isRecurringNote(e.notes) ? 'recurrent' : 'nouveau',
         })
         g.totalCommission  += maComm
         if (e.statut !== 'Payé') {
@@ -836,6 +957,11 @@ export default function AdminView({
   function handleEdit(id: string) {
     const e = filtrees.find(e => e.id === id)
     if (e) setEntreeEnEdition(e)
+  }
+
+  function handleDelete(id: string) {
+    if (!confirm('Supprimer cette commission ? Cette action est irréversible.')) return
+    startTransition(async () => { await supprimerPaye(id) })
   }
 
   return (
@@ -1043,6 +1169,7 @@ export default function AdminView({
                 onApprouver={handleApprouverEmploye}
                 onToggle={handleToggle}
                 onEdit={handleEdit}
+                onDelete={handleDelete}
               />
             ))}
           </div>

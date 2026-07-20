@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Plus, ChevronLeft, ChevronRight, CheckCircle2,
   ChevronDown, ChevronUp, RefreshCw, X, Pencil, Search,
-  LayoutList, LayoutGrid, Upload,
+  LayoutList, LayoutGrid, Upload, AlertTriangle,
 } from 'lucide-react'
 import ImportRecurrentsModal from '@/components/recurrents/ImportRecurrentsModal'
 import { cn }          from '@/lib/utils'
@@ -1157,6 +1157,17 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
   const annulésDeals  = filteredDeals.filter(d => !d.actif && d.raison_annulation)
   const inactifsDeals = filteredDeals.filter(d => !d.actif && !d.raison_annulation)
 
+  // Detect clients with multiple active deals (likely duplicates)
+  const duplicateNames = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const d of deals) {
+      if (!d.actif) continue
+      const key = d.client_name.trim().toLowerCase()
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([name]) => name))
+  }, [deals])
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
 
@@ -1202,6 +1213,21 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
           </button>
         )}
       </div>
+
+      {/* ── Avertissement doublons ── */}
+      {duplicateNames.size > 0 && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <AlertTriangle size={15} className="text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">
+              {duplicateNames.size} cliente{duplicateNames.size > 1 ? 's ont' : ' a'} plusieurs ententes actives (doublons possibles)
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              {[...duplicateNames].join(', ')} — Va dans &quot;Tout voir&quot; et annule l&apos;entente en double.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Filtres rapides ── */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">

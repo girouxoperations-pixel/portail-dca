@@ -121,6 +121,10 @@ export default async function EquipePage() {
       const g = goalMap.get(p.id)
       const a = setterAgg.get(p.id) ?? { rdv: 0, calls: 0 }
       const sCash = setterCashAgg.get(p.id) ?? 0
+      const projectedCash =
+        sCash > 0 && dayOfMonth > 0
+          ? Math.round(sCash + (sCash / dayOfMonth) * daysLeft)
+          : null
       return {
         userId:        p.id,
         nom:           p.full_name ?? 'Inconnu',
@@ -134,7 +138,7 @@ export default async function EquipePage() {
         actualCloses:  0,
         actualRdv:     a.rdv,
         actualCalls:   a.calls,
-        projectedCash: null,
+        projectedCash,
         year,
         month,
         isAdmin,

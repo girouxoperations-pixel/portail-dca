@@ -13,14 +13,15 @@ export default async function ClientsPage() {
   if (!profil || profil.role !== 'admin') redirect('/dashboard')
 
   const db = createAdminClient()
+  const currentYear = new Date().getFullYear()
 
-  // ── 2024 / 2025 historical clients ──────────────────────────────
+  // ── Historical clients (all years in clients_registry) ──────────
   const { data: historical } = await db
     .from('clients_registry')
     .select('*')
-    .order('entry_date', { ascending: true })
+    .order('entry_date', { ascending: false })
 
-  // ── 2026 live clients from csm_clients + cash_entries ───────────
+  // ── Current year live clients from csm_clients + cash_entries ───
   const { data: csmRaw } = await db
     .from('csm_clients')
     .select(`
@@ -31,9 +32,9 @@ export default async function ClientsPage() {
         montant_courant, collected, a_collecter
       )
     `)
-    .gte('enrollment_date', '2026-01-01')
-    .lt('enrollment_date', '2027-01-01')
-    .order('enrollment_date', { ascending: true })
+    .gte('enrollment_date', `${currentYear}-01-01`)
+    .lt('enrollment_date', `${currentYear + 1}-01-01`)
+    .order('enrollment_date', { ascending: false })
 
   // ── Pending recurring occurrences for 2026 balance ──────────────
   const { data: pendingOccs } = await db
@@ -49,14 +50,14 @@ export default async function ClientsPage() {
     if (name) pendingByName.set(name, (pendingByName.get(name) ?? 0) + (o.montant_attendu ?? 0))
   }
 
-  // Shape 2026 data
+  // Shape current year live data
   const clients2026 = (csmRaw ?? []).map(c => {
     const ce = Array.isArray(c.cash_entries) ? c.cash_entries[0] : c.cash_entries
     const pending = pendingByName.get(c.name) ?? 0
     const montantReste = pending > 0 ? pending : (ce?.a_collecter ?? 0)
     return {
       id:           c.id,
-      year:         2026 as const,
+      year:         currentYear as number,
       name:         c.name,
       phone:        ce?.client_phone ?? c.phone ?? null,
       email:        ce?.client_email ?? c.email ?? null,

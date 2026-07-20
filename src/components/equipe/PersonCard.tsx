@@ -432,6 +432,28 @@ export default function PersonCard({
               <ProgressBar value={actualCash}  goal={targetCash}  label="Cash collecté"    format={dollar} />
               <ProgressBar value={actualRdv}   goal={targetRdv}   label="RDV bookés"       format={n => String(n)} />
               <ProgressBar value={actualCalls} goal={targetCalls} label="Appels tentatives" format={n => String(n)} />
+              {projectedCash !== null && projectedCash > 0 && (
+                <div className="mt-1 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp size={12} className="text-blue-400 shrink-0" />
+                    <span className="text-xs text-gray-400">Projection fin de mois</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-bold text-gray-900 tabular-nums">{dollar(projectedCash)}</span>
+                    {onTrack !== null && (
+                      <span className={cn(
+                        'flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-md',
+                        onTrack
+                          ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200'
+                          : 'bg-red-50 text-red-500 ring-1 ring-red-200',
+                      )}>
+                        {onTrack ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
+                        {onTrack ? 'En route' : 'En retard'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )
         )}

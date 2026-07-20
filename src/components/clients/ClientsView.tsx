@@ -24,7 +24,7 @@ interface HistoricalClient {
 
 interface LiveClient {
   id: string
-  year: 2026
+  year: number
   name: string
   phone: string | null
   email: string | null
@@ -53,24 +53,16 @@ function formatDate(d: string | null) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const s = status?.toLowerCase()
-  if (s === 'dropped') return (
+  if (status?.toLowerCase() === 'dropped') return (
     <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600">
       <XCircle size={9} />Sortie
-    </span>
-  )
-  if (s === 'refund') return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600">
-      Remboursé
     </span>
   )
   return null
 }
 
 function BalanceCell({ montantReste, status }: { montantReste: number | null; status: string }) {
-  const s = status?.toLowerCase()
-  if (s === 'dropped') return <span className="text-xs text-red-500 font-semibold">Sortie</span>
-  if (s === 'refund')  return <span className="text-xs text-orange-500 font-semibold">Remboursé</span>
+  if (status?.toLowerCase() === 'dropped') return <span className="text-xs text-red-500 font-semibold">Sortie</span>
   if (!montantReste || montantReste <= 0) return (
     <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700">
       <CheckCircle2 size={10} />PIF
@@ -196,14 +188,24 @@ export default function ClientsView({
   historical: HistoricalClient[]
   clients2026: LiveClient[]
 }) {
-  const [year,        setYear]        = useState<2024 | 2025 | 2026>(2026)
+  const currentYear = new Date().getFullYear()
+  const [year,        setYear]        = useState<number | 'sorties'>(currentYear)
   const [search,      setSearch]      = useState('')
   const [editClient,  setEditClient]  = useState<LiveClient | null>(null)
 
+  const allSorties: AnyClient[] = useMemo(() => {
+    const all = [...clients2026, ...historical].filter(c => c.status === 'dropped')
+    return all.sort((a, b) => (b.year - a.year) || (b.entry_date ?? '').localeCompare(a.entry_date ?? ''))
+  }, [historical, clients2026])
+
   const clients: AnyClient[] = useMemo(() => {
-    if (year === 2026) return clients2026
-    return historical.filter(c => c.year === year)
-  }, [year, historical, clients2026])
+    if (year === 'sorties') return allSorties
+    const live = clients2026.filter(c => c.year === year)
+    const hist = historical.filter(c => c.year === year)
+    return [...live, ...hist].sort((a, b) =>
+      (b.entry_date ?? '').localeCompare(a.entry_date ?? '')
+    )
+  }, [year, historical, clients2026, allSorties])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -217,17 +219,19 @@ export default function ClientsView({
 
   const stats = useMemo(() => {
     const total   = clients.length
-    const pif     = clients.filter(c => (c.montant_reste ?? 0) <= 0 && c.status !== 'dropped' && c.status !== 'refund').length
-    const avecDette = clients.filter(c => (c.montant_reste ?? 0) > 0 && c.status !== 'dropped' && c.status !== 'refund').length
+    const pif     = clients.filter(c => (c.montant_reste ?? 0) <= 0 && c.status !== 'dropped').length
+    const avecDette = clients.filter(c => (c.montant_reste ?? 0) > 0 && c.status !== 'dropped').length
     const sortie  = clients.filter(c => c.status === 'dropped').length
     const totalReste = clients.reduce((s, c) => {
-      if (c.status === 'dropped' || c.status === 'refund') return s
+      if (c.status === 'dropped') return s
       return s + (c.montant_reste ?? 0)
     }, 0)
     return { total, pif, avecDette, sortie, totalReste }
   }, [clients])
 
-  const YEARS = [2026, 2025, 2024] as const
+  const liveYears = Array.from(new Set(clients2026.map(c => c.year)))
+  const histYears = Array.from(new Set(historical.map(c => c.year))).sort((a, b) => b - a)
+  const YEARS = Array.from(new Set([currentYear, ...liveYears, ...histYears])).sort((a, b) => b - a)
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -263,10 +267,25 @@ export default function ClientsView({
                 'ml-1.5 text-xs font-normal',
                 year === y ? 'text-violet-200' : 'text-gray-400',
               )}>
-                ({y === 2026 ? clients2026.length : historical.filter(c => c.year === y).length})
+                ({clients2026.filter(c => c.year === y).length + historical.filter(c => c.year === y).length})
               </span>
             </button>
           ))}
+          <button
+            onClick={() => setYear('sorties')}
+            className={cn(
+              'px-5 py-2.5 font-semibold transition-colors border-l border-gray-200',
+              year === 'sorties' ? 'bg-red-600 text-white' : 'text-red-500 hover:bg-red-50',
+            )}
+          >
+            Sortie / Refund
+            <span className={cn(
+              'ml-1.5 text-xs font-normal',
+              year === 'sorties' ? 'text-red-200' : 'text-red-300',
+            )}>
+              ({allSorties.length})
+            </span>
+          </button>
         </div>
 
         {/* Search */}
@@ -317,12 +336,14 @@ export default function ClientsView({
       {/* ── Table ── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-900">{year}</span>
+          <span className="text-sm font-semibold text-gray-900">
+            {year === 'sorties' ? 'Sortie / Refund' : year}
+          </span>
           <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
             {filtered.length} cliente{filtered.length !== 1 ? 's' : ''}
             {search && ` sur ${clients.length}`}
           </span>
-          {year === 2026 && (
+          {year === currentYear && (
             <span className="text-[10px] text-violet-500 bg-violet-50 px-2 py-0.5 rounded-full font-medium ml-auto">
               Données live — balance mise à jour automatiquement
             </span>
@@ -340,13 +361,14 @@ export default function ClientsView({
                 <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 bg-gray-50/40">
                   <th className="px-4 py-3 text-left whitespace-nowrap">#</th>
                   <th className="px-4 py-3 text-left">Nom</th>
+                  {year === 'sorties' && <th className="px-4 py-3 text-left whitespace-nowrap">Année</th>}
                   <th className="px-4 py-3 text-left whitespace-nowrap">Téléphone</th>
                   <th className="px-4 py-3 text-left">Email</th>
                   <th className="px-4 py-3 text-left whitespace-nowrap">Date entrée</th>
                   <th className="px-4 py-3 text-left whitespace-nowrap">Date sortie</th>
                   <th className="px-4 py-3 text-left">Méthode</th>
-                  <th className="px-4 py-3 text-left whitespace-nowrap">Montant qui reste</th>
-                  {year === 2026 && <th className="px-4 py-3 w-8" />}
+                  <th className="px-4 py-3 text-left whitespace-nowrap">Montant</th>
+                  {year === currentYear && <th className="px-4 py-3 w-8" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -355,13 +377,18 @@ export default function ClientsView({
                   return (
                   <tr key={c.id} className={cn(
                     'hover:bg-gray-50/50 transition-colors',
-                    c.status === 'dropped' && 'opacity-60',
+                    c.status === 'dropped' && 'opacity-50',
                   )}>
                     <td className="px-4 py-3 text-xs text-gray-300 tabular-nums">{idx + 1}</td>
                     <td className="px-4 py-3 max-w-[180px]">
                       <div className="font-medium text-gray-800 truncate">{c.name}</div>
                       <StatusBadge status={c.status} />
                     </td>
+                    {year === 'sorties' && (
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{c.year}</span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                       {c.phone
                         ? <a href={`tel:${c.phone}`} className="hover:text-violet-600 transition-colors">{c.phone}</a>
@@ -380,7 +407,7 @@ export default function ClientsView({
                     <td className="px-4 py-3">
                       <BalanceCell montantReste={c.montant_reste ?? null} status={c.status} />
                     </td>
-                    {year === 2026 && (
+                    {year === currentYear && (
                       <td className="px-2 py-3">
                         <button
                           onClick={() => setEditClient(c as LiveClient)}
