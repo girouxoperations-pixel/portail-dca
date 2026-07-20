@@ -11,9 +11,11 @@ import {
   ResponsiveContainer, Legend,
 } from 'recharts'
 import { cn } from '@/lib/utils'
-import { creerCash, modifierCash, supprimerCash } from '@/app/(portal)/cash/actions'
+import { modifierCash, supprimerCash } from '@/app/(portal)/cash/actions'
+import { creerCashCollect } from '@/app/(portal)/cashcollect/actions'
 import WeeklyPerfSection, { type WeeklyPerf, type SourcedDeal } from '@/components/cash/WeeklyPerfSection'
 import ImportModal from '@/components/cash/ImportModal'
+import Modal from '@/components/ui/Modal'
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -205,22 +207,20 @@ const INPUT_CLS =
 function ModalForm({
   entry, closers, setters, onClose,
 }: {
-  entry: CashEntry | null
+  entry: CashEntry
   closers: Profil[]
   setters: Profil[]
   onClose: () => void
 }) {
   const [pending, startTransition] = useTransition()
-  const [sourceType, setSourceType] = useState<'webi' | 'vsl' | ''>(entry?.source_type ?? '')
-  const isEdit = entry !== null
+  const [sourceType, setSourceType] = useState<'webi' | 'vsl' | ''>(entry.source_type ?? '')
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     if (sourceType) fd.set('source_type', sourceType)
     startTransition(async () => {
-      if (isEdit) await modifierCash(entry.id, fd)
-      else await creerCash(fd)
+      await modifierCash(entry.id, fd)
       onClose()
     })
   }
@@ -232,7 +232,7 @@ function ModalForm({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">
-            {isEdit ? "Modifier l'entrée" : 'Nouvelle entrée cash'}
+            Modifier l&apos;entrée
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
         </div>
@@ -240,10 +240,10 @@ function ModalForm({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Champ label="Date">
-              <input name="entry_date" type="date" required defaultValue={entry?.entry_date ?? today} className={INPUT_CLS} />
+              <input name="entry_date" type="date" required defaultValue={entry.entry_date ?? today} className={INPUT_CLS} />
             </Champ>
             <Champ label="Méthode">
-              <select name="methode" defaultValue={entry?.methode ?? ''} className={INPUT_CLS}>
+              <select name="methode" defaultValue={entry.methode ?? ''} className={INPUT_CLS}>
                 <option value="">— Aucune —</option>
                 {METHODES.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -252,28 +252,28 @@ function ModalForm({
 
           <div className="grid grid-cols-2 gap-4">
             <Champ label="Nom du client">
-              <input name="client_name" placeholder="Entreprise Dupont" defaultValue={entry?.client_name ?? ''} className={INPUT_CLS} />
+              <input name="client_name" placeholder="Entreprise Dupont" defaultValue={entry.client_name ?? ''} className={INPUT_CLS} />
             </Champ>
             <Champ label="Téléphone">
-              <input name="client_phone" type="tel" placeholder="+1 (514) 000-0000" defaultValue={entry?.client_phone ?? ''} className={INPUT_CLS} />
+              <input name="client_phone" type="tel" placeholder="+1 (514) 000-0000" defaultValue={entry.client_phone ?? ''} className={INPUT_CLS} />
             </Champ>
             <Champ label="Email">
-              <input name="client_email" type="email" placeholder="client@exemple.com" defaultValue={entry?.client_email ?? ''} className={INPUT_CLS} />
+              <input name="client_email" type="email" placeholder="client@exemple.com" defaultValue={entry.client_email ?? ''} className={INPUT_CLS} />
             </Champ>
             <Champ label="Date d'onboarding">
-              <input name="onboarding_date" type="date" defaultValue={entry?.onboarding_date ?? ''} className={INPUT_CLS} />
+              <input name="onboarding_date" type="date" defaultValue={entry.onboarding_date ?? ''} className={INPUT_CLS} />
             </Champ>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <Champ label="Closer">
-              <select name="closed_by" defaultValue={entry?.closed_by ?? ''} className={INPUT_CLS}>
+              <select name="closed_by" defaultValue={entry.closed_by ?? ''} className={INPUT_CLS}>
                 <option value="">— Aucun —</option>
                 {closers.map(c => <option key={c.id} value={c.id}>{c.full_name ?? c.id}</option>)}
               </select>
             </Champ>
             <Champ label="Setter">
-              <select name="set_by" defaultValue={entry?.set_by ?? ''} className={INPUT_CLS}>
+              <select name="set_by" defaultValue={entry.set_by ?? ''} className={INPUT_CLS}>
                 <option value="">— Aucun —</option>
                 {setters.map(s => <option key={s.id} value={s.id}>{s.full_name ?? s.id}</option>)}
               </select>
@@ -282,10 +282,10 @@ function ModalForm({
 
           <div className="grid grid-cols-2 gap-4">
             <Champ label="Montant total ($)">
-              <input name="montant_courant" type="number" min="0" step="0.01" required defaultValue={entry?.montant_courant ?? 0} className={INPUT_CLS} />
+              <input name="montant_courant" type="number" min="0" step="0.01" required defaultValue={entry.montant_courant ?? 0} className={INPUT_CLS} />
             </Champ>
             <Champ label="Collecté ($)">
-              <input name="collected" type="number" min="0" step="0.01" defaultValue={entry?.collected ?? 0} className={INPUT_CLS} />
+              <input name="collected" type="number" min="0" step="0.01" defaultValue={entry.collected ?? 0} className={INPUT_CLS} />
             </Champ>
           </div>
 
@@ -321,7 +321,7 @@ function ModalForm({
                   i < 2 ? 'border-r border-gray-200' : '',
                   'has-[:checked]:bg-violet-600 has-[:checked]:text-white text-gray-500 hover:bg-gray-50',
                 )}>
-                  <input type="radio" name="close_type" value={v} defaultChecked={entry?.close_type === v || (!entry && v === 'on_the_spot')} className="sr-only" />
+                  <input type="radio" name="close_type" value={v} defaultChecked={entry.close_type === v} className="sr-only" />
                   {v === 'on_the_spot' ? 'On the spot' : v === 'follow_up' ? 'Follow up' : 'Financement'}
                 </label>
               ))}
@@ -329,7 +329,7 @@ function ModalForm({
           </Champ>
 
           <Champ label="Notes (optionnel)">
-            <textarea name="notes" rows={2} placeholder="Remarques..." defaultValue={entry?.notes ?? ''} className={`${INPUT_CLS} resize-none`} />
+            <textarea name="notes" rows={2} placeholder="Remarques..." defaultValue={entry.notes ?? ''} className={`${INPUT_CLS} resize-none`} />
           </Champ>
 
           <div className="flex justify-end gap-3 pt-2">
@@ -346,7 +346,359 @@ function ModalForm({
   )
 }
 
+// ── Modal nouveau deal (full form, replaces CashCollect) ─────────
+
+function ModalNouveauDeal({
+  closers, setters, onClose,
+}: {
+  closers: Profil[]
+  setters: Profil[]
+  onClose: () => void
+}) {
+  const [pending, startTransition] = useTransition()
+  const today = new Date().toISOString().slice(0, 10)
+
+  const [versementsMode, setVersementsMode] = useState<'1' | '2' | '3' | 'autre'>('1')
+  const [autreDates,     setAutreDates]     = useState<string[]>([''])
+  const [entryDate,      setEntryDate]      = useState(today)
+  const [montant,        setMontant]        = useState(0)
+  const [methode,        setMethode]        = useState('')
+  const [isFinancement,  setIsFinancement]  = useState(false)
+
+  const METHODES_DEAL = ['Interac', 'Crédit', 'Financement']
+
+  function handleMethodeChange(m: string) {
+    setMethode(m)
+    if (m === 'Financement') setIsFinancement(true)
+  }
+
+  const versements = versementsMode === 'autre' ? autreDates.length + 1 : Number(versementsMode)
+
+  const versementAmount = versements > 1 && montant > 0
+    ? Math.round((montant / versements) * 100) / 100
+    : 0
+
+  const versementDates = useMemo(() => {
+    const base = new Date(entryDate + 'T00:00:00')
+    return Array.from({ length: versements }, (_, i) => {
+      const d = new Date(base)
+      d.setMonth(d.getMonth() + i)
+      return {
+        label: i === 0 ? "Aujourd'hui" : `${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`,
+        date:  d.toISOString().split('T')[0],
+      }
+    })
+  }, [entryDate, versements])
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    if (versements > 1) {
+      fd.set('collected',  String(versementAmount))
+      fd.set('versements', String(versements))
+      if (versementsMode === 'autre') {
+        autreDates.forEach((date, i) => {
+          fd.set(`versement_date_${i + 2}`, date)
+        })
+      }
+    }
+    startTransition(async () => {
+      await creerCashCollect(fd)
+      onClose()
+    })
+  }
+
+  return (
+    <Modal titre="Nouveau deal" onClose={onClose} scrollable>
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Champ label="Date du deal">
+            <input
+              name="entry_date" type="date" required
+              value={entryDate} onChange={e => setEntryDate(e.target.value)}
+              className={INPUT_CLS}
+            />
+          </Champ>
+          <Champ label="Méthode de paiement">
+            <select
+              name="methode"
+              value={methode}
+              onChange={e => handleMethodeChange(e.target.value)}
+              className={INPUT_CLS}
+            >
+              <option value="">— Aucune —</option>
+              {METHODES_DEAL.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </Champ>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Champ label="Nom du client">
+            <input name="client_name" placeholder="Marie Tremblay" className={INPUT_CLS} />
+          </Champ>
+          <Champ label="Date d'onboarding">
+            <input name="onboarding_date" type="date" className={INPUT_CLS} />
+          </Champ>
+          <Champ label="Téléphone">
+            <input name="client_phone" type="tel" placeholder="+1 (514) 000-0000" className={INPUT_CLS} />
+          </Champ>
+          <Champ label="Email">
+            <input name="client_email" type="email" placeholder="client@exemple.com" className={INPUT_CLS} />
+          </Champ>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Champ label="Montant du deal ($)">
+            <input
+              name="montant_courant" type="number" min="0" step="0.01" required
+              value={montant || ''}
+              onChange={e => setMontant(Number(e.target.value))}
+              placeholder="4000"
+              className={INPUT_CLS}
+            />
+          </Champ>
+          <Champ label="Versements">
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+              {(['1', '2', '3', 'autre'] as const).map((n, i) => (
+                <button
+                  key={n} type="button"
+                  onClick={() => { setVersementsMode(n); if (n === 'autre') setAutreDates(['']) }}
+                  className={cn(
+                    'flex-1 py-2.5 font-medium transition-colors',
+                    i > 0 && 'border-l border-gray-200',
+                    versementsMode === n
+                      ? 'bg-violet-600 text-white'
+                      : 'text-gray-500 hover:bg-gray-50',
+                  )}
+                >
+                  {n === '1' ? 'Unique' : n === 'autre' ? 'Autre' : `${n}×`}
+                </button>
+              ))}
+            </div>
+          </Champ>
+        </div>
+
+        {/* Plan de versements */}
+        {versements > 1 && (
+          <div className="rounded-lg bg-violet-50 border border-violet-100 p-4 space-y-3">
+            <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
+              Plan de paiement — {dollar(versementAmount)} × {versements}
+            </p>
+
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-green-500 font-bold">✓</span>
+                <span className="font-medium text-violet-800">
+                  Aujourd&apos;hui ({versementDates[0]?.label ?? entryDate})
+                </span>
+              </div>
+              <span className="font-semibold tabular-nums text-violet-900">{dollar(versementAmount)}</span>
+            </div>
+
+            {versementsMode === 'autre' ? (
+              <>
+                {autreDates.map((date, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-violet-400 text-base shrink-0">◷</span>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                      <label className="text-[11px] text-violet-600 font-medium">Versement {i + 2}</label>
+                      <input
+                        type="date"
+                        value={date}
+                        onChange={ev => {
+                          const next = [...autreDates]
+                          next[i] = ev.target.value
+                          setAutreDates(next)
+                        }}
+                        required
+                        className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
+                    </div>
+                    <span className="font-semibold tabular-nums text-violet-900 shrink-0 pt-4">
+                      {dollar(versementAmount)}
+                    </span>
+                    {autreDates.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setAutreDates(autreDates.filter((_, j) => j !== i))}
+                        className="text-gray-300 hover:text-red-400 transition-colors pt-4"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setAutreDates([...autreDates, ''])}
+                  className="flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors"
+                >
+                  <Plus size={12} />
+                  Ajouter un versement
+                </button>
+              </>
+            ) : (
+              Array.from({ length: versements - 1 }, (_, i) => {
+                const n = i + 2
+                return (
+                  <div key={n} className="flex items-center gap-3">
+                    <span className="text-violet-400 text-base shrink-0">◷</span>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                      <label className="text-[11px] text-violet-600 font-medium">
+                        Versement {n} — date de contact client
+                      </label>
+                      <input
+                        name={`versement_date_${n}`}
+                        type="date"
+                        defaultValue={versementDates[i + 1]?.date ?? ''}
+                        required
+                        className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
+                    </div>
+                    <span className="font-semibold tabular-nums text-violet-900 shrink-0 pt-4">
+                      {dollar(versementAmount)}
+                    </span>
+                  </div>
+                )
+              })
+            )}
+
+            <p className="text-[11px] text-violet-500 pt-1 border-t border-violet-100">
+              Ces dates apparaîtront dans l&apos;onglet Récurrents comme rappel de contact.
+            </p>
+          </div>
+        )}
+
+        {versementsMode === '1' && (
+          <Champ label="Déjà collecté ($)">
+            <input name="collected" type="number" min="0" step="0.01" defaultValue="0" className={INPUT_CLS} />
+          </Champ>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <Champ label="Closer">
+            <select name="closed_by" className={INPUT_CLS}>
+              <option value="">— Aucun —</option>
+              {closers.map(c => <option key={c.id} value={c.id}>{c.full_name ?? c.id}</option>)}
+            </select>
+          </Champ>
+          <Champ label="Setter">
+            <select name="set_by" className={INPUT_CLS}>
+              <option value="">— Aucun —</option>
+              {setters.map(s => <option key={s.id} value={s.id}>{s.full_name ?? s.id}</option>)}
+            </select>
+          </Champ>
+        </div>
+
+        <Champ label="Source">
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+            {([
+              { value: 'webi', label: 'Webi', Icon: Monitor },
+              { value: 'vsl',  label: 'VSL',  Icon: Film    },
+            ] as const).map(({ value, label, Icon }, i) => (
+              <label key={value} className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-2.5 cursor-pointer font-medium transition-colors',
+                i > 0 && 'border-l border-gray-200',
+                'has-[:checked]:bg-violet-600 has-[:checked]:text-white text-gray-500 hover:bg-gray-50',
+              )}>
+                <input type="radio" name="source_type" value={value} className="sr-only" />
+                <Icon size={13} />{label}
+              </label>
+            ))}
+          </div>
+        </Champ>
+
+        <Champ label="Notes (optionnel)">
+          <textarea name="notes" rows={2} placeholder="Remarques..." className={`${INPUT_CLS} resize-none`} />
+        </Champ>
+
+        <label className="flex items-center gap-2.5 cursor-pointer select-none rounded-lg border border-gray-200 px-3 py-2.5 hover:bg-gray-50 transition-colors">
+          <input type="hidden" name="is_financement" value={isFinancement ? 'true' : ''} />
+          <input
+            type="checkbox"
+            checked={isFinancement}
+            onChange={e => setIsFinancement(e.target.checked)}
+            className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+          />
+          <div>
+            <span className="text-sm font-medium text-gray-700">Financement Alveo</span>
+            <p className="text-xs text-gray-400">Crée automatiquement un deal dans l&apos;onglet Alveo avec les commissions en 3 versements</p>
+          </div>
+        </label>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
+            Annuler
+          </button>
+          <button type="submit" disabled={pending}
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+            {pending ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 // ── Month section ─────────────────────────────────────────────────
+
+function EntryRow({ e, profileMap, recurringIds, isAdmin, onEdit, onDelete, pending }: {
+  e: CashEntry; profileMap: Map<string, string>; recurringIds: Set<string>
+  isAdmin: boolean; onEdit: (e: CashEntry) => void; onDelete: (id: string) => void; pending: boolean
+}) {
+  const type = getSourceType(e, recurringIds)
+  return (
+    <tr className="hover:bg-gray-50/50 transition-colors">
+      <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">{formatDate(e.entry_date)}</td>
+      <td className="px-4 py-3 font-medium text-gray-800 max-w-[130px] truncate">{e.client_name ?? '—'}</td>
+      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}</td>
+      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.set_by ? (profileMap.get(e.set_by) ?? '—') : '—'}</td>
+      <td className="px-4 py-3"><TypeBadge type={type} closeType={e.close_type} /></td>
+      <td className="px-4 py-3"><SourceBadge source={e.source_type} /></td>
+      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">{dollar(e.montant_courant)}</td>
+      <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(e.collected)}</td>
+      <td className="px-4 py-3 text-right tabular-nums">
+        <span className={cn('font-medium', (e.a_collecter ?? 0) > 0 ? 'text-red-600' : 'text-gray-300')}>
+          {dollar(e.a_collecter ?? 0)}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-xs text-gray-500">{e.methode ?? '—'}</td>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-1.5">
+          <button onClick={() => onEdit(e)} disabled={pending} title="Modifier"
+            className="p-1.5 text-gray-300 hover:text-violet-600 hover:bg-violet-50 rounded transition-colors disabled:opacity-40">
+            <Pencil size={13} />
+          </button>
+          {isAdmin && (
+            <button onClick={() => onDelete(e.id)} disabled={pending} title="Supprimer"
+              className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40">
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+const TABLE_HEAD = (
+  <thead>
+    <tr className="text-xs font-medium text-gray-400 border-b border-gray-50">
+      <th className="px-4 py-2.5 text-left whitespace-nowrap">Date</th>
+      <th className="px-4 py-2.5 text-left">Client</th>
+      <th className="px-4 py-2.5 text-left">Closer</th>
+      <th className="px-4 py-2.5 text-left">Setter</th>
+      <th className="px-4 py-2.5 text-left">Type</th>
+      <th className="px-4 py-2.5 text-left">Source</th>
+      <th className="px-4 py-2.5 text-right whitespace-nowrap">Montant</th>
+      <th className="px-4 py-2.5 text-right whitespace-nowrap">Collecté</th>
+      <th className="px-4 py-2.5 text-right whitespace-nowrap">À collecter</th>
+      <th className="px-4 py-2.5 text-left">Méthode</th>
+      <th className="px-4 py-2.5 text-right">Actions</th>
+    </tr>
+  </thead>
+)
 
 function MonthSection({
   monthKey, entries, profileMap, recurringIds, isAdmin,
@@ -367,14 +719,22 @@ function MonthSection({
   const [year, month] = monthKey.split('-').map(Number)
   const label = `${MOIS_FR[month - 1]} ${year}`
 
+  const deals = entries.filter(e => getSourceType(e, recurringIds) === 'deal')
+  const recs   = entries.filter(e => getSourceType(e, recurringIds) === 'recurrent')
+  const hasBoth = deals.length > 0 && recs.length > 0
+
   const totaux = {
     montant:    entries.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
     collected:  entries.reduce((s, e) => s + (e.collected       ?? 0), 0),
     aCollecter: entries.reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
   }
+  const dealsCollected  = deals.reduce((s, e) => s + (e.collected ?? 0), 0)
+  const dealsMontant    = deals.reduce((s, e) => s + (e.montant_courant ?? 0), 0)
+  const dealsACollecter = deals.reduce((s, e) => s + (e.a_collecter ?? 0), 0)
+  const recsCollected   = recs.reduce((s, e) => s + (e.collected ?? 0), 0)
+  const recsMontant     = recs.reduce((s, e) => s + (e.montant_courant ?? 0), 0)
 
-  const nDeals = entries.filter(e => getSourceType(e, recurringIds) === 'deal').length
-  const nRec   = entries.filter(e => getSourceType(e, recurringIds) === 'recurrent').length
+  const rowProps = { profileMap, recurringIds, isAdmin, onEdit, onDelete, pending }
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -388,141 +748,115 @@ function MonthSection({
           {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </span>
         <span className="font-semibold text-gray-900 text-sm">{label}</span>
-
         <div className="flex items-center gap-2 ml-auto flex-wrap justify-end">
-          {nDeals > 0 && (
+          {deals.length > 0 && (
             <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700">
-              <Zap size={8} />{nDeals} deal{nDeals > 1 ? 's' : ''}
+              <Zap size={8} />{deals.length} deal{deals.length > 1 ? 's' : ''} · {dollar(dealsCollected)}
             </span>
           )}
-          {nRec > 0 && (
+          {recs.length > 0 && (
             <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-              <RefreshCw size={8} />{nRec} récurrent{nRec > 1 ? 's' : ''}
+              <RefreshCw size={8} />{recs.length} récurrent{recs.length > 1 ? 's' : ''} · {dollar(recsCollected)}
             </span>
           )}
           <span className="text-sm font-bold text-gray-800 tabular-nums">{dollar(totaux.collected)}</span>
-          <span className="text-xs text-gray-400">collecté</span>
+          <span className="text-xs text-gray-400">total</span>
         </div>
       </button>
 
       {open && (
         <div className="border-t border-gray-100">
 
-          {/* Mini KPIs strip */}
-          <div className="px-5 py-3 flex items-center gap-6 bg-gray-50/40 border-b border-gray-50 text-sm flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-400">Montant total</span>
-              <span className="font-semibold text-gray-800 tabular-nums">{dollar(totaux.montant)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-400">Collecté</span>
-              <span className="font-semibold text-blue-600 tabular-nums">{dollar(totaux.collected)}</span>
-            </div>
-            {totaux.aCollecter > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-400">À collecter</span>
-                <span className="font-semibold text-red-600 tabular-nums">{dollar(totaux.aCollecter)}</span>
-              </div>
-            )}
-            <span className="text-xs text-gray-300 ml-auto">
-              {entries.length} entrée{entries.length > 1 ? 's' : ''}
-            </span>
-          </div>
+          {hasBoth ? (
+            /* ── Split view: deals then récurrents ── */
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                {TABLE_HEAD}
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs font-medium text-gray-400 border-b border-gray-50">
-                  <th className="px-4 py-2.5 text-left whitespace-nowrap">Date</th>
-                  <th className="px-4 py-2.5 text-left">Client</th>
-                  <th className="px-4 py-2.5 text-left">Closer</th>
-                  <th className="px-4 py-2.5 text-left">Setter</th>
-                  <th className="px-4 py-2.5 text-left">Type</th>
-                  <th className="px-4 py-2.5 text-left">Source</th>
-                  <th className="px-4 py-2.5 text-right whitespace-nowrap">Montant</th>
-                  <th className="px-4 py-2.5 text-right whitespace-nowrap">Collecté</th>
-                  <th className="px-4 py-2.5 text-right whitespace-nowrap">À collecter</th>
-                  <th className="px-4 py-2.5 text-left">Méthode</th>
-                  <th className="px-4 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {entries.map(e => {
-                  const type = getSourceType(e, recurringIds)
-                  return (
-                    <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
-                        {formatDate(e.entry_date)}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-800 max-w-[130px] truncate">
-                        {e.client_name ?? '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                        {e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                        {e.set_by ? (profileMap.get(e.set_by) ?? '—') : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <TypeBadge type={type} closeType={e.close_type} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <SourceBadge source={e.source_type} />
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">
-                        {dollar(e.montant_courant)}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-blue-700">
-                        {dollar(e.collected)}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        <span className={cn('font-medium', (e.a_collecter ?? 0) > 0 ? 'text-red-600' : 'text-gray-300')}>
-                          {dollar(e.a_collecter ?? 0)}
+                {/* Section Nouvelles deals */}
+                <tbody>
+                  <tr className="bg-green-50 border-b border-green-100">
+                    <td colSpan={11} className="px-4 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-[11px] font-bold text-green-700 uppercase tracking-wide">
+                          <Zap size={10} /> Nouvelles deals
                         </span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-500">
-                        {e.methode ?? '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => onEdit(e)}
-                            disabled={pending}
-                            title="Modifier"
-                            className="p-1.5 text-gray-300 hover:text-violet-600 hover:bg-violet-50 rounded transition-colors disabled:opacity-40"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          {isAdmin && (
-                            <button
-                              onClick={() => onDelete(e.id)}
-                              disabled={pending}
-                              title="Supprimer"
-                              className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700 text-xs">
-                  <td colSpan={6} className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{dollar(totaux.montant)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totaux.collected)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-red-600">
-                    {totaux.aCollecter > 0 ? dollar(totaux.aCollecter) : '—'}
-                  </td>
-                  <td colSpan={2} />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                        <span className="text-[11px] font-semibold text-green-700 tabular-nums">
+                          {dollar(dealsCollected)} collecté
+                          {dealsACollecter > 0 && <span className="text-red-500 ml-2">· {dollar(dealsACollecter)} restant</span>}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                  {deals.map(e => <EntryRow key={e.id} e={e} {...rowProps} />)}
+                  <tr className="border-t border-green-100 bg-green-50/40 text-xs font-semibold text-gray-600">
+                    <td colSpan={6} className="px-4 py-2 text-gray-400">Sous-total deals</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{dollar(dealsMontant)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-green-700">{dollar(dealsCollected)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-red-600">{dealsACollecter > 0 ? dollar(dealsACollecter) : '—'}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tbody>
+
+                {/* Section Récurrents */}
+                <tbody>
+                  <tr className="bg-blue-50 border-b border-blue-100">
+                    <td colSpan={11} className="px-4 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-[11px] font-bold text-blue-700 uppercase tracking-wide">
+                          <RefreshCw size={10} /> Récurrents
+                        </span>
+                        <span className="text-[11px] font-semibold text-blue-700 tabular-nums">
+                          {dollar(recsCollected)} collecté
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                  {recs.map(e => <EntryRow key={e.id} e={e} {...rowProps} />)}
+                  <tr className="border-t border-blue-100 bg-blue-50/40 text-xs font-semibold text-gray-600">
+                    <td colSpan={6} className="px-4 py-2 text-gray-400">Sous-total récurrents</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{dollar(recsMontant)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-blue-700">{dollar(recsCollected)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-gray-300">—</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tbody>
+
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold text-xs text-gray-700">
+                    <td colSpan={6} className="px-4 py-3 text-gray-500 uppercase tracking-wide">Total {label}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{dollar(totaux.montant)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totaux.collected)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-red-600">
+                      {totaux.aCollecter > 0 ? dollar(totaux.aCollecter) : '—'}
+                    </td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : (
+            /* ── Single-type view (no split) ── */
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                {TABLE_HEAD}
+                <tbody className="divide-y divide-gray-50">
+                  {entries.map(e => <EntryRow key={e.id} e={e} {...rowProps} />)}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700 text-xs">
+                    <td colSpan={6} className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{dollar(totaux.montant)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totaux.collected)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-red-600">
+                      {totaux.aCollecter > 0 ? dollar(totaux.aCollecter) : '—'}
+                    </td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
 
         </div>
       )}
@@ -625,8 +959,9 @@ export default function CashView({
   const [filterCloserId, setFilterCloserId] = useState('')
   const [filterSetterId, setFilterSetterId] = useState('')
   const [search, setSearch]           = useState('')
-  const [modalEntry, setModalEntry]   = useState<CashEntry | null | 'new'>(null)
-  const [showImport, setShowImport]   = useState(false)
+  const [modalEntry, setModalEntry]       = useState<CashEntry | null>(null)
+  const [showNouveauDeal, setShowNouveauDeal] = useState(false)
+  const [showImport, setShowImport]       = useState(false)
   const [pending, startTransition]    = useTransition()
 
   const recurringIds = useMemo(() => new Set(recurringCashIds), [recurringCashIds])
@@ -697,6 +1032,25 @@ export default function CashView({
     }
     return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]))
   }, [filtrees])
+
+  // ── Deals vs récurrents split ─────────────────────────────────
+  const splitStats = useMemo(() => {
+    const deals = filtrees.filter(e => getSourceType(e, recurringIds) === 'deal')
+    const recs   = filtrees.filter(e => getSourceType(e, recurringIds) === 'recurrent')
+    return {
+      deals: {
+        count:     deals.length,
+        collected: deals.reduce((s, e) => s + (e.collected ?? 0), 0),
+        montant:   deals.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
+        aCollecter: deals.reduce((s, e) => s + (e.a_collecter ?? 0), 0),
+      },
+      recs: {
+        count:     recs.length,
+        collected: recs.reduce((s, e) => s + (e.collected ?? 0), 0),
+        montant:   recs.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
+      },
+    }
+  }, [filtrees, recurringIds])
 
   // ── Stats by source ───────────────────────────────────────────
   const statsBySource = useMemo(() => {
@@ -867,7 +1221,7 @@ export default function CashView({
             Importer CSV
           </button>
           <button
-            onClick={() => setModalEntry('new')}
+            onClick={() => setShowNouveauDeal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus size={15} />
@@ -1022,7 +1376,92 @@ export default function CashView({
       {tab === 'stats' && (
         <div className="space-y-6">
 
-          {/* Source breakdown cards */}
+          {/* Nouvelles deals vs Récurrents split */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Nouvelles deals */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden border-t-2 border-t-green-500">
+              <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-100">
+                  <Zap size={16} className="text-green-600" />
+                </div>
+                <h3 className="text-sm font-semibold text-gray-900">Nouvelles deals</h3>
+              </div>
+              <div className="p-5 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-400">Deals signés</p>
+                    <p className="text-2xl font-bold text-gray-900 tabular-nums">{splitStats.deals.count}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Revenue total</p>
+                    <p className="text-2xl font-bold text-gray-900 tabular-nums">{dollar(splitStats.deals.montant)}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-50">
+                  <div>
+                    <p className="text-xs text-gray-400">Cash collecté</p>
+                    <p className="text-lg font-bold text-blue-700 tabular-nums">{dollar(splitStats.deals.collected)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">À collecter</p>
+                    <p className={cn('text-lg font-bold tabular-nums', splitStats.deals.aCollecter > 0 ? 'text-red-600' : 'text-gray-300')}>
+                      {dollar(splitStats.deals.aCollecter)}
+                    </p>
+                  </div>
+                </div>
+                {splitStats.deals.montant > 0 && (
+                  <div className="pt-2">
+                    <div className="flex justify-between text-xs text-gray-400 mb-1">
+                      <span>Taux de collecte</span>
+                      <span className="font-semibold text-gray-700">{pct(splitStats.deals.collected, splitStats.deals.montant)} %</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.min(pct(splitStats.deals.collected, splitStats.deals.montant), 100)}%` }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Récurrents */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden border-t-2 border-t-blue-500">
+              <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-100">
+                  <RefreshCw size={16} className="text-blue-600" />
+                </div>
+                <h3 className="text-sm font-semibold text-gray-900">Récurrents</h3>
+              </div>
+              <div className="p-5 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-400">Versements reçus</p>
+                    <p className="text-2xl font-bold text-gray-900 tabular-nums">{splitStats.recs.count}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Cash collecté</p>
+                    <p className="text-2xl font-bold text-gray-900 tabular-nums">{dollar(splitStats.recs.collected)}</p>
+                  </div>
+                </div>
+                {totaux.collected > 0 && (
+                  <div className="pt-3 border-t border-gray-50">
+                    <div className="flex justify-between text-xs text-gray-400 mb-1">
+                      <span>Part du cash total</span>
+                      <span className="font-semibold text-gray-700">{pct(splitStats.recs.collected, totaux.collected)} %</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(pct(splitStats.recs.collected, totaux.collected), 100)}%` }} />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">
+                      vs <span className="font-semibold text-green-700">{dollar(splitStats.deals.collected)}</span> deals · total{' '}
+                      <span className="font-semibold text-gray-700">{dollar(totaux.collected)}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Source breakdown cards — deals only */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <StatsBlock title="Global"  color="violet" icon={Globe}   stats={statsBySource.global} />
             <StatsBlock title="Webi"    color="orange" icon={Monitor} stats={statsBySource.webi}   />
@@ -1466,10 +1905,19 @@ export default function CashView({
         />
       )}
 
-      {/* Modal entrée */}
+      {/* Modal nouveau deal */}
+      {showNouveauDeal && (
+        <ModalNouveauDeal
+          closers={closers}
+          setters={setters}
+          onClose={() => setShowNouveauDeal(false)}
+        />
+      )}
+
+      {/* Modal modifier entrée existante */}
       {modalEntry !== null && (
         <ModalForm
-          entry={modalEntry === 'new' ? null : modalEntry}
+          entry={modalEntry}
           closers={closers}
           setters={setters}
           onClose={() => setModalEntry(null)}

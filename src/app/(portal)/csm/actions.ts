@@ -115,14 +115,14 @@ export async function updateStatus(clientId: string, status: string) {
   revalidatePath(`/csm/${clientId}`)
 }
 
-// ── Remboursement : marque refund + supprime cash entry + paye entry ──
+// ── Remboursement : marque refund + annule récurrents associés ──────────
 export async function marquerRemboursement(clientId: string) {
   await verifyAdminOrCsm()
   const db = createAdminClient()
 
   const { data: client } = await db
     .from('csm_clients')
-    .select('cash_entry_id')
+    .select('cash_entry_id, name')
     .eq('id', clientId)
     .single()
 
@@ -132,9 +132,47 @@ export async function marquerRemboursement(clientId: string) {
     .eq('id', clientId)
   if (error) throw error
 
+  const today = new Date().toISOString().split('T')[0]
+
   if (client?.cash_entry_id) {
-    await db.from('paye_entries').delete().eq('cash_entry_id', client.cash_entry_id)
-    await db.from('cash_entries').delete().eq('id', client.cash_entry_id)
+    // Marquer comme refund — on garde montant_courant pour affichage dans l'onglet Remboursements
+    await db.from('cash_entries')
+      .update({
+        collected: 0,
+        close_type: 'refund',
+        notes: `[REMBOURSÉ le ${today}]`,
+      })
+      .eq('id', client.cash_entry_id)
+
+    // Mettre à zéro les commissions et marquer comme Remboursé (garde la trace)
+    await db.from('paye_entries')
+      .update({
+        montant: 0,
+        commission: 0,
+        commission_setter: 0,
+        statut: 'Remboursé',
+        notes: `[REMBOURSÉ le ${today}] — ${client.name ?? ''}`,
+      })
+      .eq('cash_entry_id', client.cash_entry_id)
+  }
+
+  // Auto-annuler tous les récurrents actifs associés à ce client
+  if (client?.name) {
+    const { data: activeDeals } = await db
+      .from('recurring_deals')
+      .select('id')
+      .eq('client_name', client.name)
+      .eq('actif', true)
+
+    if (activeDeals && activeDeals.length > 0) {
+      await db.from('recurring_deals')
+        .update({
+          actif:             false,
+          annule_le:         new Date().toISOString(),
+          raison_annulation: `Remboursement — ${today}`,
+        })
+        .in('id', activeDeals.map(d => d.id))
+    }
   }
 
   revalidatePath('/csm')
@@ -142,6 +180,8 @@ export async function marquerRemboursement(clientId: string) {
   revalidatePath('/cashcollect')
   revalidatePath('/dashboard')
   revalidatePath('/payes')
+  revalidatePath('/recurrents')
+  revalidatePath('/clients')
 }
 
 // ── Onboarding date ─────────────────────────────────────────────────
@@ -168,4 +208,26 @@ export async function updateOnboardingNotes(clientId: string, notes: string) {
   const { error } = await db.from('csm_clients').update({ onboarding_notes: notes || null }).eq('id', clientId)
   if (error) throw error
   revalidatePath(`/csm/${clientId}`)
+}
+
+// ── Création manuelle d'un client CSM ───────────────────────────────────
+export async function creerCsmClientManuel(data: {
+  name:             string
+  enrollment_date:  string
+  payment_type:     string
+  phone?:           string | null
+  email?:           string | null
+}) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_clients').insert({
+    name:            data.name.trim(),
+    enrollment_date: data.enrollment_date,
+    payment_type:    data.payment_type || 'pif',
+    phone:           data.phone || null,
+    email:           data.email || null,
+    status:          'active',
+  })
+  if (error) throw error
+  revalidatePath('/csm')
 }

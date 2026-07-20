@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import {
   Search, Users, CheckCircle2, AlertCircle, Clock,
-  Shield, X, AlertTriangle, ChevronDown, Upload,
+  Shield, X, AlertTriangle, ChevronDown, Upload, Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ExportCsvButton from '@/components/ui/ExportCsvButton'
@@ -12,12 +13,12 @@ import type { CsmClient } from './types'
 import { computeDueDates, today, formatDate } from './types'
 import {
   updateMeeting, updateMissed, toggleText, toggleMilestone, updateStatus,
-  marquerRemboursement, updateOnboardingDate, updateEmailAvis,
+  marquerRemboursement, updateOnboardingDate, updateEmailAvis, creerCsmClientManuel,
 } from './actions'
 
 type StatusFilter =
   | 'tous' | 'active' | 'm2_missed' | 'm3_missed'
-  | 'cert_setter' | 'cert_closer' | 'paused' | 'dropped'
+  | 'cert_setter' | 'cert_closer' | 'paused' | 'dropped' | 'refund'
   | 'j90_auto' | 'overdue_texts'
 
 const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }> = {
@@ -231,16 +232,27 @@ const EMAIL_CONFIG: Record<EmailAvis, { label: string; cls: string }> = {
 function EmailCell({ clientId, avis }: { clientId: string; avis: EmailAvis | null }) {
   const [open, setOpen]   = useState(false)
   const [pending, startT] = useTransition()
+  const [pos, setPos]     = useState({ top: 0, left: 0 })
+  const btnRef            = useRef<HTMLButtonElement>(null)
   const cfg = avis ? EMAIL_CONFIG[avis] : null
+
+  function handleOpen() {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left + r.width / 2 })
+    }
+    setOpen(v => !v)
+  }
 
   function handleSelect(key: EmailAvis | null) {
     startT(async () => { await updateEmailAvis(clientId, key); setOpen(false) })
   }
 
   return (
-    <td className="px-2 py-2 text-center relative">
+    <td className="px-2 py-2 text-center">
       <button
-        onClick={() => setOpen(v => !v)}
+        ref={btnRef}
+        onClick={handleOpen}
         className={cn(
           'text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5 mx-auto',
           cfg ? cfg.cls : 'bg-gray-100 text-gray-400',
@@ -249,26 +261,33 @@ function EmailCell({ clientId, avis }: { clientId: string; avis: EmailAvis | nul
         {cfg ? cfg.label : '—'}
         <ChevronDown size={8} />
       </button>
-      {open && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-40">
-          <button
-            disabled={pending}
-            onClick={() => handleSelect(null)}
-            className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 transition-colors"
+      {open && typeof window !== 'undefined' && createPortal(
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-40"
+            style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
           >
-            — Aucun
-          </button>
-          {(Object.entries(EMAIL_CONFIG) as [EmailAvis, typeof EMAIL_CONFIG[EmailAvis]][]).map(([key, c]) => (
             <button
-              key={key}
               disabled={pending}
-              onClick={() => handleSelect(key)}
-              className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50', avis === key && 'font-semibold')}
+              onClick={() => handleSelect(null)}
+              className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 transition-colors"
             >
-              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', c.cls)}>{c.label}</span>
+              — Aucun
             </button>
-          ))}
-        </div>
+            {(Object.entries(EMAIL_CONFIG) as [EmailAvis, typeof EMAIL_CONFIG[EmailAvis]][]).map(([key, c]) => (
+              <button
+                key={key}
+                disabled={pending}
+                onClick={() => handleSelect(key)}
+                className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50', avis === key && 'font-semibold')}
+              >
+                <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', c.cls)}>{c.label}</span>
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body
       )}
     </td>
   )
@@ -287,6 +306,16 @@ function StatusCell({
 }) {
   const [open, setOpen]   = useState(false)
   const [pending, startT] = useTransition()
+  const [pos, setPos]     = useState({ top: 0, left: 0 })
+  const btnRef            = useRef<HTMLButtonElement>(null)
+
+  function handleOpen() {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left + r.width / 2 })
+    }
+    setOpen(v => !v)
+  }
 
   // Effective badge reflects the most specific state
   let badgeLabel: string
@@ -319,59 +348,64 @@ function StatusCell({
   }
 
   return (
-    <td className="px-2 py-2 text-center relative">
+    <td className="px-2 py-2 text-center">
       <button
-        onClick={() => setOpen(v => !v)}
+        ref={btnRef}
+        onClick={handleOpen}
         className={cn('text-[10px] px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5 mx-auto', badgeCls)}
       >
         {badgeLabel}
         <ChevronDown size={8} />
       </button>
-      {open && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-40 text-left">
-          {/* Regular status options */}
-          {(['active', 'paused', 'dropped'] as const).map(key => (
-            <button
-              key={key}
-              disabled={pending}
-              onClick={() => handleStatus(key)}
-              className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50', status === key && !certSetterDone && !certCloserDone && 'font-semibold')}
-            >
-              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', STATUS_CONFIG[key].cls)}>{STATUS_CONFIG[key].label}</span>
-            </button>
-          ))}
-          {/* Cert toggles */}
-          <div className="border-t border-gray-100">
-            <button
-              disabled={pending}
-              onClick={() => handleCert('cert_setter_done', !certSetterDone)}
-              className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-blue-50', certSetterDone && 'font-semibold')}
-            >
-              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', certSetterDone ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500')}>
-                {certSetterDone ? '✓ Cert. Setter' : 'Cert. Setter'}
-              </span>
-            </button>
-            <button
-              disabled={pending}
-              onClick={() => handleCert('cert_closer_done', !certCloserDone)}
-              className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-purple-50', certCloserDone && 'font-semibold')}
-            >
-              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', certCloserDone ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500')}>
-                {certCloserDone ? '✓ Cert. Closer' : 'Cert. Closer'}
-              </span>
-            </button>
+      {open && typeof window !== 'undefined' && createPortal(
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-40 text-left"
+            style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
+          >
+            {(['active', 'paused', 'dropped'] as const).map(key => (
+              <button
+                key={key}
+                disabled={pending}
+                onClick={() => handleStatus(key)}
+                className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50', status === key && !certSetterDone && !certCloserDone && 'font-semibold')}
+              >
+                <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', STATUS_CONFIG[key].cls)}>{STATUS_CONFIG[key].label}</span>
+              </button>
+            ))}
+            <div className="border-t border-gray-100">
+              <button
+                disabled={pending}
+                onClick={() => handleCert('cert_setter_done', !certSetterDone)}
+                className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-blue-50', certSetterDone && 'font-semibold')}
+              >
+                <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', certSetterDone ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500')}>
+                  {certSetterDone ? '✓ Cert. Setter' : 'Cert. Setter'}
+                </span>
+              </button>
+              <button
+                disabled={pending}
+                onClick={() => handleCert('cert_closer_done', !certCloserDone)}
+                className={cn('w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-purple-50', certCloserDone && 'font-semibold')}
+              >
+                <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', certCloserDone ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500')}>
+                  {certCloserDone ? '✓ Cert. Closer' : 'Cert. Closer'}
+                </span>
+              </button>
+            </div>
+            <div className="border-t border-red-100">
+              <button
+                disabled={pending}
+                onClick={() => handleStatus('refund')}
+                className="w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-red-50"
+              >
+                <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', STATUS_CONFIG['refund'].cls)}>{STATUS_CONFIG['refund'].label}</span>
+              </button>
+            </div>
           </div>
-          {/* Remboursement */}
-          <div className="border-t border-red-100">
-            <button
-              disabled={pending}
-              onClick={() => handleStatus('refund')}
-              className="w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-red-50"
-            >
-              <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', STATUS_CONFIG['refund'].cls)}>{STATUS_CONFIG['refund'].label}</span>
-            </button>
-          </div>
-        </div>
+        </>,
+        document.body
       )}
     </td>
   )
@@ -416,8 +450,25 @@ function paymentBadgeCls(payment: string | null, fullyPaid: boolean): string {
 export default function CsmClientList({ clients, fullyPaidNames }: Props) {
   const fullyPaidSet = useMemo(() => new Set(fullyPaidNames), [fullyPaidNames])
   const [search, setSearch]             = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('tous')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
+  const [ajoutOpen, setAjoutOpen]       = useState(false)
+  const [ajoutPending, startAjoutTrans] = useTransition()
   const todayStr = today()
+
+  function handleAjoutManuel(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    startAjoutTrans(async () => {
+      await creerCsmClientManuel({
+        name:            fd.get('name') as string,
+        enrollment_date: fd.get('enrollment_date') as string,
+        payment_type:    (fd.get('payment_type') as string) || 'pif',
+        phone:           (fd.get('phone') as string) || null,
+        email:           (fd.get('email') as string) || null,
+      })
+      setAjoutOpen(false)
+    })
+  }
 
   // Overdue text check (reused for filter and KPI)
   function hasOverdueText(c: CsmClient): boolean {
@@ -443,7 +494,9 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
       if (statusFilter === 'cert_closer'    && !c.cert_closer_done)        return false
       if (statusFilter === 'j90_auto'       && dayN < 90)                  return false
       if (statusFilter === 'overdue_texts'  && !hasOverdueText(c))         return false
-      const simpleStatusFilters = ['active', 'paused', 'dropped']
+      // Refund clients only show in the dedicated 'refund' tab — hide from 'tous'
+      if (statusFilter === 'tous' && c.status === 'refund') return false
+      const simpleStatusFilters = ['active', 'paused', 'dropped', 'refund']
       if (simpleStatusFilters.includes(statusFilter) && c.status !== statusFilter) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
@@ -452,24 +505,26 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
   }, [clients, search, statusFilter, todayStr])
 
   // KPIs
-  const active     = clients.filter(c => c.status === 'active').length
-  const certCloser = clients.filter(c => c.cert_closer_done).length
-  const overdue    = clients.filter(hasOverdueText).length
+  const active      = clients.filter(c => c.status === 'active').length
+  const certCloser  = clients.filter(c => c.cert_closer_done).length
+  const overdue     = clients.filter(hasOverdueText).length
+  const refundCount = clients.filter(c => c.status === 'refund').length
 
   const m2NoShowCount = clients.filter(c => c.m2_missed).length
   const m3NoShowCount = clients.filter(c => c.m3_missed).length
   const j90Count      = clients.filter(c => daysBetween(c.enrollment_date, todayStr) >= 90).length
 
   const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
-    { key: 'tous',         label: 'Toutes'                                                            },
-    { key: 'active',       label: 'Actives'                                                           },
-    { key: 'm2_missed',    label: `M2 manqué${m2NoShowCount > 0 ? ` (${m2NoShowCount})` : ''}`       },
-    { key: 'm3_missed',    label: `M3 manqué${m3NoShowCount > 0 ? ` (${m3NoShowCount})` : ''}`       },
-    { key: 'cert_setter',  label: 'Cert. Setter'                                                      },
-    { key: 'cert_closer',  label: 'Cert. Closer'                                                      },
-    { key: 'paused',       label: 'En pause'                                                          },
-    { key: 'dropped',      label: 'Abandons'                                                          },
-    { key: 'j90_auto',     label: `+90 jours${j90Count > 0 ? ` (${j90Count})` : ''}`                },
+    { key: 'tous',         label: 'Toutes'                                                                              },
+    { key: 'active',       label: 'Actives'                                                                             },
+    { key: 'm2_missed',    label: `M2 manqué${m2NoShowCount > 0 ? ` (${m2NoShowCount})` : ''}`                         },
+    { key: 'm3_missed',    label: `M3 manqué${m3NoShowCount > 0 ? ` (${m3NoShowCount})` : ''}`                         },
+    { key: 'cert_setter',  label: 'Cert. Setter'                                                                        },
+    { key: 'cert_closer',  label: 'Cert. Closer'                                                                        },
+    { key: 'paused',       label: 'En pause'                                                                            },
+    { key: 'dropped',      label: 'Abandons'                                                                            },
+    { key: 'j90_auto',     label: `+90 jours${j90Count > 0 ? ` (${j90Count})` : ''}`                                  },
+    { key: 'refund',       label: `Remboursé${refundCount > 0 ? ` (${refundCount})` : ''}`                             },
   ]
 
   const csvData = filtered.map(c => ({
@@ -562,7 +617,13 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
               onClick={() => setStatusFilter(f.key)}
               className={cn(
                 'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                statusFilter === f.key ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700',
+                statusFilter === f.key && f.key === 'refund'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : statusFilter === f.key
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : f.key === 'refund' && refundCount > 0
+                  ? 'text-red-500 hover:text-red-700'
+                  : 'text-gray-500 hover:text-gray-700',
               )}
             >
               {f.label}
@@ -571,6 +632,12 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-gray-400">{filtered.length} cliente{filtered.length !== 1 ? 's' : ''}</span>
+          <button
+            onClick={() => setAjoutOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+          >
+            <Plus size={12} /> Ajouter
+          </button>
           <Link
             href="/csm/import"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
@@ -579,6 +646,62 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
           </Link>
           <ExportCsvButton filename="csm-clients" data={csvData} />
         </div>
+
+        {/* Modal ajout client manuel */}
+        {ajoutOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-900">Ajouter un client manuellement</h2>
+                <button onClick={() => setAjoutOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={16} /></button>
+              </div>
+              <form onSubmit={handleAjoutManuel} className="p-6 space-y-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-gray-600">Nom de la cliente *</label>
+                  <input name="name" required placeholder="Fiesta Neila Kamugisha"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">Date d&apos;inscription *</label>
+                    <input name="enrollment_date" type="date" required defaultValue={todayStr}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">Type de paiement</label>
+                    <select name="payment_type"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
+                      <option value="pif">PIF</option>
+                      <option value="financement">Financement</option>
+                      <option value="2-vers">2 versements</option>
+                      <option value="3-vers">3 versements</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">Téléphone</label>
+                    <input name="phone" type="tel" placeholder="+1 (514) 000-0000"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">Email</label>
+                    <input name="email" type="email" placeholder="cliente@exemple.com"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setAjoutOpen(false)}
+                    className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
+                  <button type="submit" disabled={ajoutPending}
+                    className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+                    {ajoutPending ? 'Ajout…' : 'Ajouter'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Legend */}
@@ -594,6 +717,48 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         {filtered.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">Aucune cliente trouvée</p>
+        ) : statusFilter === 'overdue_texts' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50">
+                  <th className="px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-40">Cliente</th>
+                  <th className="px-2 py-2.5 text-center text-gray-300">J.</th>
+                  <th className="px-2 py-2.5 text-center">J+7</th>
+                  <th className="px-2 py-2.5 text-center">J+24</th>
+                  <th className="px-2 py-2.5 text-center">J+49</th>
+                  <th className="px-2 py-2.5 text-center">J+63</th>
+                  <th className="px-2 py-2.5 text-center">J+77</th>
+                  <th className="px-2 py-2.5 text-center">J+90</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map(c => {
+                  const due  = computeDueDates(c.enrollment_date, c.onboarding_date)
+                  const dayN = daysBetween(c.enrollment_date, todayStr)
+                  return (
+                    <tr key={c.id} className="hover:bg-violet-50/20 transition-colors">
+                      <td className="px-3 py-2 sticky left-0 bg-white z-10 border-r border-gray-50">
+                        <Link href={`/csm/${c.id}`} className="hover:underline">
+                          <span className="font-semibold text-sm text-gray-900">{c.name}</span>
+                        </Link>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(c.enrollment_date)}</p>
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <span className="text-[10px] font-bold text-gray-400">J+{dayN}</span>
+                      </td>
+                      <TextCell clientId={c.id} field="j7"  done={c.text_j7_done}  dueDate={due.j7}  actualDate={c.text_j7_date}  today={todayStr} />
+                      <TextCell clientId={c.id} field="j24" done={c.text_j24_done} dueDate={due.j24} actualDate={c.text_j24_date} today={todayStr} />
+                      <TextCell clientId={c.id} field="j49" done={c.text_j49_done} dueDate={due.j49} actualDate={c.text_j49_date} today={todayStr} />
+                      <TextCell clientId={c.id} field="j63" done={c.text_j63_done} dueDate={due.j63} actualDate={c.text_j63_date} today={todayStr} />
+                      <TextCell clientId={c.id} field="j77" done={c.text_j77_done} dueDate={due.j77} actualDate={c.text_j77_date} today={todayStr} />
+                      <TextCell clientId={c.id} field="j90" done={c.text_j90_done} dueDate={due.j90} actualDate={c.text_j90_date} today={todayStr} />
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -640,11 +805,7 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
                       ].filter(Boolean).join(' · ')
                     : undefined
 
-                  // Name color: red if not connected 7+ days, black otherwise
-                  const notConnected = lastLoginDaysAgo === null
-                    ? dayN >= 7
-                    : lastLoginDaysAgo >= 7
-                  const nameCls = notConnected && !c.cert_setter_done ? 'text-red-600' : 'text-gray-900'
+                  const nameCls = 'text-gray-900'
 
                   return (
                     <tr

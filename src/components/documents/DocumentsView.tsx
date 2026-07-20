@@ -29,7 +29,7 @@ const SECTIONS = [
   { key: 'suivi',       label: 'Suivi'        },
   { key: 'payes',       label: 'Payes'        },
   { key: 'feedback',    label: 'Feedback'     },
-  { key: 'cashcollect', label: 'Cash Collect' },
+  { key: 'cash',        label: 'Cash / Stats' },
 ] as const
 
 const ACCEPTED = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp'

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { Plus, X } from 'lucide-react'
-import { creerCash } from '@/app/(portal)/cash/actions'
+import { creerCashCollect } from '@/app/(portal)/cashcollect/actions'
 import { cn } from '@/lib/utils'
 
 interface Profile { id: string; full_name: string | null; role: string }
@@ -28,7 +28,7 @@ export default function QuickCashModal({ closers, setters }: Props) {
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
       try {
-        await creerCash(fd)
+        await creerCashCollect(fd)
         setSuccess(true)
         setTimeout(() => { setOpen(false); setSuccess(false) }, 1200)
       } catch (err) {
@@ -65,6 +65,7 @@ export default function QuickCashModal({ closers, setters }: Props) {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <input type="hidden" name="is_financement" value="" />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-gray-600">Date du deal</label>

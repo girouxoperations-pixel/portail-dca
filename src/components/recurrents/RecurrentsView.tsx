@@ -17,7 +17,7 @@ import {
   creerRecurringDeal, marquerRecu, marquerRecuAvecSoldes, annulerRecu,
   desactiverDeal, reactiverDeal, encaisserProchainVersement,
   modifierRecurringDeal, setMethodePaiement, modifierDateOccurrence,
-  annulerDealAvecRaison,
+  annulerDealAvecRaison, supprimerOccurrence,
 } from '@/app/(portal)/recurrents/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -354,6 +354,11 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
     startTransition(async () => { await annulerRecu(occ.id) })
   }
 
+  function handleSupprimerOcc() {
+    if (!confirm('Supprimer ce versement ? Cette action est irréversible.')) return
+    startTransition(async () => { await supprimerOccurrence(occ.id) })
+  }
+
   return (
     <>
       <tr className={cn(
@@ -491,6 +496,16 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
                   >
                     Montant différent ▾
                   </button>
+                  {isAdmin && (
+                    <button
+                      onClick={handleSupprimerOcc}
+                      disabled={pending}
+                      className="text-[11px] text-gray-200 hover:text-red-400 transition-colors"
+                      title="Supprimer ce versement"
+                    >
+                      Supprimer ×
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-end gap-1.5">
@@ -819,6 +834,9 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
             )}
             <MethodeBadge dealId={deal.id} methode={deal.methode_paiement} />
           </div>
+          {deal.notes && (
+            <p className="text-[11px] text-gray-400 italic mt-0.5 truncate">{deal.notes}</p>
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

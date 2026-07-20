@@ -43,6 +43,7 @@ export async function creerCashCollect(formData: FormData) {
   const notes          = (formData.get('notes') as string) || null
   const onboardingDate = (formData.get('onboarding_date') as string) || null
   const sourceType     = (formData.get('source_type') as string) || null
+  const isFinancement  = formData.get('is_financement') === 'true'
 
   // 1. Insert cash entry
   const { data: cashEntry, error: cashErr } = await db
@@ -54,10 +55,11 @@ export async function creerCashCollect(formData: FormData) {
       client_email:    clientEmail,
       montant_courant: montantCourant,
       collected,
-      methode,
+      methode:         isFinancement ? 'Financement' : methode,
       closed_by:       closedBy,
       set_by:          setBy,
       onboarding_date: onboardingDate,
+      close_type:      isFinancement ? 'financement' : null,
       month,
       year,
       notes,
@@ -69,23 +71,24 @@ export async function creerCashCollect(formData: FormData) {
 
   if (cashErr) throw new Error(cashErr.message)
 
-  // 2. Auto-create paye entry — commission on cash received, not deal total
-  const { error: payeErr } = await db.from('paye_entries').insert({
-    cash_entry_id:     cashEntry.id,
-    period_label:      periodLabel(entryDate),
-    month,
-    year,
-    client_name:       clientName ?? 'Client',
-    closer_id:         closedBy,
-    setter_id:         setBy,
-    montant:           montantCourant,
-    commission:        Math.round(collected * TAUX_CLOSER * 100) / 100,
-    commission_setter: Math.round(collected * TAUX_SETTER * 100) / 100,
-    statut:            'En attente',
-    created_by:        userId,
-  })
-
-  if (payeErr) throw new Error(payeErr.message)
+  // 2. Auto-create paye entry — skipped for financement (tracked via alveo_payments)
+  if (!isFinancement) {
+    const { error: payeErr } = await db.from('paye_entries').insert({
+      cash_entry_id:     cashEntry.id,
+      period_label:      periodLabel(entryDate),
+      month,
+      year,
+      client_name:       clientName ?? 'Client',
+      closer_id:         closedBy,
+      setter_id:         setBy,
+      montant:           montantCourant,
+      commission:        Math.round(collected * TAUX_CLOSER * 100) / 100,
+      commission_setter: Math.round(collected * TAUX_SETTER * 100) / 100,
+      statut:            'En attente',
+      created_by:        userId,
+    })
+    if (payeErr) throw new Error(payeErr.message)
+  }
 
   // 3. Si versements > 1, créer les prochains versements dans Récurrents
   const versements = Number(formData.get('versements')) || 1
@@ -155,10 +158,60 @@ export async function creerCashCollect(formData: FormData) {
       .eq('cash_entry_id', cashEntry.id)
   }
 
-  revalidatePath('/cashcollect')
+  // 5. Si financement, créer alveo_deal + alveo_payments automatiquement
+  if (isFinancement) {
+    const [closerRes, setterRes] = await Promise.all([
+      closedBy ? db.from('profiles').select('full_name').eq('id', closedBy).single() : null,
+      setBy    ? db.from('profiles').select('full_name').eq('id', setBy).single()    : null,
+    ])
+    const closerName = (closerRes?.data as { full_name: string | null } | null)?.full_name ?? ''
+    const setterName = (setterRes?.data as { full_name: string | null } | null)?.full_name ?? ''
+
+    const commissionSetter = Math.round(montantCourant * 0.05 * 100) / 100
+    const commissionCloser = Math.round(montantCourant * 0.10 * 100) / 100
+    const moisSetter = Math.round((commissionSetter / 3) * 100) / 100
+    const moisCloser = Math.round((commissionCloser / 3) * 100) / 100
+
+    const { data: alveoDeal } = await db.from('alveo_deals').insert({
+      client_name:       clientName ?? 'Client',
+      deal_date:         entryDate,
+      montant:           montantCourant,
+      collected,
+      methode:           'Financement',
+      setter_name:       setterName,
+      closer_name:       closerName,
+      commission_setter: commissionSetter,
+      commission_closer: commissionCloser,
+      notes:             notes ? `[Auto] ${notes}` : `Auto depuis Cash / Stats — ${entryDate}`,
+      statut:            'actif',
+      created_by:        userId,
+    }).select('id').single()
+
+    if (alveoDeal?.id) {
+      const payments: { deal_id: string; person_role: string; mois: number; amount: number; paid: boolean }[] = []
+      if (commissionSetter > 0) {
+        for (const m of [1, 2, 3]) {
+          payments.push({ deal_id: alveoDeal.id, person_role: 'setter', mois: m, amount: moisSetter, paid: false })
+        }
+      }
+      if (commissionCloser > 0) {
+        for (const m of [1, 2, 3]) {
+          payments.push({ deal_id: alveoDeal.id, person_role: 'closer', mois: m, amount: moisCloser, paid: false })
+        }
+      }
+      if (payments.length > 0) {
+        await db.from('alveo_payments').insert(payments)
+      }
+    }
+
+    revalidatePath('/alveo')
+  }
+
+  revalidatePath('/cash')
   revalidatePath('/dashboard')
   revalidatePath('/payes')
   revalidatePath('/recurrents')
+  revalidatePath('/clients')
 }
 
 export async function modifierCashEntry(id: string, formData: FormData) {
@@ -198,9 +251,10 @@ export async function modifierCashEntry(id: string, formData: FormData) {
     commission_setter: Math.round(collected * TAUX_SETTER * 100) / 100,
   }).eq('cash_entry_id', id)
 
-  revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/dashboard')
   revalidatePath('/payes')
+  revalidatePath('/clients')
 }
 
 export async function modifierCollecte(id: string, collected: number) {
@@ -220,7 +274,7 @@ export async function modifierCollecte(id: string, collected: number) {
     commission_setter: Math.round(collected * TAUX_SETTER * 100) / 100,
   }).eq('cash_entry_id', id)
 
-  revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/dashboard')
   revalidatePath('/payes')
 }
@@ -307,7 +361,7 @@ export async function ajouterVersementNouveauRecurrent(formData: FormData) {
     cash_entry_id:     cashEntry.id,
   })
 
-  revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/recurrents')
   revalidatePath('/dashboard')
   revalidatePath('/payes')
@@ -320,7 +374,7 @@ export async function supprimerCashCollect(id: string) {
   const { error } = await db.from('cash_entries').delete().eq('id', id)
   if (error) throw new Error(error.message)
 
-  revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/dashboard')
   revalidatePath('/payes')
 }

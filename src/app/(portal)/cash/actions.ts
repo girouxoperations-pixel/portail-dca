@@ -65,22 +65,27 @@ export async function modifierCash(id: string, formData: FormData) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()
 
-  const entryDate = formData.get('entry_date') as string
+  const entryDate      = formData.get('entry_date') as string
   const { year, month } = parseYearMonth(entryDate)
+  const clientName     = (formData.get('client_name') as string) || null
+  const montantCourant = Number(formData.get('montant_courant'))
+  const collected      = Number(formData.get('collected'))
+  const closedBy       = (formData.get('closed_by') as string) || null
+  const setBy          = (formData.get('set_by') as string) || null
 
   const { error } = await db
     .from('cash_entries')
     .update({
       entry_date:       entryDate,
-      client_name:      (formData.get('client_name') as string) || null,
+      client_name:      clientName,
       client_phone:     (formData.get('client_phone') as string) || null,
       client_email:     (formData.get('client_email') as string) || null,
-      montant_courant:  Number(formData.get('montant_courant')),
-      collected:        Number(formData.get('collected')),
+      montant_courant:  montantCourant,
+      collected,
       methode:          (formData.get('methode') as string) || null,
       close_type:       (formData.get('close_type') as string) || null,
-      closed_by:        (formData.get('closed_by') as string) || null,
-      set_by:           (formData.get('set_by') as string) || null,
+      closed_by:        closedBy,
+      set_by:           setBy,
       source_type:      (formData.get('source_type') as string) || null,
       onboarding_date:  (formData.get('onboarding_date') as string) || null,
       month,
@@ -90,7 +95,22 @@ export async function modifierCash(id: string, formData: FormData) {
     .eq('id', id)
 
   if (error) throw new Error(error.message)
+
+  // Sync linked paye entry
+  await db.from('paye_entries').update({
+    period_label:      periodLabel(entryDate),
+    month,
+    year,
+    client_name:       clientName ?? 'Client',
+    closer_id:         closedBy,
+    setter_id:         setBy,
+    montant:           montantCourant,
+    commission:        Math.round(collected * TAUX_CLOSER * 100) / 100,
+    commission_setter: Math.round(collected * TAUX_SETTER * 100) / 100,
+  }).eq('cash_entry_id', id)
+
   revalidatePath('/cash')
+  revalidatePath('/payes')
 }
 
 export async function supprimerCash(id: string) {
@@ -105,14 +125,18 @@ export async function supprimerCash(id: string) {
     .maybeSingle()
 
   if (occ?.recurring_deal_id) {
-    // Delete occurrences first (no cascade assumed), then the deal
     await db.from('recurring_occurrences').delete().eq('recurring_deal_id', occ.recurring_deal_id)
     await db.from('recurring_deals').delete().eq('id', occ.recurring_deal_id)
   }
 
+  // Delete linked paye entry
+  await db.from('paye_entries').delete().eq('cash_entry_id', id)
+
   const { error } = await db.from('cash_entries').delete().eq('id', id)
   if (error) throw new Error(error.message)
+
   revalidatePath('/cash')
+  revalidatePath('/payes')
   revalidatePath('/recurrents')
 }
 

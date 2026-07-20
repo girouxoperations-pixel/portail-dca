@@ -147,6 +147,27 @@ export async function ajouterOccurrencesEnLot(
   revalidatePath(`/recurrents/${dealId}`)
 }
 
+export async function planifierVersement(dealId: string, montant: number, date: string) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+  const d = new Date(date + 'T00:00:00')
+  const { error } = await db.from('recurring_occurrences').insert({
+    recurring_deal_id: dealId,
+    mois:              d.getMonth() + 1,
+    annee:             d.getFullYear(),
+    date_attendue:     date,
+    montant_attendu:   montant,
+    recu:              false,
+  })
+  if (error) throw new Error(error.message)
+  const { data: allOccs } = await db.from('recurring_occurrences').select('id').eq('recurring_deal_id', dealId)
+  if (allOccs) {
+    await db.from('recurring_deals').update({ versements_total: allOccs.length }).eq('id', dealId)
+  }
+  revalidatePath('/recurrents')
+  revalidatePath(`/recurrents/${dealId}`)
+}
+
 export async function setMethodePaiement(dealId: string, methode: string | null) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()
@@ -282,7 +303,7 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
   revalidatePath('/recurrents')
   revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
   revalidatePath('/dashboard')
-  revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/payes')
 }
 
@@ -378,7 +399,7 @@ export async function marquerRecuAvecSolde(
   })
 
   revalidatePath('/recurrents')
-  revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/payes')
 }
 
@@ -481,7 +502,7 @@ export async function marquerRecuAvecSoldes(
   revalidatePath('/recurrents')
   revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
   revalidatePath('/dashboard')
-  revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/payes')
 }
 
@@ -506,7 +527,7 @@ export async function annulerRecu(occurrenceId: string) {
   }).eq('id', occurrenceId)
 
   revalidatePath('/recurrents')
-  revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/payes')
 }
 
@@ -704,7 +725,7 @@ export async function ajouterPaiementManuel(
 
   revalidatePath('/recurrents')
   revalidatePath(`/recurrents/${dealId}`)
-  revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/payes')
 }
 

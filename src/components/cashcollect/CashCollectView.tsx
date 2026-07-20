@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Pencil, Trash2, Wallet, TrendingDown, Zap, RefreshCw, X, RefreshCcw, Search, Monitor, Film } from 'lucide-react'
+import { Plus, Pencil, Trash2, Wallet, TrendingDown, Zap, RefreshCw, X, RefreshCcw, Search, Monitor, Film, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   creerCashCollect, modifierCashEntry, supprimerCashCollect, ajouterVersementNouveauRecurrent,
@@ -222,9 +222,13 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
   const [pending, startTransition] = useTransition()
   const today = new Date().toISOString().slice(0, 10)
 
-  const [versements, setVersements] = useState<1 | 2 | 3>(1)
-  const [entryDate,  setEntryDate]  = useState(today)
-  const [montant,    setMontant]    = useState(0)
+  const [versementsMode, setVersementsMode] = useState<'1' | '2' | '3' | 'autre'>('1')
+  const [autreDates,     setAutreDates]     = useState<string[]>([''])
+  const [entryDate,      setEntryDate]      = useState(today)
+  const [montant,        setMontant]        = useState(0)
+  const [isFinancement,  setIsFinancement]  = useState(false)
+
+  const versements = versementsMode === 'autre' ? autreDates.length + 1 : Number(versementsMode)
 
   const versementAmount = versements > 1 && montant > 0
     ? Math.round((montant / versements) * 100) / 100
@@ -246,8 +250,13 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     if (versements > 1) {
-      fd.set('collected',     String(versementAmount))
-      fd.set('versements',    String(versements))
+      fd.set('collected',  String(versementAmount))
+      fd.set('versements', String(versements))
+      if (versementsMode === 'autre') {
+        autreDates.forEach((date, i) => {
+          fd.set(`versement_date_${i + 2}`, date)
+        })
+      }
     }
     startTransition(async () => {
       await creerCashCollect(fd)
@@ -309,19 +318,19 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Versements</label>
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-              {([1, 2, 3] as const).map((n, i) => (
+              {(['1', '2', '3', 'autre'] as const).map((n, i) => (
                 <button
                   key={n} type="button"
-                  onClick={() => setVersements(n)}
+                  onClick={() => { setVersementsMode(n); if (n === 'autre') setAutreDates(['']) }}
                   className={cn(
                     'flex-1 py-2.5 font-medium transition-colors',
                     i > 0 && 'border-l border-gray-200',
-                    versements === n
+                    versementsMode === n
                       ? 'bg-violet-600 text-white'
                       : 'text-gray-500 hover:bg-gray-50',
                   )}
                 >
-                  {n === 1 ? 'Unique' : `${n}×`}
+                  {n === '1' ? 'Unique' : n === 'autre' ? 'Autre' : `${n}×`}
                 </button>
               ))}
             </div>
@@ -346,30 +355,74 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
               <span className="font-semibold tabular-nums text-violet-900">{dollar(versementAmount)}</span>
             </div>
 
-            {/* Versements suivants — date à choisir */}
-            {Array.from({ length: versements - 1 }, (_, i) => {
-              const n = i + 2
-              return (
-                <div key={n} className="flex items-center gap-3">
-                  <span className="text-violet-400 text-base shrink-0">◷</span>
-                  <div className="flex-1 flex flex-col gap-0.5">
-                    <label className="text-[11px] text-violet-600 font-medium">
-                      Versement {n} — date de contact client
-                    </label>
-                    <input
-                      name={`versement_date_${n}`}
-                      type="date"
-                      defaultValue={versementDates[i + 1]?.date ?? ''}
-                      required
-                      className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                    />
+            {versementsMode === 'autre' ? (
+              <>
+                {autreDates.map((date, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-violet-400 text-base shrink-0">◷</span>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                      <label className="text-[11px] text-violet-600 font-medium">Versement {i + 2}</label>
+                      <input
+                        type="date"
+                        value={date}
+                        onChange={e => {
+                          const next = [...autreDates]
+                          next[i] = e.target.value
+                          setAutreDates(next)
+                        }}
+                        required
+                        className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
+                    </div>
+                    <span className="font-semibold tabular-nums text-violet-900 shrink-0 pt-4">
+                      {dollar(versementAmount)}
+                    </span>
+                    {autreDates.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setAutreDates(autreDates.filter((_, j) => j !== i))}
+                        className="text-gray-300 hover:text-red-400 transition-colors pt-4"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
-                  <span className="font-semibold tabular-nums text-violet-900 shrink-0 pt-4">
-                    {dollar(versementAmount)}
-                  </span>
-                </div>
-              )
-            })}
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setAutreDates([...autreDates, ''])}
+                  className="flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors"
+                >
+                  <Plus size={12} />
+                  Ajouter un versement
+                </button>
+              </>
+            ) : (
+              /* Versements suivants — date à choisir (mode 2× ou 3×) */
+              Array.from({ length: versements - 1 }, (_, i) => {
+                const n = i + 2
+                return (
+                  <div key={n} className="flex items-center gap-3">
+                    <span className="text-violet-400 text-base shrink-0">◷</span>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                      <label className="text-[11px] text-violet-600 font-medium">
+                        Versement {n} — date de contact client
+                      </label>
+                      <input
+                        name={`versement_date_${n}`}
+                        type="date"
+                        defaultValue={versementDates[i + 1]?.date ?? ''}
+                        required
+                        className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
+                    </div>
+                    <span className="font-semibold tabular-nums text-violet-900 shrink-0 pt-4">
+                      {dollar(versementAmount)}
+                    </span>
+                  </div>
+                )
+              })
+            )}
 
             <p className="text-[11px] text-violet-500 pt-1 border-t border-violet-100">
               Ces dates apparaîtront dans l&apos;onglet Récurrents comme rappel de contact.
@@ -377,7 +430,7 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
           </div>
         )}
 
-        {versements === 1 && (
+        {versementsMode === '1' && (
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Déjà collecté ($)</label>
             <input name="collected" type="number" min="0" step="0.01" defaultValue="0" className={INPUT_CLS} />
@@ -424,6 +477,22 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
           <label className="text-sm font-medium text-gray-700">Notes (optionnel)</label>
           <textarea name="notes" rows={2} placeholder="Remarques..." className={`${INPUT_CLS} resize-none`} />
         </div>
+
+        <label className="flex items-center gap-2.5 cursor-pointer select-none rounded-lg border border-gray-200 px-3 py-2.5 hover:bg-gray-50 transition-colors">
+          <input
+            type="hidden" name="is_financement" value={isFinancement ? 'true' : ''}
+          />
+          <input
+            type="checkbox"
+            checked={isFinancement}
+            onChange={e => setIsFinancement(e.target.checked)}
+            className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+          />
+          <div>
+            <span className="text-sm font-medium text-gray-700">Financement Alveo</span>
+            <p className="text-xs text-gray-400">Crée automatiquement un deal dans l&apos;onglet Alveo avec les commissions en 3 versements</p>
+          </div>
+        </label>
 
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose}
@@ -866,14 +935,16 @@ export default function CashCollectView({
     })
   }, [entrees, moisSelect, search, profileMap])
 
-  const { deals, recurrents } = useMemo(() => {
+  const { deals, recurrents, refunds } = useMemo(() => {
     const deals:      CashEntry[] = []
     const recurrents: CashEntry[] = []
+    const refunds:    CashEntry[] = []
     for (const e of filtrees) {
-      if (isRecurring(e, recurringIds)) recurrents.push(e)
+      if (e.close_type === 'refund') refunds.push(e)
+      else if (isRecurring(e, recurringIds)) recurrents.push(e)
       else deals.push(e)
     }
-    return { deals, recurrents }
+    return { deals, recurrents, refunds }
   }, [filtrees, recurringIds])
 
   const totauxDeals = useMemo(() => ({
@@ -1239,6 +1310,57 @@ export default function CashCollectView({
           </div>
         )}
       </div>
+
+      {/* ── Section Remboursements ────────────────────────────── */}
+      {refunds.length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-red-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-red-50 flex items-center gap-3">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-red-100">
+              <XCircle size={13} className="text-red-500" />
+            </span>
+            <h3 className="text-sm font-semibold text-red-700">Remboursements</h3>
+            <span className="text-xs text-red-400 bg-red-50 px-2 py-0.5 rounded-full">
+              {refunds.length} deal{refunds.length !== 1 ? 's' : ''}
+            </span>
+            <span className="ml-auto text-xs text-red-400">
+              Montant remboursé <span className="font-semibold tabular-nums">{dollar(refunds.reduce((s, e) => s + e.montant_courant, 0))}</span>
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-red-50 text-xs font-medium text-red-300 uppercase tracking-wide">
+                  <th className="px-4 py-2.5 text-left whitespace-nowrap">Date deal</th>
+                  <th className="px-4 py-2.5 text-left">Client</th>
+                  <th className="px-4 py-2.5 text-right whitespace-nowrap">Montant deal</th>
+                  <th className="px-4 py-2.5 text-left">Setter</th>
+                  <th className="px-4 py-2.5 text-left">Closer</th>
+                  <th className="px-4 py-2.5 text-left">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-50">
+                {refunds.map(e => (
+                  <tr key={e.id} className="bg-red-50/30 opacity-75">
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(e.entry_date, MOIS_COURT)}</td>
+                    <td className="px-4 py-3 font-medium text-gray-700 max-w-[150px] truncate">{e.client_name ?? '—'}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-500 line-through">{dollar(e.montant_courant)}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{e.set_by    ? (profileMap.get(e.set_by)    ?? '—') : '—'}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}</td>
+                    <td className="px-4 py-3 text-xs text-red-400 max-w-[160px] truncate">{e.notes ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-red-100 bg-red-50/50 font-semibold">
+                  <td className="px-4 py-3 text-xs text-red-400 uppercase tracking-wide" colSpan={2}>Total remboursé</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-red-500 line-through">{dollar(refunds.reduce((s, e) => s + e.montant_courant, 0))}</td>
+                  <td colSpan={3} />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       <SectionBonus
         closers={closers}

@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Clock, Calendar, Zap, ChevronRight, CheckCircle2, Pencil } from 'lucide-react'
+import { AlertTriangle, Clock, Calendar, Zap, ChevronRight, CheckCircle2, Pencil, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dollar } from '@/lib/constants'
-import { marquerRecu, marquerRecuAvecSoldes, modifierDateOccurrence } from '@/app/(portal)/recurrents/actions'
+import { marquerRecu, marquerRecuAvecSoldes, modifierDateOccurrence, annulerDealAvecRaison } from '@/app/(portal)/recurrents/actions'
 
 export interface RecurrentsOcc {
   id:               string
+  dealId:           string
   date_attendue:    string
   montant_attendu:  number
   mois:             number
@@ -16,6 +17,7 @@ export interface RecurrentsOcc {
   clientName:       string
   closerName?:      string
   methodePaiement?: string | null
+  dealNotes?:       string | null
 }
 
 interface Props {
@@ -42,6 +44,17 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
   const [editDate, setEditDate]       = useState(false)
   const [newDate, setNewDate]         = useState(occ.date_attendue)
   const [datePending, startDateTrans] = useTransition()
+  const [showCancel, setShowCancel]   = useState(false)
+  const [cancelRaison, setCancelRaison] = useState('')
+  const [cancelPending, startCancelTrans] = useTransition()
+
+  function handleCancelDeal() {
+    if (!occ.dealId) return
+    startCancelTrans(async () => {
+      await annulerDealAvecRaison(occ.dealId, cancelRaison)
+      setDone(true)
+    })
+  }
 
   const isPartial  = showDiff && Number(amount) > 0 && Number(amount) < occ.montant_attendu
   const soldeTotal = soldeLines.reduce((s, l) => s + (Number(l.montant) || 0), 0)
@@ -92,7 +105,10 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
 
   return (
     <tr className="hover:bg-gray-50 transition-colors">
-      <td className="px-4 py-2.5 font-medium text-gray-900">{occ.clientName}</td>
+      <td className="px-4 py-2.5">
+        <div className="font-medium text-gray-900">{occ.clientName}</div>
+        {occ.dealNotes && <div className="text-[10px] text-gray-400 italic truncate max-w-[160px]">{occ.dealNotes}</div>}
+      </td>
       <td className="px-4 py-2.5 text-gray-500">{occ.closerName ?? '—'}</td>
       <td className="px-4 py-2.5">{methodeLabel}</td>
 
@@ -170,7 +186,32 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
       </td>
 
       <td className="px-4 py-2.5 text-right">
-        {!showDiff ? (
+        {showCancel ? (
+          <div className="flex flex-col items-end gap-1.5">
+            <input
+              type="text"
+              value={cancelRaison}
+              onChange={e => setCancelRaison(e.target.value)}
+              placeholder="Raison (optionnel)"
+              autoFocus
+              className="w-44 px-2 py-1 rounded border border-red-300 bg-white text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-400"
+            />
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleCancelDeal}
+                disabled={cancelPending}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
+              >
+                <XCircle size={11} />
+                {cancelPending ? '…' : 'Confirmer annulation'}
+              </button>
+              <button
+                onClick={() => { setShowCancel(false); setCancelRaison('') }}
+                className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+              >✕</button>
+            </div>
+          </div>
+        ) : !showDiff ? (
           <div className="flex flex-col items-end gap-1">
             <button
               disabled={pending} onClick={handleMarquerExact}
@@ -180,6 +221,9 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
             </button>
             <button onClick={() => setShowDiff(true)} className="text-[11px] text-gray-400 hover:text-violet-600 transition-colors">
               Montant différent ▾
+            </button>
+            <button onClick={() => setShowCancel(true)} className="text-[11px] text-red-400 hover:text-red-600 transition-colors">
+              Annuler le récurrent ✕
             </button>
           </div>
         ) : (

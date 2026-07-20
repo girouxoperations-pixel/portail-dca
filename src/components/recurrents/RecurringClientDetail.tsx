@@ -12,6 +12,7 @@ import Badge from '@/components/ui/Badge'
 import {
   marquerRecu, annulerRecu, modifierRecurringDeal, ajouterPaiementManuel,
   modifierDateOccurrence, supprimerOccurrence, ajouterOccurrencesEnLot,
+  planifierVersement,
 } from '@/app/(portal)/recurrents/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -228,9 +229,11 @@ export default function RecurringClientDetail({
 }) {
   const [editOpen, setEditOpen]         = useState(false)
   const [payOpen, setPayOpen]           = useState(false)
+  const [payMode, setPayMode]           = useState<'recu' | 'planifier'>('recu')
   const [addOccsOpen, setAddOccsOpen]   = useState(false)
   const [pending, startTransition]      = useTransition()
   const [payPending, startPayTrans]     = useTransition()
+  const [planPending, startPlanTrans]   = useTransition()
   const [addPending, startAddTrans]     = useTransition()
 
   const today = new Date().toISOString().split('T')[0]
@@ -512,58 +515,107 @@ export default function RecurringClientDetail({
         {payOpen && (
           <div className="border-b border-violet-100 bg-violet-50/30 px-5 py-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Nouveau paiement</p>
+              <div className="flex gap-0.5 rounded-lg bg-violet-100 p-0.5">
+                {(['recu', 'planifier'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setPayMode(mode)}
+                    className={cn(
+                      'px-3 py-1 text-xs font-semibold rounded-md transition-colors',
+                      payMode === mode ? 'bg-white text-violet-700 shadow-sm' : 'text-violet-500 hover:text-violet-700',
+                    )}
+                  >
+                    {mode === 'recu' ? 'Paiement reçu' : 'Planifier'}
+                  </button>
+                ))}
+              </div>
               <button onClick={() => setPayOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={14} /></button>
             </div>
-            <form
-              onSubmit={e => {
-                e.preventDefault()
-                const fd = new FormData(e.currentTarget)
-                const occId = (fd.get('occurrence_id') as string) || null
-                const montant = Number(fd.get('montant'))
-                const dateRecue = fd.get('date_recue') as string
-                if (!montant || !dateRecue) return
-                startPayTrans(async () => {
-                  await ajouterPaiementManuel(deal.id, occId, montant, dateRecue)
-                  setPayOpen(false)
-                })
-              }}
-              className="grid grid-cols-3 gap-3 items-end"
-            >
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Versement concerné</label>
-                <select name="occurrence_id" className={INPUT}>
-                  <option value="">— Nouveau (hors planning) —</option>
-                  {occs.filter(o => !o.recu).map(o => (
-                    <option key={o.id} value={o.id}>
-                      {MOIS_FR[o.mois - 1]} {o.annee} — {dollar(o.montant_attendu)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Montant reçu ($)</label>
-                <input
-                  name="montant" type="number" step="0.01" min="0"
-                  defaultValue={deal.montant_mensuel}
-                  required
-                  className={INPUT}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Date reçu</label>
-                <input name="date_recue" type="date" defaultValue={today} required className={INPUT} />
-              </div>
-              <div className="col-span-3 flex justify-end gap-2 pt-1">
-                <button type="button" onClick={() => setPayOpen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Annuler</button>
-                <button
-                  type="submit" disabled={payPending}
-                  className="px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {payPending ? 'Enregistrement…' : 'Enregistrer le paiement'}
-                </button>
-              </div>
-            </form>
+
+            {payMode === 'recu' ? (
+              <form
+                onSubmit={e => {
+                  e.preventDefault()
+                  const fd = new FormData(e.currentTarget)
+                  const occId = (fd.get('occurrence_id') as string) || null
+                  const montant = Number(fd.get('montant'))
+                  const dateRecue = fd.get('date_recue') as string
+                  if (!montant || !dateRecue) return
+                  startPayTrans(async () => {
+                    await ajouterPaiementManuel(deal.id, occId, montant, dateRecue)
+                    setPayOpen(false)
+                  })
+                }}
+                className="grid grid-cols-3 gap-3 items-end"
+              >
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Versement concerné</label>
+                  <select name="occurrence_id" className={INPUT}>
+                    <option value="">— Nouveau (hors planning) —</option>
+                    {occs.filter(o => !o.recu).map(o => (
+                      <option key={o.id} value={o.id}>
+                        {MOIS_FR[o.mois - 1]} {o.annee} — {dollar(o.montant_attendu)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Montant reçu ($)</label>
+                  <input
+                    name="montant" type="number" step="0.01" min="0"
+                    defaultValue={deal.montant_mensuel}
+                    required className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Date reçu</label>
+                  <input name="date_recue" type="date" defaultValue={today} required className={INPUT} />
+                </div>
+                <div className="col-span-3 flex justify-end gap-2 pt-1">
+                  <button type="button" onClick={() => setPayOpen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Annuler</button>
+                  <button type="submit" disabled={payPending}
+                    className="px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+                    {payPending ? 'Enregistrement…' : 'Enregistrer le paiement'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form
+                onSubmit={e => {
+                  e.preventDefault()
+                  const fd = new FormData(e.currentTarget)
+                  const montant = Number(fd.get('montant'))
+                  const date = fd.get('date_planifiee') as string
+                  if (!montant || !date) return
+                  startPlanTrans(async () => {
+                    await planifierVersement(deal.id, montant, date)
+                    setPayOpen(false)
+                  })
+                }}
+                className="grid grid-cols-2 gap-3 items-end"
+              >
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Montant prévu ($)</label>
+                  <input
+                    name="montant" type="number" step="0.01" min="0"
+                    defaultValue={deal.montant_mensuel}
+                    required className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Date prévue</label>
+                  <input name="date_planifiee" type="date" required className={INPUT} />
+                </div>
+                <div className="col-span-2 flex justify-end gap-2 pt-1">
+                  <button type="button" onClick={() => setPayOpen(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Annuler</button>
+                  <button type="submit" disabled={planPending}
+                    className="px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+                    {planPending ? 'Planification…' : 'Ajouter au planning'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         )}
 
