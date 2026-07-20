@@ -18,15 +18,16 @@ import {
 
 type StatusFilter =
   | 'tous' | 'active' | 'm2_missed' | 'm3_missed'
-  | 'cert_setter' | 'cert_closer' | 'paused' | 'dropped' | 'refund'
+  | 'cert_setter' | 'cert_closer' | 'eval_failed' | 'paused' | 'dropped' | 'refund'
   | 'j90_auto' | 'overdue_texts'
 
 const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }> = {
-  active:    { label: 'Active',      cls: 'bg-green-100 text-green-700'  },
-  paused:    { label: 'En pause',    cls: 'bg-amber-100 text-amber-700'  },
-  completed: { label: 'Complétée',  cls: 'bg-blue-100 text-blue-700'    },
-  dropped:   { label: 'Abandon',    cls: 'bg-gray-100 text-gray-500'    },
-  refund:    { label: 'Remboursée', cls: 'bg-red-100 text-red-600'      },
+  active:      { label: 'Active',       cls: 'bg-green-100 text-green-700'  },
+  paused:      { label: 'En pause',     cls: 'bg-amber-100 text-amber-700'  },
+  eval_failed: { label: 'Eval échoué',  cls: 'bg-orange-100 text-orange-700' },
+  completed:   { label: 'Complétée',   cls: 'bg-blue-100 text-blue-700'    },
+  dropped:     { label: 'Abandon',     cls: 'bg-gray-100 text-gray-500'    },
+  refund:      { label: 'Remboursée',  cls: 'bg-red-100 text-red-600'      },
 }
 
 function daysBetween(a: string, b: string) {
@@ -364,7 +365,7 @@ function StatusCell({
             className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-40 text-left"
             style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
           >
-            {(['active', 'paused', 'dropped'] as const).map(key => (
+            {(['active', 'paused', 'eval_failed', 'dropped'] as const).map(key => (
               <button
                 key={key}
                 disabled={pending}
@@ -494,9 +495,9 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
       if (statusFilter === 'cert_closer'    && !c.cert_closer_done)        return false
       if (statusFilter === 'j90_auto'       && dayN < 90)                  return false
       if (statusFilter === 'overdue_texts'  && !hasOverdueText(c))         return false
-      // Refund clients only show in the dedicated 'refund' tab — hide from 'tous'
-      if (statusFilter === 'tous' && c.status === 'refund') return false
-      const simpleStatusFilters = ['active', 'paused', 'dropped', 'refund']
+      // Refund + eval_failed only show in their dedicated tab — hide from 'tous'
+      if (statusFilter === 'tous' && (c.status === 'refund' || c.status === 'eval_failed')) return false
+      const simpleStatusFilters = ['active', 'paused', 'eval_failed', 'dropped', 'refund']
       if (simpleStatusFilters.includes(statusFilter) && c.status !== statusFilter) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
@@ -521,6 +522,7 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
     { key: 'm3_missed',    label: `M3 manqué${m3NoShowCount > 0 ? ` (${m3NoShowCount})` : ''}`                         },
     { key: 'cert_setter',  label: 'Cert. Setter'                                                                        },
     { key: 'cert_closer',  label: 'Cert. Closer'                                                                        },
+    { key: 'eval_failed',  label: 'Eval échoué'                                                                         },
     { key: 'paused',       label: 'En pause'                                                                            },
     { key: 'dropped',      label: 'Abandons'                                                                            },
     { key: 'j90_auto',     label: `+90 jours${j90Count > 0 ? ` (${j90Count})` : ''}`                                  },

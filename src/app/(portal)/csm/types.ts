@@ -40,7 +40,7 @@ export interface CsmClient {
   opportunity_closer:  boolean
   circle_last_login:   string | null
   email_avis:          '1er_avis' | '2e_avis' | '3e_avis' | 'mise_en_demeure' | 'out' | null
-  status:              'active' | 'paused' | 'completed' | 'dropped' | 'refund'
+  status:              'active' | 'paused' | 'eval_failed' | 'completed' | 'dropped' | 'refund'
   notes:               string | null
   created_at:          string
 }
