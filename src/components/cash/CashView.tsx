@@ -1925,10 +1925,14 @@ export default function CashView({
         <WeeklyPerfSection
           perfs={perfs}
           isAdmin={isAdmin}
-          sourcedDeals={(entrees as { entry_date: string; source_type: string | null }[])
-            .filter((e): e is SourcedDeal & { entry_date: string; source_type: 'webi' | 'vsl' } =>
-              e.source_type === 'webi' || e.source_type === 'vsl'
-            )}
+          sourcedDeals={(entrees as { entry_date: string; source_type: string | null; montant_courant: number; collected: number }[])
+            .filter(e => e.source_type === 'webi' || e.source_type === 'vsl')
+            .map(e => ({
+              entry_date:  e.entry_date,
+              source_type: e.source_type as 'webi' | 'vsl',
+              montant:     e.montant_courant ?? 0,
+              collected:   e.collected ?? 0,
+            }))}
         />
       )}
 
