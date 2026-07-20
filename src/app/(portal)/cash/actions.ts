@@ -506,11 +506,14 @@ export async function importerWeeklyPerfs(rows: PerfImportRow[]) {
   const db = createAdminClient()
 
   const perfs = rows
-    .filter(r => r.annee && r.trimestre && r.semaine && r.source)
-    .map(r => ({
+    .filter(r => r.annee && r.semaine && r.source)
+    .map(r => {
+      const week_number = Number(r.semaine)
+      const quarter     = r.trimestre ? Number(r.trimestre) : Math.min(4, Math.ceil(week_number / 13))
+      return {
       year:         Number(r.annee),
-      quarter:      Number(r.trimestre),
-      week_number:  Number(r.semaine),
+      quarter,
+      week_number,
       source_type:  r.source.toLowerCase() as 'webi' | 'vsl',
       budget:       Number(r.budget)        || 0,
       leads:        Number(r.leads)         || 0,
@@ -522,7 +525,8 @@ export async function importerWeeklyPerfs(rows: PerfImportRow[]) {
       cash_collect: Number(r.cash_collect)  || 0,
       notes:        r.notes || null,
       created_by:   userId,
-    }))
+    }
+    })
 
   if (perfs.length === 0) throw new Error('Aucune ligne valide trouvée')
 

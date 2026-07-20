@@ -22,9 +22,9 @@ const DEAL_TEMPLATE = [
 ].join('\n')
 
 const PERF_TEMPLATE = [
-  'annee,trimestre,semaine,source,budget,leads,presentes_webi,bookes,shows,closes,revenue,cash_collect,notes',
-  '2024,1,1,webi,5000,100,30,20,15,5,25000,12000,',
-  '2024,1,1,vsl,3000,50,,18,12,4,18000,9000,',
+  'annee,semaine,source,budget,leads,presentes_webi,bookes,shows,closes,revenue,cash_collect,notes',
+  '2026,27,webi,5000,100,30,20,15,5,25000,12000,',
+  '2026,27,vsl,3000,50,,18,12,4,18000,9000,',
 ].join('\n')
 
 // ── Column hints ──────────────────────────────────────────────────
@@ -43,9 +43,8 @@ const DEAL_COLS = [
 ]
 
 const PERF_COLS = [
-  { name: 'annee',          req: true,  hint: 'Ex: 2024' },
-  { name: 'trimestre',      req: true,  hint: '1, 2, 3 ou 4' },
-  { name: 'semaine',        req: true,  hint: '1 à 13 (dans le trimestre)' },
+  { name: 'annee',          req: true,  hint: 'Ex: 2026' },
+  { name: 'semaine',        req: true,  hint: 'Numéro ISO de la semaine (1 à 52) — ex: semaine 27 = 30 juin au 6 juil' },
   { name: 'source',         req: true,  hint: 'webi ou vsl' },
   { name: 'budget',         req: false, hint: 'Budget pub ($)' },
   { name: 'leads',          req: false, hint: 'Nb de leads' },
