@@ -107,7 +107,7 @@ function ModalForm({
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">
             {isEdit
-              ? `Modifier W${entry.week_number} — ${source === 'webi' ? 'Webi' : 'VSL'}`
+              ? `Modifier ${fmtWeekLabel(entry.year, entry.quarter, entry.week_number)} — ${source === 'webi' ? 'Webi' : 'VSL'}`
               : `Saisir semaine — ${source === 'webi' ? 'Webi' : 'VSL'} Q${quarter} ${year}`
             }
           </h2>
@@ -126,7 +126,7 @@ function ModalForm({
               className={INPUT_CLS}
             >
               {(isEdit ? Array.from({ length: 13 }, (_, i) => i + 1) : availableWeeks).map(w => (
-                <option key={w} value={w}>W{w}</option>
+                <option key={w} value={w}>{fmtWeekLabel(year, quarter, w)}</option>
               ))}
             </select>
             {ccCount > 0 && (
@@ -317,8 +317,27 @@ function dateToQuarterWeek(dateStr: string): { year: number; quarter: number; we
 }
 
 const MOIS_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+const MOIS_MIN   = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'aoû', 'sep', 'oct', 'nov', 'déc']
 
 type Period = 'year' | 1 | 2 | 3 | 4 | 'month'
+
+// ── Calendar dates from (year, quarter, weekNum) ─────────────────
+
+function quarterWeekRange(year: number, quarter: number, weekNum: number): { start: Date; end: Date } {
+  const qStart = new Date(year, (quarter - 1) * 3, 1)
+  const start  = new Date(qStart.getTime() + (weekNum - 1) * 7 * 86400000)
+  const end    = new Date(start.getTime() + 6 * 86400000)
+  return { start, end }
+}
+
+function fmtWeekLabel(year: number, quarter: number, weekNum: number): string {
+  const { start, end } = quarterWeekRange(year, quarter, weekNum)
+  const sd = start.getDate(), sm = start.getMonth()
+  const ed = end.getDate(),   em = end.getMonth()
+  return sm === em
+    ? `${sd}–${ed} ${MOIS_MIN[sm]}`
+    : `${sd} ${MOIS_MIN[sm]} – ${ed} ${MOIS_MIN[em]}`
+}
 
 // ── Main component ────────────────────────────────────────────────
 
@@ -554,8 +573,8 @@ export default function WeeklyPerfSection({
                     const cc = dealsByWeek.get(`${p.year}-${p.quarter}-${p.week_number}-webi`) ?? 0
                     return (
                     <tr key={p.id} className="hover:bg-orange-50/20 transition-colors">
-                      <td className="px-3 py-2.5 font-bold text-gray-700 sticky left-0 bg-white whitespace-nowrap">
-                        {(period === 'year' || period === 'month') ? `Q${p.quarter}W${p.week_number}` : `W${p.week_number}`}
+                      <td className="px-3 py-2.5 font-medium text-gray-700 sticky left-0 bg-white whitespace-nowrap text-[11px]">
+                        {fmtWeekLabel(p.year, p.quarter, p.week_number)}
                       </td>
                       <td className={cn(td, 'text-gray-600')}>{dollar(p.budget)}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.leads}</td>
@@ -640,8 +659,8 @@ export default function WeeklyPerfSection({
                     const cc = dealsByWeek.get(`${p.year}-${p.quarter}-${p.week_number}-vsl`) ?? 0
                     return (
                     <tr key={p.id} className="hover:bg-sky-50/20 transition-colors">
-                      <td className="px-3 py-2.5 font-bold text-gray-700 sticky left-0 bg-white whitespace-nowrap">
-                        {(period === 'year' || period === 'month') ? `Q${p.quarter}W${p.week_number}` : `W${p.week_number}`}
+                      <td className="px-3 py-2.5 font-medium text-gray-700 sticky left-0 bg-white whitespace-nowrap text-[11px]">
+                        {fmtWeekLabel(p.year, p.quarter, p.week_number)}
                       </td>
                       <td className={cn(td, 'text-gray-600')}>{dollar(p.budget)}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.leads}</td>
