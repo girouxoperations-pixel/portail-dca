@@ -360,6 +360,7 @@ function ModalNouveauDeal({
 
   const [versementsMode, setVersementsMode] = useState<'1' | '2' | '3' | 'autre'>('1')
   const [autreDates,     setAutreDates]     = useState<string[]>([''])
+  const [autreAmounts,   setAutreAmounts]   = useState<number[]>([0, 0])
   const [entryDate,      setEntryDate]      = useState(today)
   const [montant,        setMontant]        = useState(0)
   const [methode,        setMethode]        = useState('')
@@ -394,12 +395,15 @@ function ModalNouveauDeal({
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     if (versements > 1) {
-      fd.set('collected',  String(versementAmount))
       fd.set('versements', String(versements))
       if (versementsMode === 'autre') {
+        fd.set('collected', String(autreAmounts[0] ?? 0))
         autreDates.forEach((date, i) => {
           fd.set(`versement_date_${i + 2}`, date)
+          fd.set(`versement_amount_${i + 2}`, String(autreAmounts[i + 1] ?? 0))
         })
+      } else {
+        fd.set('collected', String(versementAmount))
       }
     }
     startTransition(async () => {
@@ -462,7 +466,7 @@ function ModalNouveauDeal({
               {(['1', '2', '3', 'autre'] as const).map((n, i) => (
                 <button
                   key={n} type="button"
-                  onClick={() => { setVersementsMode(n); if (n === 'autre') setAutreDates(['']) }}
+                  onClick={() => { setVersementsMode(n); if (n === 'autre') { setAutreDates(['']); setAutreAmounts([0, 0]) } }}
                   className={cn(
                     'flex-1 py-2.5 font-medium transition-colors',
                     i > 0 && 'border-l border-gray-200',
@@ -482,9 +486,92 @@ function ModalNouveauDeal({
         {versements > 1 && (
           <div className="rounded-lg bg-violet-50 border border-violet-100 p-4 space-y-3">
             <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
-              Plan de paiement — {dollar(versementAmount)} × {versements}
+              {versementsMode === 'autre'
+                ? `Plan de paiement — ${versements} versements`
+                : `Plan de paiement — ${dollar(versementAmount)} × ${versements}`}
             </p>
 
+            {versementsMode === 'autre' ? (
+              <>
+                {/* Versement 1 — Aujourd'hui avec montant custom */}
+                <div className="flex items-center gap-3">
+                  <span className="text-green-500 font-bold text-base shrink-0">✓</span>
+                  <div className="flex-1 flex flex-col gap-0.5">
+                    <label className="text-[11px] text-violet-600 font-medium">
+                      Versement 1 — Aujourd&apos;hui ({entryDate})
+                    </label>
+                    <input
+                      type="number" min="0" step="0.01" placeholder="0.00"
+                      value={autreAmounts[0] || ''}
+                      onChange={ev => {
+                        const next = [...autreAmounts]
+                        next[0] = Number(ev.target.value)
+                        setAutreAmounts(next)
+                      }}
+                      required
+                      className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 tabular-nums"
+                    />
+                  </div>
+                </div>
+
+                {autreDates.map((date, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-violet-400 text-base shrink-0">◷</span>
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-0.5">
+                        <label className="text-[11px] text-violet-600 font-medium">Versement {i + 2} — Date</label>
+                        <input
+                          type="date"
+                          value={date}
+                          onChange={ev => {
+                            const next = [...autreDates]
+                            next[i] = ev.target.value
+                            setAutreDates(next)
+                          }}
+                          required
+                          className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <label className="text-[11px] text-violet-600 font-medium">Montant ($)</label>
+                        <input
+                          type="number" min="0" step="0.01" placeholder="0.00"
+                          value={autreAmounts[i + 1] || ''}
+                          onChange={ev => {
+                            const next = [...autreAmounts]
+                            next[i + 1] = Number(ev.target.value)
+                            setAutreAmounts(next)
+                          }}
+                          required
+                          className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 tabular-nums"
+                        />
+                      </div>
+                    </div>
+                    {autreDates.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAutreDates(autreDates.filter((_, j) => j !== i))
+                          setAutreAmounts(autreAmounts.filter((_, j) => j !== i + 1))
+                        }}
+                        className="text-gray-300 hover:text-red-400 transition-colors shrink-0"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => { setAutreDates([...autreDates, '']); setAutreAmounts([...autreAmounts, 0]) }}
+                  className="flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors"
+                >
+                  <Plus size={12} />
+                  Ajouter un versement
+                </button>
+              </>
+            ) : (
+              <>
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-green-500 font-bold">✓</span>
@@ -494,50 +581,7 @@ function ModalNouveauDeal({
               </div>
               <span className="font-semibold tabular-nums text-violet-900">{dollar(versementAmount)}</span>
             </div>
-
-            {versementsMode === 'autre' ? (
-              <>
-                {autreDates.map((date, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-violet-400 text-base shrink-0">◷</span>
-                    <div className="flex-1 flex flex-col gap-0.5">
-                      <label className="text-[11px] text-violet-600 font-medium">Versement {i + 2}</label>
-                      <input
-                        type="date"
-                        value={date}
-                        onChange={ev => {
-                          const next = [...autreDates]
-                          next[i] = ev.target.value
-                          setAutreDates(next)
-                        }}
-                        required
-                        className="px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                      />
-                    </div>
-                    <span className="font-semibold tabular-nums text-violet-900 shrink-0 pt-4">
-                      {dollar(versementAmount)}
-                    </span>
-                    {autreDates.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setAutreDates(autreDates.filter((_, j) => j !== i))}
-                        className="text-gray-300 hover:text-red-400 transition-colors pt-4"
-                      >
-                        <X size={13} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setAutreDates([...autreDates, ''])}
-                  className="flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors"
-                >
-                  <Plus size={12} />
-                  Ajouter un versement
-                </button>
-              </>
-            ) : (
+            {(
               Array.from({ length: versements - 1 }, (_, i) => {
                 const n = i + 2
                 return (
@@ -561,6 +605,8 @@ function ModalNouveauDeal({
                   </div>
                 )
               })
+            )}
+            </>
             )}
 
             <p className="text-[11px] text-violet-500 pt-1 border-t border-violet-100">

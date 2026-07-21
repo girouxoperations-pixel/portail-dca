@@ -95,11 +95,13 @@ export async function creerCashCollect(formData: FormData) {
   if (versements > 1) {
     const versementMontant = collected
 
-    // Récupérer les dates spécifiques choisies par l'admin
+    // Récupérer les dates et montants spécifiques choisis par l'admin
     const futureDates: string[] = []
+    const futureAmounts: number[] = []
     for (let n = 2; n <= versements; n++) {
       const d = formData.get(`versement_date_${n}`) as string
-      if (d) futureDates.push(d)
+      const a = Number(formData.get(`versement_amount_${n}`)) || versementMontant
+      if (d) { futureDates.push(d); futureAmounts.push(a) }
     }
 
     // Date de début = premier versement futur
@@ -136,14 +138,14 @@ export async function creerCashCollect(formData: FormData) {
             return d.toISOString().split('T')[0]
           })
 
-      const occs = effectiveDates.map(dateStr => {
+      const occs = effectiveDates.map((dateStr, idx) => {
         const d = new Date(dateStr + 'T00:00:00')
         return {
           recurring_deal_id: deal.id,
           mois:              d.getMonth() + 1,
           annee:             d.getFullYear(),
           date_attendue:     dateStr,
-          montant_attendu:   versementMontant,
+          montant_attendu:   futureAmounts[idx] ?? versementMontant,
         }
       })
       await db.from('recurring_occurrences').insert(occs)
