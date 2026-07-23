@@ -752,6 +752,8 @@ function HistGroupSection({ label, totalComm, payeComm, employees }: {
 
 // ── Payroll split ─────────────────────────────────────────────────────
 
+const EXCLUDED_FROM_PAYES = ['samuel giroux']
+
 const PAYROLL_PRENOMS = ['emma', 'kalianna', 'jacinthe']
 
 const PAYROLL_SALAIRES: Record<string, number> = {
@@ -878,7 +880,9 @@ export default function AdminView({
       if (e.setter_id && e.commission_setter > 0) addToGroup(e.setter_id, 'setter', e.commission_setter, collectedFromSetter)
     }
 
-    return Array.from(map.values()).sort((a, b) => b.totalCommission - a.totalCommission)
+    return Array.from(map.values())
+      .filter(g => !EXCLUDED_FROM_PAYES.includes(g.nom.trim().toLowerCase()))
+      .sort((a, b) => b.totalCommission - a.totalCommission)
   }, [filtrees, profileMap])
 
   const payrollGroups    = grouped.filter(g => isPayroll(g.nom))
