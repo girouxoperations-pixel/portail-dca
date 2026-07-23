@@ -551,7 +551,6 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
   onToggle:   (id: string, statut: string) => void
   onEdit:     (id: string) => void
 }) {
-  // Colonnes : closers puis setters, triés par nom, actifs sur la période
   const personCols = useMemo<PersonCol[]>(() => {
     const closers = new Map<string, string>()
     const setters = new Map<string, string>()
@@ -563,7 +562,7 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
     return [
       ...[...closers.entries()].map(([id, nom]) => ({ id, nom, role: 'closer' as const })).sort(sortByNom),
       ...[...setters.entries()].map(([id, nom]) => ({ id, nom, role: 'setter' as const })).sort(sortByNom),
-    ]
+    ].filter(p => !EXCLUDED_FROM_PAYES.includes(p.nom.trim().toLowerCase()))
   }, [filtrees, profileMap])
 
   const totaux = useMemo(() => {
@@ -574,13 +573,23 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
         ?? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
       totalCollected += collected
       totalNet += collected - e.commission - e.commission_setter
-      if (e.closer_id && e.commission > 0)
-        map.set(e.closer_id, (map.get(e.closer_id) ?? 0) + e.commission)
-      if (e.setter_id && e.commission_setter > 0)
-        map.set(e.setter_id, (map.get(e.setter_id) ?? 0) + e.commission_setter)
+      if (e.closer_id && e.commission > 0) {
+        const nom = (profileMap.get(e.closer_id) ?? '').trim().toLowerCase()
+        if (!EXCLUDED_FROM_PAYES.includes(nom))
+          map.set(e.closer_id, (map.get(e.closer_id) ?? 0) + e.commission)
+      }
+      if (e.setter_id && e.commission_setter > 0) {
+        const nom = (profileMap.get(e.setter_id) ?? '').trim().toLowerCase()
+        if (!EXCLUDED_FROM_PAYES.includes(nom))
+          map.set(e.setter_id, (map.get(e.setter_id) ?? 0) + e.commission_setter)
+      }
     }
     return { perPerson: map, totalCollected, totalNet }
-  }, [filtrees])
+  }, [filtrees, profileMap])
+
+  const nouvelles   = filtrees.filter(e => !isRecurringNote(e.notes) && !isAlveoNote(e.notes) && !isBonusNote(e.notes))
+  const recurrentes = filtrees.filter(e => isRecurringNote(e.notes) || isAlveoNote(e.notes))
+  const totalCols   = 4 + personCols.length + (isAdmin ? 1 : 0)
 
   if (filtrees.length === 0) {
     return (
@@ -590,91 +599,117 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
     )
   }
 
+  const colHeaders = (
+    <tr className="bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide">
+      <th className="px-4 py-3 text-left min-w-[160px]">Client</th>
+      <th className="px-4 py-3 text-right min-w-[100px]">Cash reçu</th>
+      {personCols.map(p => (
+        <th key={`${p.id}-${p.role}`} className="px-4 py-3 text-right min-w-[100px]">
+          <span>{p.nom.split(' ')[0]}</span>
+          <span className={cn(
+            'ml-1 text-[9px] font-bold px-1 py-px rounded uppercase',
+            p.role === 'closer' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600',
+          )}>
+            {p.role === 'closer' ? 'C' : 'S'}
+          </span>
+        </th>
+      ))}
+      <th className="px-4 py-3 text-right min-w-[100px] text-gray-700">NET</th>
+      <th className="px-4 py-3 text-left min-w-[100px]">Statut</th>
+      {isAdmin && <th className="px-4 py-3 text-right min-w-[80px]" />}
+    </tr>
+  )
+
+  const renderRows = (entries: PayeEntry[]) => entries.map(e => {
+    const collected = e.cash_entries?.collected
+      ?? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
+    const net = collected - e.commission - e.commission_setter
+    return (
+      <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
+        <td className="px-4 py-3 font-medium text-gray-800 max-w-[180px] truncate">{e.client_name}</td>
+        <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(collected)}</td>
+        {personCols.map(p => {
+          const comm = (p.role === 'closer' && e.closer_id === p.id) ? e.commission
+                     : (p.role === 'setter' && e.setter_id === p.id) ? e.commission_setter
+                     : null
+          return (
+            <td key={`${p.id}-${p.role}`} className={cn(
+              'px-4 py-3 text-right tabular-nums',
+              comm && comm > 0
+                ? p.role === 'closer' ? 'font-medium text-violet-700' : 'font-medium text-blue-700'
+                : 'text-gray-200',
+            )}>
+              {comm && comm > 0 ? dollar(comm) : '—'}
+            </td>
+          )
+        })}
+        <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{dollar(net)}</td>
+        <td className="px-4 py-3">
+          <StatutBadge statut={e.statut} />
+        </td>
+        {isAdmin && (
+          <td className="px-4 py-3 text-right">
+            <div className="flex items-center justify-end gap-1.5">
+              {e.statut !== 'Remboursé' && (
+                <button
+                  onClick={() => onEdit(e.id)}
+                  className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
+                  title="Modifier"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+              {e.statut !== 'Remboursé' && (
+                <button
+                  onClick={() => onToggle(e.id, e.statut)}
+                  disabled={pending}
+                  className={cn(
+                    'px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-40',
+                    e.statut === 'Payé'
+                      ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                      : 'bg-green-50 text-green-600 hover:bg-green-100',
+                  )}
+                >
+                  {e.statut === 'Payé' ? '↩' : '✓ Payé'}
+                </button>
+              )}
+            </div>
+          </td>
+        )}
+      </tr>
+    )
+  })
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide">
-              <th className="px-4 py-3 text-left min-w-[160px]">Client</th>
-              <th className="px-4 py-3 text-right min-w-[100px]">Cash reçu</th>
-              {personCols.map(p => (
-                <th key={`${p.id}-${p.role}`} className="px-4 py-3 text-right min-w-[100px]">
-                  <span>{p.nom.split(' ')[0]}</span>
-                  <span className={cn(
-                    'ml-1 text-[9px] font-bold px-1 py-px rounded uppercase',
-                    p.role === 'closer' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600',
-                  )}>
-                    {p.role === 'closer' ? 'C' : 'S'}
-                  </span>
-                </th>
-              ))}
-              <th className="px-4 py-3 text-right min-w-[100px] text-gray-700">NET</th>
-              <th className="px-4 py-3 text-left min-w-[100px]">Statut</th>
-              {isAdmin && <th className="px-4 py-3 text-right min-w-[80px]" />}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {filtrees.map(e => {
-              const collected = e.cash_entries?.collected
-                ?? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
-              const net = collected - e.commission - e.commission_setter
-              return (
-                <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-800 max-w-[180px] truncate">{e.client_name}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dollar(collected)}</td>
-                  {personCols.map(p => {
-                    const comm = (p.role === 'closer' && e.closer_id === p.id) ? e.commission
-                               : (p.role === 'setter' && e.setter_id === p.id) ? e.commission_setter
-                               : null
-                    return (
-                      <td key={`${p.id}-${p.role}`} className={cn(
-                        'px-4 py-3 text-right tabular-nums',
-                        comm && comm > 0
-                          ? p.role === 'closer' ? 'font-medium text-violet-700' : 'font-medium text-blue-700'
-                          : 'text-gray-200',
-                      )}>
-                        {comm && comm > 0 ? dollar(comm) : '—'}
-                      </td>
-                    )
-                  })}
-                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{dollar(net)}</td>
-                  <td className="px-4 py-3">
-                    <StatutBadge statut={e.statut} />
-                  </td>
-                  {isAdmin && (
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {e.statut !== 'Remboursé' && (
-                          <button
-                            onClick={() => onEdit(e.id)}
-                            className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
-                            title="Modifier"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                        )}
-                        {e.statut !== 'Remboursé' && (
-                          <button
-                            onClick={() => onToggle(e.id, e.statut)}
-                            disabled={pending}
-                            className={cn(
-                              'px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-40',
-                              e.statut === 'Payé'
-                                ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                                : 'bg-green-50 text-green-600 hover:bg-green-100',
-                            )}
-                          >
-                            {e.statut === 'Payé' ? '↩' : '✓ Payé'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              )
-            })}
-          </tbody>
+          <thead>{colHeaders}</thead>
+
+          {nouvelles.length > 0 && (
+            <tbody className="divide-y divide-gray-50">
+              <tr>
+                <td colSpan={totalCols} className="px-4 py-2 bg-violet-50/40 border-b border-violet-100">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600">Nouvelles deals</span>
+                  <span className="ml-2 text-[10px] text-violet-400">{nouvelles.length}</span>
+                </td>
+              </tr>
+              {renderRows(nouvelles)}
+            </tbody>
+          )}
+
+          {recurrentes.length > 0 && (
+            <tbody className="divide-y divide-gray-50">
+              <tr>
+                <td colSpan={totalCols} className="px-4 py-2 bg-blue-50/40 border-t border-b border-blue-100">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">Récurrents</span>
+                  <span className="ml-2 text-[10px] text-blue-400">{recurrentes.length}</span>
+                </td>
+              </tr>
+              {renderRows(recurrentes)}
+            </tbody>
+          )}
+
           <tfoot>
             <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
               <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide">
