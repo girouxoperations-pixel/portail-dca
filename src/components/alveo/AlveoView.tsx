@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { Plus, ChevronDown, ChevronUp, X, Check, Ban, Trash2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   ajouterDeal,
   modifierCollected,
-  togglePaiement,
+  toggleRoleComplet,
   annulerDeal,
   supprimerDeal,
 } from '@/app/(portal)/alveo/actions'
@@ -46,7 +47,7 @@ interface Props {
 // ── Helpers ───────────────────────────────────────────────────────────
 
 const dollar = (n: number) =>
-  n.toLocaleString('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 })
+  `${new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)} $`
 
 function parseMonthLabel(dateStr: string | null): string {
   if (!dateStr) return 'Sans date'
@@ -70,40 +71,38 @@ const EMPTY_FORM = {
   notes:       '',
 }
 
-// ── Payment badge ─────────────────────────────────────────────────────
+// ── Role badge (paiement complet setter ou closer) ────────────────────
 
-function PayBadge({
-  payment,
-  disabled,
-}: {
-  payment: Payment | undefined
+function RoleBadge({ deal, role, disabled }: {
+  deal:     Deal
+  role:     'setter' | 'closer'
   disabled: boolean
 }) {
   const [pending, startTransition] = useTransition()
 
-  if (!payment) {
-    return <span className="text-gray-700 text-xs">—</span>
-  }
+  const payments   = deal.payments.filter(p => p.person_role === role)
+  const allPaid    = payments.length > 0 && payments.every(p => p.paid)
+  const commission = role === 'setter' ? deal.commission_setter : deal.commission_closer
+  const personName = role === 'setter' ? deal.setter_name : deal.closer_name
 
-  const isPaid = payment.paid
+  if (!personName || commission === 0) return <span className="text-gray-300 text-xs">—</span>
 
   return (
-    <button
-      disabled={disabled || pending}
-      title={isPaid ? `Payé ${payment.amount.toLocaleString('fr-CA')} $` : `En attente ${payment.amount.toLocaleString('fr-CA')} $`}
-      onClick={() =>
-        startTransition(() => togglePaiement(payment.id, !isPaid))
-      }
-      className={[
-        'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all',
-        isPaid
-          ? 'bg-emerald-100 text-emerald-600 border border-emerald-300 hover:bg-emerald-200'
-          : 'bg-red-50 text-red-500 border border-red-200 hover:bg-red-100',
-        pending ? 'opacity-50 cursor-wait' : 'cursor-pointer',
-      ].join(' ')}
-    >
-      {isPaid ? <Check size={11} /> : <X size={11} />}
-    </button>
+    <div className="flex flex-col items-start gap-0.5">
+      <span className="text-[10px] text-gray-500 tabular-nums">{dollar(commission)}</span>
+      <button
+        disabled={disabled || pending}
+        onClick={() => startTransition(() => toggleRoleComplet(deal.id, role, !allPaid))}
+        className={cn(
+          'px-2 py-0.5 rounded text-[10px] font-semibold transition-colors disabled:opacity-50',
+          allPaid
+            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+            : 'bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200',
+        )}
+      >
+        {pending ? '…' : allPaid ? '✓ Payé' : 'Payer →'}
+      </button>
+    </div>
   )
 }
 
@@ -284,10 +283,6 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
   const aCollecter = deal.montant - deal.collected
   const isCancelled = deal.statut === 'annulé'
 
-  function getPayment(role: 'setter' | 'closer', mois: 1 | 2 | 3) {
-    return deal.payments.find(p => p.person_role === role && p.mois === mois)
-  }
-
   function saveCollected() {
     const val = parseFloat(collectedVal)
     if (!isNaN(val)) {
@@ -367,22 +362,14 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
           {aCollecter <= 0 ? '✓' : dollar(aCollecter)}
         </td>
 
-        {/* Setter payments M1/M2/M3 */}
-        <td className="px-2 py-2.5">
-          <div className="flex items-center gap-1">
-            {([1, 2, 3] as const).map(m => (
-              <PayBadge key={m} payment={getPayment('setter', m)} disabled={isCancelled} />
-            ))}
-          </div>
+        {/* Setter commission */}
+        <td className="px-3 py-2.5">
+          <RoleBadge deal={deal} role="setter" disabled={isCancelled} />
         </td>
 
-        {/* Closer payments M1/M2/M3 */}
-        <td className="px-2 py-2.5">
-          <div className="flex items-center gap-1">
-            {([1, 2, 3] as const).map(m => (
-              <PayBadge key={m} payment={getPayment('closer', m)} disabled={isCancelled} />
-            ))}
-          </div>
+        {/* Closer commission */}
+        <td className="px-3 py-2.5">
+          <RoleBadge deal={deal} role="closer" disabled={isCancelled} />
         </td>
 
         {/* Actions */}
@@ -429,12 +416,12 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
               <div>
                 <p className="text-gray-500 mb-1">Commission setter</p>
                 <p className="text-blue-600 font-mono">{dollar(deal.commission_setter)}</p>
-                <p className="text-gray-400 mt-0.5">({dollar(deal.commission_setter / 3)} × 3 mois)</p>
+                <p className="text-gray-400 mt-0.5">5% du montant courant</p>
               </div>
               <div>
                 <p className="text-gray-500 mb-1">Commission closer</p>
                 <p className="text-violet-600 font-mono">{dollar(deal.commission_closer)}</p>
-                <p className="text-gray-400 mt-0.5">({dollar(deal.commission_closer / 3)} × 3 mois)</p>
+                <p className="text-gray-400 mt-0.5">10% du montant courant</p>
               </div>
               <div>
                 <p className="text-gray-500 mb-1">Méthode</p>
@@ -649,12 +636,8 @@ export default function AlveoView({ deals, isAdmin }: Props) {
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 text-right">Montant</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 text-right">Collecté</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 text-right">À coll.</th>
-                  <th className="px-2 py-2.5 text-xs font-semibold text-blue-600">
-                    Setter M1 M2 M3
-                  </th>
-                  <th className="px-2 py-2.5 text-xs font-semibold text-violet-600">
-                    Closer M1 M2 M3
-                  </th>
+                  <th className="px-3 py-2.5 text-xs font-semibold text-blue-600">Comm. setter</th>
+                  <th className="px-3 py-2.5 text-xs font-semibold text-violet-600">Comm. closer</th>
                   {isAdmin && <th className="px-2 py-2.5" />}
                 </tr>
               </thead>
@@ -682,19 +665,8 @@ export default function AlveoView({ deals, isAdmin }: Props) {
 
         {/* Legend */}
         <div className="flex items-center gap-4 mt-4 text-xs text-gray-400">
-          <span className="flex items-center gap-1.5">
-            <span className="w-4 h-4 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center">
-              <Check size={9} className="text-emerald-600" />
-            </span>
-            Payé
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-4 h-4 rounded-full bg-red-50 border border-red-200 flex items-center justify-center">
-              <X size={9} className="text-red-400" />
-            </span>
-            En attente
-          </span>
-          <span>· Cliquer sur M1/M2/M3 pour marquer comme payé → ajoute automatiquement à la paie</span>
+          <span>· <span className="text-emerald-600 font-medium">✓ Payé</span> = commission payée et ajoutée à la paie</span>
+          <span>· <span className="text-amber-600 font-medium">Payer →</span> = cliquer pour payer la commission complète</span>
           {isAdmin && <span>· Cliquer sur le montant collecté pour le modifier</span>}
         </div>
       </div>

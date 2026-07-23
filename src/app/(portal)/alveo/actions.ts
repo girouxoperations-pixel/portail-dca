@@ -170,6 +170,81 @@ export async function togglePaiement(paymentId: string, paid: boolean) {
   revalidatePath('/payes')
 }
 
+export async function toggleRoleComplet(dealId: string, role: 'setter' | 'closer', pay: boolean) {
+  const { userId } = await requireAdminOrCsm()
+  const db = createAdminClient()
+
+  const { data: deal } = await db.from('alveo_deals').select('*').eq('id', dealId).single()
+  if (!deal) throw new Error('Deal introuvable')
+
+  const { data: payments } = await db
+    .from('alveo_payments')
+    .select('id, amount')
+    .eq('deal_id', dealId)
+    .eq('person_role', role)
+
+  if (pay) {
+    // Marquer tous les paiements comme payés
+    if (payments && payments.length > 0) {
+      await db.from('alveo_payments')
+        .update({ paid: true, paid_at: new Date().toISOString(), paid_by: userId })
+        .eq('deal_id', dealId)
+        .eq('person_role', role)
+
+      // Supprimer les paye_entries individuelles déjà créées (anciens M1/M2/M3)
+      for (const p of payments) {
+        await db.from('paye_entries').delete().like('notes', `Alveo|${p.id}`)
+      }
+    }
+
+    // Supprimer une éventuelle paye_entry groupée existante avant de recréer
+    await db.from('paye_entries').delete().like('notes', `Alveo|${dealId}|${role}`)
+
+    // Résoudre le profil par prénom
+    const personName = role === 'setter' ? (deal.setter_name ?? '') : (deal.closer_name ?? '')
+    const { data: profiles } = await db.from('profiles').select('id, full_name').in('role', ['closer', 'setter'])
+    const firstName = personName.toLowerCase().split(/[\s\-–]/)[0]
+    const matched = (profiles ?? []).find(p => (p.full_name ?? '').toLowerCase().startsWith(firstName))
+
+    const periode      = currentPeriode(new Date())
+    const fullComm     = role === 'closer' ? (deal.commission_closer as number) : (deal.commission_setter as number)
+    const isCloser     = role === 'closer'
+
+    await db.from('paye_entries').insert({
+      period_label:      periode.label,
+      month:             periode.month,
+      year:              periode.year,
+      client_name:       `${deal.client_name as string} — Alveo`,
+      closer_id:         isCloser  ? (matched?.id ?? null) : null,
+      setter_id:         !isCloser ? (matched?.id ?? null) : null,
+      montant:           deal.montant as number,
+      commission:        isCloser  ? fullComm : 0,
+      commission_setter: !isCloser ? fullComm : 0,
+      statut:            'Payé',
+      notes:             `Alveo|${dealId}|${role}`,
+      created_by:        userId,
+    })
+  } else {
+    // Démarquer tous les paiements
+    if (payments && payments.length > 0) {
+      await db.from('alveo_payments')
+        .update({ paid: false, paid_at: null, paid_by: null })
+        .eq('deal_id', dealId)
+        .eq('person_role', role)
+
+      // Supprimer les paye_entries individuelles
+      for (const p of payments) {
+        await db.from('paye_entries').delete().like('notes', `Alveo|${p.id}`)
+      }
+    }
+    // Supprimer la paye_entry groupée
+    await db.from('paye_entries').delete().like('notes', `Alveo|${dealId}|${role}`)
+  }
+
+  revalidatePath('/alveo')
+  revalidatePath('/payes')
+}
+
 export async function annulerDeal(dealId: string) {
   await requireAdminOrCsm()
   const db = createAdminClient()
