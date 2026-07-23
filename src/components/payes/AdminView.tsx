@@ -551,6 +551,8 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
   onToggle:   (id: string, statut: string) => void
   onEdit:     (id: string) => void
 }) {
+  const [selectedPersonId, setSelectedPersonId] = useState('')
+
   const personCols = useMemo<PersonCol[]>(() => {
     const closers = new Map<string, string>()
     const setters = new Map<string, string>()
@@ -565,10 +567,18 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
     ].filter(p => !EXCLUDED_FROM_PAYES.includes(p.nom.trim().toLowerCase()))
   }, [filtrees, profileMap])
 
+  const vue = useMemo(() => {
+    if (!selectedPersonId) return filtrees
+    return filtrees.filter(e =>
+      (e.closer_id === selectedPersonId && e.commission > 0) ||
+      (e.setter_id === selectedPersonId && e.commission_setter > 0),
+    )
+  }, [filtrees, selectedPersonId])
+
   const totaux = useMemo(() => {
     const map = new Map<string, number>()
     let totalCollected = 0, totalNet = 0
-    for (const e of filtrees) {
+    for (const e of vue) {
       const collected = e.cash_entries?.collected
         ?? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
       totalCollected += collected
@@ -585,10 +595,10 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
       }
     }
     return { perPerson: map, totalCollected, totalNet }
-  }, [filtrees, profileMap])
+  }, [vue, profileMap])
 
-  const nouvelles   = filtrees.filter(e => !isRecurringNote(e.notes) && !isAlveoNote(e.notes) && !isBonusNote(e.notes))
-  const recurrentes = filtrees.filter(e => isRecurringNote(e.notes) || isAlveoNote(e.notes))
+  const nouvelles   = vue.filter(e => !isRecurringNote(e.notes) && !isAlveoNote(e.notes) && !isBonusNote(e.notes))
+  const recurrentes = vue.filter(e => isRecurringNote(e.notes) || isAlveoNote(e.notes))
   const totalCols   = 4 + personCols.length + (isAdmin ? 1 : 0)
 
   if (filtrees.length === 0) {
@@ -598,6 +608,8 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
       </div>
     )
   }
+
+  const selectedPerson = personCols.find(p => p.id === selectedPersonId)
 
   const colHeaders = (
     <tr className="bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -682,6 +694,48 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+
+      {/* Sélecteur d'employé */}
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium text-gray-500">Voir les paies de :</span>
+        <button
+          onClick={() => setSelectedPersonId('')}
+          className={cn(
+            'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+            !selectedPersonId ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+          )}
+        >
+          Tous
+        </button>
+        {personCols.map(p => (
+          <button
+            key={`${p.id}-${p.role}`}
+            onClick={() => setSelectedPersonId(p.id === selectedPersonId ? '' : p.id)}
+            className={cn(
+              'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5',
+              selectedPersonId === p.id
+                ? p.role === 'closer' ? 'bg-violet-600 text-white' : 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+            )}
+          >
+            {p.nom.split(' ')[0]}
+            <span className={cn(
+              'text-[9px] font-bold px-1 py-px rounded uppercase',
+              selectedPersonId === p.id
+                ? 'bg-white/20 text-white'
+                : p.role === 'closer' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600',
+            )}>
+              {p.role === 'closer' ? 'C' : 'S'}
+            </span>
+          </button>
+        ))}
+        {selectedPerson && (
+          <span className="ml-auto text-xs text-gray-400">
+            {vue.length} deal{vue.length !== 1 ? 's' : ''} · {dollar(totaux.perPerson.get(selectedPersonId) ?? 0)} de commission
+          </span>
+        )}
+      </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>{colHeaders}</thead>
@@ -713,7 +767,7 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
           <tfoot>
             <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
               <td className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wide">
-                Total · {filtrees.length} deal{filtrees.length !== 1 ? 's' : ''}
+                Total · {vue.length} deal{vue.length !== 1 ? 's' : ''}
               </td>
               <td className="px-4 py-3 text-right tabular-nums text-gray-900">
                 {dollar(totaux.totalCollected)}
