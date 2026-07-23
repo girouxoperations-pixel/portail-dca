@@ -807,6 +807,15 @@ function HistGroupSection({ label, totalComm, payeComm, employees }: {
   )
 }
 
+// ── Payroll split ─────────────────────────────────────────────────────
+
+const PAYROLL_PRENOMS = ['emma', 'kalianna', 'jacinthe']
+
+function isPayroll(nom: string): boolean {
+  const prenom = nom.trim().toLowerCase().split(' ')[0]
+  return PAYROLL_PRENOMS.includes(prenom)
+}
+
 // ── Vue principale admin / CSM ────────────────────────────────────────
 
 export default function AdminView({
@@ -893,6 +902,9 @@ export default function AdminView({
 
     return Array.from(map.values()).sort((a, b) => b.totalCommission - a.totalCommission)
   }, [filtrees, profileMap])
+
+  const payrollGroups    = grouped.filter(g => isPayroll(g.nom))
+  const nonPayrollGroups = grouped.filter(g => !isPayroll(g.nom))
 
   const totalPeriode   = grouped.reduce((s, g) => s + g.totalCommission, 0)
   const pendingPeriode = grouped.reduce((s, g) => s + g.pendingCommission, 0)
@@ -1159,19 +1171,58 @@ export default function AdminView({
             <p className="text-xs text-gray-300 mt-1">Sélectionne une autre période ou ajoute des entrées via Cash Collect.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {grouped.map(g => (
-              <CarteEmploye
-                key={`${g.uid}-${g.role}`}
-                group={g}
-                isAdmin={isAdmin}
-                pending={pending}
-                onApprouver={handleApprouverEmploye}
-                onToggle={handleToggle}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
-            ))}
+          <div className="space-y-6">
+            {payrollGroups.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Payroll</h3>
+                  <div className="flex-1 h-px bg-gray-100" />
+                  <span className="text-xs font-medium text-gray-400 tabular-nums">
+                    {dollar(payrollGroups.reduce((s, g) => s + g.totalCommission, 0))}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {payrollGroups.map(g => (
+                    <CarteEmploye
+                      key={`${g.uid}-${g.role}`}
+                      group={g}
+                      isAdmin={isAdmin}
+                      pending={pending}
+                      onApprouver={handleApprouverEmploye}
+                      onToggle={handleToggle}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {nonPayrollGroups.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Commissions (hors payroll)</h3>
+                  <div className="flex-1 h-px bg-gray-100" />
+                  <span className="text-xs font-medium text-gray-400 tabular-nums">
+                    {dollar(nonPayrollGroups.reduce((s, g) => s + g.totalCommission, 0))}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {nonPayrollGroups.map(g => (
+                    <CarteEmploye
+                      key={`${g.uid}-${g.role}`}
+                      group={g}
+                      isAdmin={isAdmin}
+                      pending={pending}
+                      onApprouver={handleApprouverEmploye}
+                      onToggle={handleToggle}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )
       ) : (
