@@ -61,7 +61,7 @@ type DealItem = {
   maCommission: number
   statut: string
   notes: string | null
-  type: 'nouveau' | 'recurrent' | 'alveo'
+  type: 'nouveau' | 'recurrent' | 'alveo' | 'bonus'
 }
 
 interface EmployeeGroup {
@@ -93,13 +93,16 @@ function isAlveoNote(notes: string | null): boolean {
   return notes?.startsWith('Alveo|') ?? false
 }
 
+function isBonusNote(notes: string | null): boolean {
+  return notes?.startsWith('Bonus') ?? false
+}
+
 // ── Section bonus manuel ──────────────────────────────────────────────
 
-function SectionBonus({ isAdmin, teamMembers, periodes, bonusEntrees }: {
+function SectionBonus({ isAdmin, teamMembers, periodes }: {
   isAdmin:      boolean
   teamMembers:  Profil[]
   periodes:     { label: string; month: number; year: number }[]
-  bonusEntrees: PayeEntry[]
 }) {
   const [periodeIdx, setPeriodeIdx] = useState(0)
   const [personId,   setPersonId]   = useState(teamMembers[0]?.id ?? '')
@@ -187,33 +190,6 @@ function SectionBonus({ isAdmin, teamMembers, periodes, bonusEntrees }: {
         </div>
       )}
 
-      {bonusEntrees.length > 0 ? (
-        <div className="divide-y divide-gray-50">
-          {bonusEntrees.map(e => {
-            const uid  = e.closer_id ?? e.setter_id ?? ''
-            const role = e.closer_id ? 'closer' : 'setter'
-            const comm = e.closer_id ? e.commission : e.commission_setter
-            return (
-              <div key={e.id} className="px-5 py-3 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{e.client_name}</p>
-                  <p className="text-xs text-gray-400">{e.period_label} · {uid}</p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={cn(
-                    'text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide',
-                    role === 'closer' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600',
-                  )}>{role}</span>
-                  <span className="text-sm font-bold tabular-nums text-amber-600">{dollar(comm)}</span>
-                  <StatutBadge statut={e.statut} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        <p className="px-5 py-6 text-sm text-gray-400">Aucun bonus enregistré</p>
-      )}
     </div>
   )
 }
@@ -301,6 +277,31 @@ function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }
 
 // ── Carte employé ─────────────────────────────────────────────────────
 
+function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pending, onEdit, onToggle, onDelete }: {
+  label:    string
+  labelCls: string
+  headerCls: string
+  deals:    DealItem[]
+  role:     'closer' | 'setter'
+  isAdmin:  boolean
+  pending:  boolean
+  onEdit:   (id: string) => void
+  onToggle: (id: string, statut: string) => void
+  onDelete: (id: string) => void
+}) {
+  if (deals.length === 0) return null
+  const total = deals.reduce((s, d) => s + d.maCommission, 0)
+  return (
+    <div className="border-t border-gray-100">
+      <div className={cn('px-5 py-2.5 flex items-center justify-between', headerCls)}>
+        <span className={cn('text-[11px] font-bold uppercase tracking-wider', labelCls)}>{label}</span>
+        <span className={cn('text-xs font-bold tabular-nums', labelCls)}>{dollar(total)}</span>
+      </div>
+      <DealTable deals={deals} role={role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
+    </div>
+  )
+}
+
 function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, onDelete }: {
   group:        EmployeeGroup
   isAdmin:      boolean
@@ -313,27 +314,27 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
   const [ouvert, setOuvert] = useState(false)
   const allPaid = group.pendingIds.length === 0
 
-  const nouveaux       = group.deals.filter(d => d.type === 'nouveau')
-  const recurrents     = group.deals.filter(d => d.type === 'recurrent')
-  const alveos         = group.deals.filter(d => d.type === 'alveo')
-  const commNouveaux   = nouveaux.reduce((s, d) => s + d.maCommission, 0)
-  const commRecurrents = recurrents.reduce((s, d) => s + d.maCommission, 0)
-  const commAlveos     = alveos.reduce((s, d) => s + d.maCommission, 0)
-  const activeTypes    = [nouveaux, recurrents, alveos].filter(arr => arr.length > 0).length
-  const hasSections    = activeTypes > 1
+  const nouveaux   = group.deals.filter(d => d.type === 'nouveau')
+  const recurrents = group.deals.filter(d => d.type === 'recurrent')
+  const alveos     = group.deals.filter(d => d.type === 'alveo')
+  const bonus      = group.deals.filter(d => d.type === 'bonus')
+
+  const salaire         = getSalaire(group.nom)
+  const totalAvecSalaire = group.totalCommission + salaire
 
   return (
     <div className={cn(
-      'bg-white rounded-xl border shadow-sm overflow-hidden transition-all',
+      'bg-white rounded-xl border shadow-sm overflow-hidden',
       allPaid ? 'border-green-100' : 'border-gray-100',
     )}>
-      {/* En-tête */}
-      <div className="px-5 py-4 flex items-center gap-4">
+      {/* En-tête cliquable */}
+      <button
+        onClick={() => setOuvert(v => !v)}
+        className="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors text-left"
+      >
         <div className={cn(
           'w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
-          group.role === 'closer'
-            ? 'bg-violet-100 text-violet-700'
-            : 'bg-blue-100 text-blue-700',
+          group.role === 'closer' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700',
         )}>
           {group.nom.charAt(0).toUpperCase()}
         </div>
@@ -342,132 +343,74 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
             <p className="text-sm font-semibold text-gray-900 truncate">{group.nom}</p>
             <span className={cn(
               'text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide',
-              group.role === 'closer'
-                ? 'bg-violet-100 text-violet-600'
-                : 'bg-blue-100 text-blue-600',
+              group.role === 'closer' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600',
             )}>
               {group.role}
             </span>
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
-            {nouveaux.length > 0 && `${nouveaux.length} deal${nouveaux.length !== 1 ? 's' : ''}`}
-            {nouveaux.length > 0 && (recurrents.length > 0 || alveos.length > 0) && ' · '}
-            {recurrents.length > 0 && `${recurrents.length} récurrent${recurrents.length !== 1 ? 's' : ''}`}
-            {recurrents.length > 0 && alveos.length > 0 && ' · '}
-            {alveos.length > 0 && `${alveos.length} Alveo`}
-            {' · '}
             {allPaid
               ? <span className="text-green-600 font-medium">Tout payé ✓</span>
               : <span className="text-amber-600 font-medium">{dollar(group.pendingCommission)} en attente</span>
             }
           </p>
         </div>
-        <div className="shrink-0 text-right">
-          <p className="text-lg font-bold tabular-nums text-gray-900">{dollar(group.totalCommission)}</p>
-          {hasSections ? (
-            <div className="flex gap-2 text-[10px] justify-end mt-0.5 flex-wrap">
-              {commNouveaux > 0 && <span className="text-violet-500 font-medium">{dollar(commNouveaux)} new</span>}
-              {commNouveaux > 0 && commRecurrents > 0 && <span className="text-gray-300">·</span>}
-              {commRecurrents > 0 && <span className="text-blue-400 font-medium">{dollar(commRecurrents)} réc.</span>}
-              {commAlveos > 0 && commRecurrents > 0 && <span className="text-gray-300">·</span>}
-              {commAlveos > 0 && commNouveaux > 0 && commRecurrents === 0 && <span className="text-gray-300">·</span>}
-              {commAlveos > 0 && <span className="text-amber-500 font-medium">{dollar(commAlveos)} alveo</span>}
-            </div>
-          ) : (
-            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Commission totale</p>
-          )}
+        <div className="shrink-0 text-right flex items-center gap-3">
+          <div>
+            <p className="text-xl font-bold tabular-nums text-gray-900">{dollar(totalAvecSalaire)}</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-wide text-right">
+              {salaire > 0
+                ? `salaire + ${group.deals.length} commission${group.deals.length !== 1 ? 's' : ''}`
+                : `${group.deals.length} transaction${group.deals.length !== 1 ? 's' : ''}`
+              }
+            </p>
+          </div>
+          {ouvert
+            ? <ChevronUp size={16} className="text-gray-300 shrink-0" />
+            : <ChevronDown size={16} className="text-gray-300 shrink-0" />
+          }
         </div>
-      </div>
+      </button>
 
-      {/* Actions */}
-      {(!allPaid || group.deals.length > 0) && (
-        <div className="px-5 pb-3 flex items-center justify-between gap-3">
-          <button
-            onClick={() => setOuvert(v => !v)}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            {ouvert ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-            {ouvert ? 'Masquer les deals' : 'Voir les deals'}
-          </button>
-          {!allPaid && isAdmin && (
-            <button
-              onClick={() => onApprouver(group.pendingIds)}
-              disabled={pending}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
-            >
-              <CheckCircle2 size={12} />
-              Approuver la paie
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Détail des deals */}
+      {/* Détail inline — visible après clic */}
       {ouvert && (
-        <div className="border-t border-gray-50">
-          {hasSections ? (
-            <>
-              {nouveaux.length > 0 && (
-                <div>
-                  <div className="px-5 py-2 flex items-center justify-between bg-gray-50/60 border-b border-gray-100">
-                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Nouvelles deals</span>
-                    <span className={cn('text-xs font-bold tabular-nums', group.role === 'closer' ? 'text-violet-600' : 'text-blue-600')}>
-                      {dollar(commNouveaux)}
-                    </span>
-                  </div>
-                  <DealTable deals={nouveaux} role={group.role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
-                </div>
-              )}
-              {recurrents.length > 0 && (
-                <div className="border-t border-gray-100">
-                  <div className="px-5 py-2 flex items-center justify-between bg-blue-50/40 border-b border-blue-50">
-                    <span className="text-[11px] font-semibold text-blue-500 uppercase tracking-wider">Récurrents</span>
-                    <span className="text-xs font-bold tabular-nums text-blue-600">{dollar(commRecurrents)}</span>
-                  </div>
-                  <DealTable deals={recurrents} role={group.role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
-                </div>
-              )}
-              {alveos.length > 0 && (
-                <div className="border-t border-gray-100">
-                  <div className="px-5 py-2 flex items-center justify-between bg-amber-50/40 border-b border-amber-50">
-                    <span className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Alveo</span>
-                    <span className="text-xs font-bold tabular-nums text-amber-600">{dollar(commAlveos)}</span>
-                  </div>
-                  <div className="divide-y divide-gray-50">
-                    {alveos.map(d => (
-                      <div key={d.id} className="px-5 py-2.5 flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-700 truncate max-w-[200px]">{d.client_name}</span>
-                        <span className={cn('text-xs font-semibold tabular-nums', group.role === 'closer' ? 'text-violet-700' : 'text-blue-700')}>
-                          {dollar(d.maCommission)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : alveos.length > 0 ? (
-            <div className="divide-y divide-gray-50">
-              {alveos.map(d => (
-                <div key={d.id} className="px-5 py-2.5 flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-700 truncate max-w-[200px]">{d.client_name}</span>
-                  <span className={cn('text-xs font-semibold tabular-nums', group.role === 'closer' ? 'text-violet-700' : 'text-blue-700')}>
-                    {dollar(d.maCommission)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <DealTable deals={group.deals} role={group.role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
-          )}
-          {group.deals.some(d => d.notes && !isRecurringNote(d.notes) && !isAlveoNote(d.notes)) && (
-            <div className="px-5 py-2 border-t border-gray-50">
-              {group.deals.filter(d => d.notes && !isRecurringNote(d.notes) && !isAlveoNote(d.notes)).map(d => (
-                <p key={d.id} className="text-[11px] text-gray-400 italic">{d.client_name} : {d.notes}</p>
-              ))}
+        <>
+          {!allPaid && isAdmin && (
+            <div className="px-5 pb-3 flex justify-end border-t border-gray-50 pt-3">
+              <button
+                onClick={e => { e.stopPropagation(); onApprouver(group.pendingIds) }}
+                disabled={pending}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >
+                <CheckCircle2 size={12} />
+                Approuver la paie
+              </button>
             </div>
           )}
-        </div>
+          {salaire > 0 && (
+            <SectionSalaire montant={salaire} isAdmin={isAdmin} />
+          )}
+          <SectionDeals
+            label="Nouvelles deals" labelCls="text-violet-700" headerCls="bg-gray-50/60"
+            deals={nouveaux} role={group.role} isAdmin={isAdmin} pending={pending}
+            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete}
+          />
+          <SectionDeals
+            label="Récurrents" labelCls="text-blue-600" headerCls="bg-blue-50/30"
+            deals={recurrents} role={group.role} isAdmin={isAdmin} pending={pending}
+            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete}
+          />
+          <SectionDeals
+            label="Financement Alveo" labelCls="text-amber-600" headerCls="bg-amber-50/30"
+            deals={alveos} role={group.role} isAdmin={isAdmin} pending={pending}
+            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete}
+          />
+          <SectionDeals
+            label="Bonus" labelCls="text-emerald-600" headerCls="bg-emerald-50/30"
+            deals={bonus} role={group.role} isAdmin={isAdmin} pending={pending}
+            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete}
+          />
+        </>
       )}
     </div>
   )
@@ -811,9 +754,44 @@ function HistGroupSection({ label, totalComm, payeComm, employees }: {
 
 const PAYROLL_PRENOMS = ['emma', 'kalianna', 'jacinthe']
 
+const PAYROLL_SALAIRES: Record<string, number> = {
+  emma:     750,
+  kalianna: 500,
+  jacinthe: 2000,
+}
+
 function isPayroll(nom: string): boolean {
   const prenom = nom.trim().toLowerCase().split(' ')[0]
   return PAYROLL_PRENOMS.includes(prenom)
+}
+
+function getSalaire(nom: string): number {
+  const prenom = nom.trim().toLowerCase().split(' ')[0]
+  return PAYROLL_SALAIRES[prenom] ?? 0
+}
+
+function SectionSalaire({ montant, isAdmin }: { montant: number; isAdmin: boolean }) {
+  return (
+    <div className="border-t border-gray-100">
+      <div className="px-5 py-2.5 flex items-center justify-between bg-gray-50/40">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Salaire fixe</span>
+        <span className="text-xs font-bold tabular-nums text-gray-700">{dollar(montant)}</span>
+      </div>
+      <table className="w-full text-xs">
+        <tbody>
+          <tr className="hover:bg-gray-50/50">
+            <td className="px-5 py-2.5 font-medium text-gray-800">Salaire de base</td>
+            <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">—</td>
+            <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-700">{dollar(montant)}</td>
+            <td className="px-4 py-2.5">
+              <Badge variant="green">Fixe</Badge>
+            </td>
+            {isAdmin && <td className="px-4 py-2.5" />}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 // ── Vue principale admin / CSM ────────────────────────────────────────
@@ -887,7 +865,7 @@ export default function AdminView({
           maCommission: maComm,
           statut: e.statut,
           notes: e.notes,
-          type: isAlveoNote(e.notes) ? 'alveo' : isRecurringNote(e.notes) ? 'recurrent' : 'nouveau',
+          type: isAlveoNote(e.notes) ? 'alveo' : isRecurringNote(e.notes) ? 'recurrent' : isBonusNote(e.notes) ? 'bonus' : 'nouveau',
         })
         g.totalCommission  += maComm
         if (e.statut !== 'Payé') {
@@ -1008,7 +986,6 @@ export default function AdminView({
         isAdmin={isAdmin}
         teamMembers={teamMembers}
         periodes={periodesCourant}
-        bonusEntrees={bonusEntrees}
       />
 
       {/* ── Historique groupé ─────────────────────────────────────────── */}
