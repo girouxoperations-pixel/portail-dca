@@ -752,10 +752,10 @@ export default async function DashboardPage({
       byUser.set(e.closed_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
     return Array.from(byUser.entries())
-      .filter(([, v]) => v.closes > 0)
+      .filter(([uid, v]) => v.closes > 0 && profileMap.has(uid))
       .sort(([, a], [, b]) => b.closes - a.closes || b.cash - a.cash)
       .map(([uid, v]) => ({
-        nom:       profileMap.get(uid) ?? 'Inconnu',
+        nom:       profileMap.get(uid)!,
         primary:   `${v.closes} close${v.closes > 1 ? 's' : ''}`,
         secondary: `${dollar(v.cash)} collecté`,
       }))
@@ -771,10 +771,10 @@ export default async function DashboardPage({
       byUser.set(e.set_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
     return Array.from(byUser.entries())
-      .filter(([, v]) => v.closes > 0)
+      .filter(([uid, v]) => v.closes > 0 && profileMap.has(uid))
       .sort(([, a], [, b]) => b.closes - a.closes || b.cash - a.cash)
       .map(([uid, v]) => ({
-        nom:       profileMap.get(uid) ?? 'Inconnu',
+        nom:       profileMap.get(uid)!,
         primary:   `${v.closes} deal${v.closes > 1 ? 's' : ''} settés`,
         secondary: `${dollar(v.cash)} collecté`,
       }))
