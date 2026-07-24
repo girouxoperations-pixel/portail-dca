@@ -482,7 +482,9 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'annulé'>('actif')
   const [filterPerson, setFilterPerson] = useState('tous')
 
-  const TEAM_NAMES = ['shanny', 'jacinthe', 'kalianna', 'kim', 'melika', 'audrey']
+  const TEAM_NAMES = new Set(['shanny', 'jacinthe', 'kalianna', 'kim', 'melika', 'audrey'])
+  const norm = (s: string) =>
+    s.toLowerCase().trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
   const allPersons = useMemo(() => {
     const s = new Set<string>()
@@ -491,7 +493,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
       if (d.closer_name) s.add(d.closer_name)
     })
     return Array.from(s)
-      .filter(p => TEAM_NAMES.some(n => p.toLowerCase().startsWith(n)))
+      .filter(p => TEAM_NAMES.has(norm(p)))
       .sort()
   }, [deals])
 
