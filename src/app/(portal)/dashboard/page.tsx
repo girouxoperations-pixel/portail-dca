@@ -623,9 +623,13 @@ export default async function DashboardPage({
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
-  const profileMap     = new Map((allProfiles ?? []).map(p => [p.id, p.full_name as string]))
-  const closerProfiles = (allProfiles ?? []).filter(p => p.role === 'closer')
-  const setterProfiles = (allProfiles ?? []).filter(p => p.role === 'setter')
+  const EXCLUDED_FROM_LB = ['samuel giroux']
+  const visibleProfiles  = (allProfiles ?? []).filter(
+    p => !EXCLUDED_FROM_LB.includes((p.full_name ?? '').toLowerCase().trim())
+  )
+  const profileMap     = new Map(visibleProfiles.map(p => [p.id, p.full_name as string]))
+  const closerProfiles = visibleProfiles.filter(p => p.role === 'closer')
+  const setterProfiles = visibleProfiles.filter(p => p.role === 'setter')
 
   // ── Aggregate closer_entries (all months — for trend + personal views) ─
   type EntryAgg = { scheduled: number; shows: number; pitches: number; closes: number; cash: number; revenue: number }
