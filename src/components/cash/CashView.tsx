@@ -359,8 +359,8 @@ function ModalNouveauDeal({
   const today = new Date().toISOString().slice(0, 10)
 
   const [versementsMode, setVersementsMode] = useState<'1' | '2' | '3' | 'autre'>('1')
-  const [autreDates,     setAutreDates]     = useState<string[]>([''])
-  const [autreAmounts,   setAutreAmounts]   = useState<number[]>([0, 0])
+  const [autreDates,     setAutreDates]     = useState<string[]>([])
+  const [autreAmounts,   setAutreAmounts]   = useState<number[]>([0])
   const [entryDate,      setEntryDate]      = useState(today)
   const [montant,        setMontant]        = useState(0)
   const [methode,        setMethode]        = useState('')
@@ -466,7 +466,7 @@ function ModalNouveauDeal({
               {(['1', '2', '3', 'autre'] as const).map((n, i) => (
                 <button
                   key={n} type="button"
-                  onClick={() => { setVersementsMode(n); if (n === 'autre') { setAutreDates(['']); setAutreAmounts([0, 0]) } }}
+                  onClick={() => { setVersementsMode(n); if (n === 'autre') { setAutreDates([]); setAutreAmounts([0]) } }}
                   className={cn(
                     'flex-1 py-2.5 font-medium transition-colors',
                     i > 0 && 'border-l border-gray-200',
@@ -483,7 +483,7 @@ function ModalNouveauDeal({
         </div>
 
         {/* Plan de versements */}
-        {versements > 1 && (
+        {(versements > 1 || versementsMode === 'autre') && (
           <div className="rounded-lg bg-violet-50 border border-violet-100 p-4 space-y-3">
             <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
               {versementsMode === 'autre'
@@ -547,7 +547,7 @@ function ModalNouveauDeal({
                         />
                       </div>
                     </div>
-                    {autreDates.length > 1 && (
+                    {autreDates.length > 0 && (
                       <button
                         type="button"
                         onClick={() => {

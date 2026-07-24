@@ -221,7 +221,9 @@ function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }
         {deals.map(d => (
           <tr key={d.id} className="hover:bg-gray-50/50">
             <td className="px-5 py-2.5 font-medium text-gray-800 max-w-[140px] truncate">{d.client_name}</td>
-            <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{dollar(d.collected)}</td>
+            <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">
+              {d.type === 'bonus' ? '—' : dollar(d.collected)}
+            </td>
             <td className={cn(
               'px-4 py-2.5 text-right tabular-nums font-semibold',
               role === 'closer' ? 'text-violet-700' : 'text-blue-700',

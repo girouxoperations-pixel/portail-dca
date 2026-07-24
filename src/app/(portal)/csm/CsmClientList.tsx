@@ -19,7 +19,7 @@ import {
 type StatusFilter =
   | 'tous' | 'active' | 'm2_missed' | 'm3_missed'
   | 'cert_setter' | 'cert_closer' | 'eval_failed' | 'paused' | 'dropped' | 'refund'
-  | 'j90_auto' | 'overdue_texts'
+  | 'j90_auto' | 'overdue_texts' | 'meetings_today'
 
 const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }> = {
   active:      { label: 'Active',       cls: 'bg-green-100 text-green-700'  },
@@ -95,11 +95,12 @@ function EditableOnboardingCell({ clientId, date }: {
 
 // ── Editable meeting date cell ────────────────────────────────────────
 
-function EditableMCell({ clientId, num, date, missed }: {
-  clientId: string
-  num:      1 | 2 | 3 | 4
-  date:     string | null
-  missed:   boolean
+function EditableMCell({ clientId, num, date, missed, cancelled }: {
+  clientId:  string
+  num:       1 | 2 | 3 | 4
+  date:      string | null
+  missed:    boolean
+  cancelled?: boolean
 }) {
   const [open, setOpen]    = useState(false)
   const [val, setVal]      = useState(date ?? '')
@@ -121,20 +122,23 @@ function EditableMCell({ clientId, num, date, missed }: {
     })
   }
 
-  const cellCls = missed
-    ? 'bg-red-100 text-red-700 border border-red-300'
-    : !date
-      ? 'bg-gray-50 text-gray-300 border border-dashed border-gray-200'
-      : date < todayStr
-        ? 'bg-green-100 text-green-800 border border-green-200'
-        : date === todayStr
-          ? 'bg-red-500 text-white border border-red-600'
-          : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+  const effectiveCancelled = cancelled && !date && !missed
+  const cellCls = effectiveCancelled
+    ? 'bg-gray-100 text-gray-400 border border-gray-200 line-through'
+    : missed
+      ? 'bg-red-100 text-red-700 border border-red-300'
+      : !date
+        ? 'bg-gray-50 text-gray-300 border border-dashed border-gray-200'
+        : date < todayStr
+          ? 'bg-green-100 text-green-800 border border-green-200'
+          : date === todayStr
+            ? 'bg-red-500 text-white border border-red-600'
+            : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
 
   return (
     <td className="px-2 py-2 text-center relative">
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { if (!effectiveCancelled) setOpen(v => !v) }}
         className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium w-full min-w-[52px] transition-all', cellCls)}
       >
         {missed
@@ -185,7 +189,7 @@ function EditableMCell({ clientId, num, date, missed }: {
 
 // ── Text touchpoint cell ──────────────────────────────────────────────
 
-function TextCell({ clientId, field, done, dueDate, actualDate, today: todayStr, info }: {
+function TextCell({ clientId, field, done, dueDate, actualDate, today: todayStr, info, cancelled }: {
   clientId:   string
   field:      'j7' | 'j24' | 'j49' | 'j63' | 'j77' | 'j90'
   done:       boolean
@@ -193,24 +197,28 @@ function TextCell({ clientId, field, done, dueDate, actualDate, today: todayStr,
   actualDate: string | null
   today:      string
   info?:      string
+  cancelled?: boolean
 }) {
   const [pending, start] = useTransition()
+  const effectiveCancelled = cancelled && !done
   const displayDate = done && actualDate ? actualDate : dueDate
-  const cls = done
-    ? 'bg-green-100 text-green-800 border border-green-200'
-    : dueDate <= todayStr
-      ? 'bg-red-100 text-red-700 border border-red-200'
-      : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+  const cls = effectiveCancelled
+    ? 'bg-gray-100 text-gray-400 border border-gray-200 line-through'
+    : done
+      ? 'bg-green-100 text-green-800 border border-green-200'
+      : dueDate <= todayStr
+        ? 'bg-red-100 text-red-700 border border-red-200'
+        : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
 
   return (
     <td className="px-2 py-2 text-center">
       <button
-        onClick={() => start(async () => toggleText(clientId, field, !done))}
-        disabled={pending}
+        onClick={() => { if (!effectiveCancelled) start(async () => toggleText(clientId, field, !done)) }}
+        disabled={pending || effectiveCancelled}
         className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center justify-center gap-0.5 w-full transition-all', cls)}
       >
         {done && <CheckCircle2 size={8} />}
-        {!done && dueDate <= todayStr && <Clock size={8} />}
+        {!done && !effectiveCancelled && dueDate <= todayStr && <Clock size={8} />}
         {formatDate(displayDate)}
       </button>
       {info && <p className="text-[9px] text-gray-400 mt-0.5 leading-tight">{info}</p>}
@@ -495,6 +503,11 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
       if (statusFilter === 'cert_closer'    && !c.cert_closer_done)        return false
       if (statusFilter === 'j90_auto'       && dayN < 90)                  return false
       if (statusFilter === 'overdue_texts'  && !hasOverdueText(c))         return false
+      if (statusFilter === 'meetings_today' &&
+          c.onboarding_date !== todayStr &&
+          c.m2_date !== todayStr &&
+          c.m3_date !== todayStr &&
+          c.m4_date !== todayStr)                                           return false
       // Refund + eval_failed only show in their dedicated tab — hide from 'tous'
       if (statusFilter === 'tous' && (c.status === 'refund' || c.status === 'eval_failed')) return false
       const simpleStatusFilters = ['active', 'paused', 'eval_failed', 'dropped', 'refund']
@@ -511,9 +524,15 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
   const overdue     = clients.filter(hasOverdueText).length
   const refundCount = clients.filter(c => c.status === 'refund').length
 
-  const m2NoShowCount = clients.filter(c => c.m2_missed).length
-  const m3NoShowCount = clients.filter(c => c.m3_missed).length
-  const j90Count      = clients.filter(c => daysBetween(c.enrollment_date, todayStr) >= 90).length
+  const m2NoShowCount   = clients.filter(c => c.m2_missed).length
+  const m3NoShowCount   = clients.filter(c => c.m3_missed).length
+  const j90Count        = clients.filter(c => daysBetween(c.enrollment_date, todayStr) >= 90).length
+  const meetingsToday   = clients.filter(c =>
+    c.onboarding_date === todayStr ||
+    c.m2_date === todayStr ||
+    c.m3_date === todayStr ||
+    c.m4_date === todayStr
+  ).length
 
   const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     { key: 'tous',         label: 'Toutes'                                                                              },
@@ -525,8 +544,9 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
     { key: 'eval_failed',  label: 'Eval échoué'                                                                         },
     { key: 'paused',       label: 'En pause'                                                                            },
     { key: 'dropped',      label: 'Abandons'                                                                            },
-    { key: 'j90_auto',     label: `+90 jours${j90Count > 0 ? ` (${j90Count})` : ''}`                                  },
-    { key: 'refund',       label: `Remboursé${refundCount > 0 ? ` (${refundCount})` : ''}`                             },
+    { key: 'j90_auto',       label: `+90 jours${j90Count > 0 ? ` (${j90Count})` : ''}`                                  },
+    { key: 'meetings_today', label: `Meeting du jour${meetingsToday > 0 ? ` (${meetingsToday})` : ''}`                  },
+    { key: 'refund',         label: `Remboursé${refundCount > 0 ? ` (${refundCount})` : ''}`                             },
   ]
 
   const csvData = filtered.map(c => ({
@@ -585,18 +605,21 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
         </div>
         <div className={cn(
           'rounded-xl border shadow-sm p-4 cursor-pointer transition-all',
-          j90Count > 0 ? 'bg-orange-50 border-orange-200 hover:bg-orange-100' : 'bg-white border-gray-100',
-          statusFilter === 'j90_auto' && 'ring-2 ring-orange-400',
+          meetingsToday > 0 ? 'bg-violet-50 border-violet-200 hover:bg-violet-100' : 'bg-white border-gray-100',
+          statusFilter === 'meetings_today' && 'ring-2 ring-violet-400',
         )}
-          onClick={() => setStatusFilter(sf => sf === 'j90_auto' ? 'tous' : 'j90_auto')}
+          onClick={() => setStatusFilter(sf => sf === 'meetings_today' ? 'tous' : 'meetings_today')}
         >
           <div className="flex items-center gap-2 mb-1">
-            <AlertTriangle size={14} className={j90Count > 0 ? 'text-orange-500' : 'text-gray-300'} />
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">+90 jours</p>
+            <Clock size={14} className={meetingsToday > 0 ? 'text-violet-500' : 'text-gray-300'} />
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Meeting du jour</p>
           </div>
-          <p className={cn('text-2xl font-bold tabular-nums', j90Count > 0 ? 'text-orange-600' : 'text-gray-300')}>
-            {j90Count > 0 ? j90Count : '—'}
+          <p className={cn('text-2xl font-bold tabular-nums', meetingsToday > 0 ? 'text-violet-600' : 'text-gray-300')}>
+            {meetingsToday > 0 ? meetingsToday : '—'}
           </p>
+          {meetingsToday > 0 && (
+            <p className="text-[10px] text-violet-400 mt-0.5">ONB · M2 · M3 · M4</p>
+          )}
         </div>
       </div>
 
@@ -839,25 +862,26 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
                         done={c.text_j7_done} dueDate={due.j7} actualDate={c.text_j7_date}
                         today={todayStr}
                         info={j7Info}
+                        cancelled={c.status === 'refund'}
                       />
 
                       {/* M2 */}
-                      <EditableMCell clientId={c.id} num={2} date={c.m2_date} missed={c.m2_missed} />
+                      <EditableMCell clientId={c.id} num={2} date={c.m2_date} missed={c.m2_missed} cancelled={c.status === 'refund'} />
 
                       {/* J+24 */}
-                      <TextCell clientId={c.id} field="j24" done={c.text_j24_done} dueDate={due.j24} actualDate={c.text_j24_date} today={todayStr} />
+                      <TextCell clientId={c.id} field="j24" done={c.text_j24_done} dueDate={due.j24} actualDate={c.text_j24_date} today={todayStr} cancelled={c.status === 'refund'} />
 
                       {/* M3 */}
-                      <EditableMCell clientId={c.id} num={3} date={c.m3_date} missed={c.m3_missed} />
+                      <EditableMCell clientId={c.id} num={3} date={c.m3_date} missed={c.m3_missed} cancelled={c.status === 'refund'} />
 
                       {/* Post-M3 touchpoints */}
-                      <TextCell clientId={c.id} field="j49" done={c.text_j49_done} dueDate={due.j49} actualDate={c.text_j49_date} today={todayStr} />
-                      <TextCell clientId={c.id} field="j63" done={c.text_j63_done} dueDate={due.j63} actualDate={c.text_j63_date} today={todayStr} />
-                      <TextCell clientId={c.id} field="j77" done={c.text_j77_done} dueDate={due.j77} actualDate={c.text_j77_date} today={todayStr} />
-                      <TextCell clientId={c.id} field="j90" done={c.text_j90_done} dueDate={due.j90} actualDate={c.text_j90_date} today={todayStr} />
+                      <TextCell clientId={c.id} field="j49" done={c.text_j49_done} dueDate={due.j49} actualDate={c.text_j49_date} today={todayStr} cancelled={c.status === 'refund'} />
+                      <TextCell clientId={c.id} field="j63" done={c.text_j63_done} dueDate={due.j63} actualDate={c.text_j63_date} today={todayStr} cancelled={c.status === 'refund'} />
+                      <TextCell clientId={c.id} field="j77" done={c.text_j77_done} dueDate={due.j77} actualDate={c.text_j77_date} today={todayStr} cancelled={c.status === 'refund'} />
+                      <TextCell clientId={c.id} field="j90" done={c.text_j90_done} dueDate={due.j90} actualDate={c.text_j90_date} today={todayStr} cancelled={c.status === 'refund'} />
 
                       {/* M4 */}
-                      <EditableMCell clientId={c.id} num={4} date={c.m4_date} missed={c.m4_missed} />
+                      <EditableMCell clientId={c.id} num={4} date={c.m4_date} missed={c.m4_missed} cancelled={c.status === 'refund'} />
 
                       {/* Toggleable milestone cells */}
                       <ToggleCell clientId={c.id} field="cert_setter_done"  done={c.cert_setter_done}  green />
