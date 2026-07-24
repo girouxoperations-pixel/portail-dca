@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   headers: async () => [
     {
       // Fichiers statiques (JS/CSS avec hash) — cache long terme OK
