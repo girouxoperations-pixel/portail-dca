@@ -571,7 +571,10 @@ export default function AlveoView({ deals, isAdmin }: Props) {
               {allPersons.map(person => {
                 const pending = deals
                   .flatMap(d => d.payments.map(p => ({ ...p, deal: d })))
-                  .filter(p => !p.paid && (p.deal.setter_name === person || p.deal.closer_name === person))
+                  .filter(p => !p.paid && (
+                    (p.person_role === 'setter' && p.deal.setter_name === person) ||
+                    (p.person_role === 'closer' && p.deal.closer_name === person)
+                  ))
                   .reduce((s, p) => s + p.amount, 0)
                 if (pending === 0) return null
                 return (
