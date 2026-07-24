@@ -15,6 +15,7 @@ import {
   CreditCard,
   Trophy,
   Archive,
+  Mic,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -44,6 +45,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Clientes CSM', href: '/csm',         icon: BookUser        },
     { label: 'Clients',     href: '/clients',      icon: Archive         },
     { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },
+    { label: 'Analyseur',   href: '/analyseur',    icon: Mic             },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
     { label: 'Admin',       href: '/admin',        icon: ShieldCheck     },
@@ -61,6 +63,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake },
     { label: 'Clientes CSM', href: '/csm',         icon: BookUser        },
     { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },
+    { label: 'Analyseur',   href: '/analyseur',    icon: Mic             },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
   ],
@@ -74,6 +77,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Équipe',       href: '/equipe',        icon: Trophy          },
     { label: 'Mon Suivi',    href: '/closer',       icon: Phone           },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
+    { label: 'Analyseur',   href: '/analyseur',    icon: Mic             },
     { label: 'Feedback',     href: '/feedback',     icon: MessageSquare   },
     { label: 'Ma Paie',      href: '/payes',        icon: Banknote        },
     { label: 'Documents',    href: '/documents',    icon: FolderOpen      },
@@ -82,6 +86,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard },
     { label: 'Équipe',     href: '/equipe',      icon: Trophy          },
     { label: 'Mon Suivi',  href: '/setter',      icon: Users           },
+    { label: 'Analyseur',  href: '/analyseur',   icon: Mic             },
     { label: 'Feedback',   href: '/feedback',    icon: MessageSquare   },
     { label: 'Ma Paie',    href: '/payes',        icon: Banknote        },
     { label: 'Documents',  href: '/documents',   icon: FolderOpen      },
