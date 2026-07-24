@@ -482,13 +482,17 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'annulé'>('actif')
   const [filterPerson, setFilterPerson] = useState('tous')
 
+  const TEAM_NAMES = ['shanny', 'jacinthe', 'kalianna', 'kim', 'melika', 'audrey']
+
   const allPersons = useMemo(() => {
     const s = new Set<string>()
     deals.forEach(d => {
       if (d.setter_name) s.add(d.setter_name)
       if (d.closer_name) s.add(d.closer_name)
     })
-    return Array.from(s).sort()
+    return Array.from(s)
+      .filter(p => TEAM_NAMES.some(n => p.toLowerCase().startsWith(n)))
+      .sort()
   }, [deals])
 
   const filtered = useMemo(() => {
