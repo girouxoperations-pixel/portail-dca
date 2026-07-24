@@ -750,7 +750,6 @@ export default async function DashboardPage({
     return Array.from(byUser.entries())
       .filter(([, v]) => v.closes > 0)
       .sort(([, a], [, b]) => b.closes - a.closes || b.cash - a.cash)
-      .slice(0, 3)
       .map(([uid, v]) => ({
         nom:       profileMap.get(uid) ?? 'Inconnu',
         primary:   `${v.closes} close${v.closes > 1 ? 's' : ''}`,
@@ -770,7 +769,6 @@ export default async function DashboardPage({
     return Array.from(byUser.entries())
       .filter(([, v]) => v.closes > 0)
       .sort(([, a], [, b]) => b.closes - a.closes || b.cash - a.cash)
-      .slice(0, 3)
       .map(([uid, v]) => ({
         nom:       profileMap.get(uid) ?? 'Inconnu',
         primary:   `${v.closes} deal${v.closes > 1 ? 's' : ''} settés`,

@@ -23,18 +23,20 @@ function LeaderboardCard({ title, emoji, rows }: { title: string; emoji: string;
         <span className="text-base">{emoji}</span>
         <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
       </div>
-      <div className="space-y-1">
+      <div className="space-y-0.5 max-h-80 overflow-y-auto pr-1">
         {rows.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-4">Aucune donnée</p>
         )}
         {rows.map((r, i) => (
-          <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
-            <span className="text-lg w-6 text-center shrink-0">{RANK_MEDAL[i] ?? `#${i + 1}`}</span>
+          <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors ${i >= 3 ? 'opacity-70' : ''}`}>
+            <span className={`text-center shrink-0 ${i < 3 ? 'text-lg w-6' : 'text-xs font-bold text-gray-400 w-6'}`}>
+              {RANK_MEDAL[i] ?? `#${i + 1}`}
+            </span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-900 truncate">{r.nom}</p>
               <p className="text-xs text-gray-400 mt-0.5">{r.secondary}</p>
             </div>
-            <span className="text-sm font-bold text-violet-600 tabular-nums shrink-0">{r.primary}</span>
+            <span className={`text-sm font-bold tabular-nums shrink-0 ${i < 3 ? 'text-violet-600' : 'text-gray-500'}`}>{r.primary}</span>
           </div>
         ))}
       </div>
