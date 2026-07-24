@@ -240,7 +240,7 @@ export default function ClientsView({
         subtitle="Registre complet de toutes les clientes — 2024, 2025 et 2026"
         action={
           <button
-            onClick={() => exportCSV(filtered, year)}
+            onClick={() => exportCSV(filtered, typeof year === 'number' ? year : currentYear)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium rounded-lg transition-colors"
           >
             <Download size={14} />
