@@ -477,9 +477,9 @@ function ModalAjout({ closers, setters, csmMembers, onClose }: { closers: Profil
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">CSM responsable</label>
+          <label className="text-sm font-medium text-gray-700">CSM</label>
           <select name="csm_id" className={INPUT_CLS}>
-            <option value="">— Non assignée —</option>
+            <option value="">— Aucune CSM —</option>
             {csmMembers.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>)}
           </select>
         </div>
