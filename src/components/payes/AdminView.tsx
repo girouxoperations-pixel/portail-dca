@@ -312,7 +312,7 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
           </div>
 
           {/* Client search */}
-          <div className="flex flex-col gap-1 relative">
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">Cliente</label>
             <input
               type="text"
@@ -323,26 +323,6 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
               placeholder="Chercher par nom…"
               className={INPUT_CLS}
             />
-            {showDrop && candidates.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-xl z-20 overflow-hidden">
-                {candidates.map(e => (
-                  <button
-                    key={e.id}
-                    onMouseDown={() => pick(e)}
-                    className="w-full px-4 py-2.5 text-left hover:bg-violet-50 transition-colors border-b border-gray-50 last:border-0"
-                  >
-                    <p className="text-sm font-medium text-gray-800 truncate">{e.client_name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {e.closer_id && <span className="text-violet-600">{profileMap.get(e.closer_id)}</span>}
-                      {e.closer_id && e.setter_id && <span className="text-gray-300"> · </span>}
-                      {e.setter_id && <span className="text-blue-600">{profileMap.get(e.setter_id)}</span>}
-                      <span className="text-gray-300"> — </span>
-                      <span>{e.period_label}</span>
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Montant */}
@@ -368,6 +348,28 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
             </button>
           </div>
         </div>
+
+        {/* Dropdown results — in normal flow to avoid clipping */}
+        {showDrop && candidates.length > 0 && (
+          <div className="mt-1 border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            {candidates.map(e => (
+              <button
+                key={e.id}
+                onMouseDown={() => pick(e)}
+                className="w-full px-4 py-2.5 text-left hover:bg-violet-50 transition-colors border-b border-gray-50 last:border-0"
+              >
+                <p className="text-sm font-medium text-gray-800 truncate">{e.client_name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {e.closer_id && <span className="text-violet-600">{profileMap.get(e.closer_id)}</span>}
+                  {e.closer_id && e.setter_id && <span className="text-gray-300"> · </span>}
+                  {e.setter_id && <span className="text-blue-600">{profileMap.get(e.setter_id)}</span>}
+                  <span className="text-gray-300"> — </span>
+                  <span>{e.period_label}</span>
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Commission impact preview */}
         {selected && (
