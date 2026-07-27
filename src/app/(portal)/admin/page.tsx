@@ -38,6 +38,7 @@ export default async function AdminPage() {
     { data: feedbackEntries },
     { data: mvpEntries },
     { data: orgChart },
+    { data: plMonths },
   ] = await Promise.all([
     db.from('profiles')
       .select('id, full_name, email, role, roles, avatar_url, created_at')
@@ -59,6 +60,7 @@ export default async function AdminPage() {
       .eq('client_name', '🏆 Bonus MVP')
       .limit(1),
     db.from('org_chart').select('data').eq('id', 'main').single(),
+    db.from('pl_months').select('id, year, month, data').order('year').order('month'),
   ])
 
   // ── Stats globales ────────────────────────────────────────────────
@@ -107,6 +109,7 @@ export default async function AdminPage() {
       bonusSetters={bonusSetters}
       mvpActuelNom={mvpActuelNom}
       orgChartData={orgChart?.data ?? DEFAULT_TREE}
+      plMonths={plMonths ?? []}
     />
   )
 }

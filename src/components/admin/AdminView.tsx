@@ -10,7 +10,8 @@ import {
   inviterMembre, modifierMembre, supprimerMembre, assignerMVP,
 } from '@/app/(portal)/admin/actions'
 import { PALIERS, dollar, getPalier } from '@/lib/constants'
-import OrgChartView, { type OrgNode } from '@/app/(portal)/admin/organigramme/OrgChartView'
+import OrgChartView, { type OrgNode }     from '@/app/(portal)/admin/organigramme/OrgChartView'
+import PLView,       { type PLMonthRecord } from '@/app/(portal)/admin/pl/PLView'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ type StatsGlobales = {
   moisLabel:    string
 }
 
-type Tab = 'membres' | 'stats' | 'bonus' | 'organigramme'
+type Tab = 'membres' | 'stats' | 'bonus' | 'organigramme' | 'pl'
 
 // ── Constantes ───────────────────────────────────────────────────────
 
@@ -422,6 +423,7 @@ export default function AdminView({
   bonusSetters,
   mvpActuelNom,
   orgChartData,
+  plMonths,
 }: {
   membres:       Membre[]
   currentUserId: string
@@ -431,6 +433,7 @@ export default function AdminView({
   bonusSetters:  BonusMembre[]
   mvpActuelNom:  string | null
   orgChartData:  OrgNode
+  plMonths:      PLMonthRecord[]
 }) {
   const [activeTab,   setActiveTab]   = useState<Tab>('membres')
   const [filtreRole,  setFiltreRole]  = useState<string>('tous')
@@ -475,7 +478,8 @@ export default function AdminView({
     { key: 'membres',       label: 'Membres',         icon: Users    },
     { key: 'stats',         label: 'Statistiques',    icon: BarChart3 },
     { key: 'bonus',         label: 'Bonus & MVP',     icon: Trophy   },
-    { key: 'organigramme',  label: 'Organigramme',    icon: Network  },
+    { key: 'organigramme',  label: 'Organigramme',    icon: Network     },
+    { key: 'pl',            label: 'P&L',             icon: TrendingUp  },
   ]
 
   return (
@@ -793,6 +797,11 @@ export default function AdminView({
       {/* ── TAB : ORGANIGRAMME ─────────────────────────────────────────── */}
       {activeTab === 'organigramme' && (
         <OrgChartView initialData={orgChartData} />
+      )}
+
+      {/* ── TAB : P&L ──────────────────────────────────────────────────── */}
+      {activeTab === 'pl' && (
+        <PLView initialMonths={plMonths} />
       )}
 
       {/* Modals */}
