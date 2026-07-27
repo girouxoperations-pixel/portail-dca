@@ -237,21 +237,13 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
       .slice(0, 6)
   }, [entrees, query])
 
-  const amount     = parseFloat(montantInput) || 0
-  const origCloser = Math.abs(selected?.commission ?? 0)
-  const origSetter = Math.abs(selected?.commission_setter ?? 0)
-  const origTotal  = origCloser + origSetter
+  const amount = parseFloat(montantInput) || 0
 
-  // Auto-fill commission splits when amount or selection changes
+  // Auto-fill commission splits: closer = 10%, setter = 5% of refund amount
   useEffect(() => {
     if (!selected || !amount) { setCommCloserIn(''); setCommSetterIn(''); return }
-    if (origTotal > 0) {
-      setCommCloserIn(String(Math.round(amount * (origCloser / origTotal) * 100) / 100))
-      setCommSetterIn(String(Math.round(amount * (origSetter / origTotal) * 100) / 100))
-    } else {
-      setCommCloserIn(selected.closer_id ? String(amount) : '0')
-      setCommSetterIn(selected.setter_id && !selected.closer_id ? String(amount) : '0')
-    }
+    setCommCloserIn(selected.closer_id ? String(Math.round(amount * 0.10 * 100) / 100) : '0')
+    setCommSetterIn(selected.setter_id ? String(Math.round(amount * 0.05 * 100) / 100) : '0')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [montantInput, selected?.id])
 
