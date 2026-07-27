@@ -211,7 +211,7 @@ export async function creerRemboursement(data: {
     montant:           -data.montantRefund,
     commission:        -data.commCloser,
     commission_setter: -data.commSetter,
-    statut:            'Remboursé',
+    statut:            'En attente',
     notes:             'Remboursement',
     created_by:        userId,
   })

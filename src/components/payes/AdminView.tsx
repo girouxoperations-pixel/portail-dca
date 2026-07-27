@@ -466,7 +466,7 @@ function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }
             {isAdmin && (
               <td className="px-4 py-2.5 text-right">
                 <div className="flex items-center justify-end gap-1.5">
-                  {d.statut !== 'Remboursé' && (
+                  {d.type !== 'refund' && (
                     <button
                       onClick={() => onEdit(d.id)}
                       className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
@@ -475,7 +475,7 @@ function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }
                       <Pencil size={11} />
                     </button>
                   )}
-                  {d.statut !== 'Remboursé' && (
+                  {d.type !== 'refund' && (
                     <button
                       onClick={() => onToggle(d.id, d.statut)}
                       disabled={pending}
@@ -900,7 +900,7 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
         {isAdmin && (
           <td className="px-4 py-3 text-right">
             <div className="flex items-center justify-end gap-1.5">
-              {e.statut !== 'Remboursé' && (
+              {!isRefundNote(e.notes) && (
                 <button
                   onClick={() => onEdit(e.id)}
                   className="p-1 rounded text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors"
@@ -909,7 +909,7 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
                   <Pencil size={12} />
                 </button>
               )}
-              {e.statut !== 'Remboursé' && (
+              {!isRefundNote(e.notes) && (
                 <button
                   onClick={() => onToggle(e.id, e.statut)}
                   disabled={pending}
@@ -1197,7 +1197,7 @@ export default function AdminView({
           type: isRefundNote(e.notes) ? 'refund' : isAlveoNote(e.notes) ? 'alveo' : isRecurringNote(e.notes) ? 'recurrent' : isBonusNote(e.notes) ? 'bonus' : 'nouveau',
         })
         g.totalCommission  += maComm
-        if (e.statut !== 'Payé' && e.statut !== 'Remboursé') {
+        if (e.statut !== 'Payé' && !isRefundNote(e.notes)) {
           g.pendingCommission += maComm
           if (!g.pendingIds.includes(e.id)) g.pendingIds.push(e.id)
         }
