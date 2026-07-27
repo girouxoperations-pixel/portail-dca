@@ -289,8 +289,8 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
   const setterNom = selected?.setter_id ? profileMap.get(selected.setter_id) : null
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+      <div className="px-5 py-4 border-b border-gray-50 rounded-t-xl">
         <h3 className="text-sm font-semibold text-gray-900">Remboursements</h3>
         <p className="text-xs text-gray-400 mt-0.5">Impact négatif automatique sur la paie du closer et du setter associés</p>
       </div>
