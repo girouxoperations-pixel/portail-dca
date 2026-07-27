@@ -38,7 +38,7 @@ type StatsGlobales = {
   moisLabel:    string
 }
 
-type Tab = 'membres' | 'stats' | 'bonus' | 'organigramme' | 'pl'
+type Tab = 'membres' | 'organigramme' | 'pl'
 
 // ── Constantes ───────────────────────────────────────────────────────
 
@@ -418,20 +418,12 @@ export default function AdminView({
   membres,
   currentUserId,
   isAdmin,
-  stats,
-  bonusClosers,
-  bonusSetters,
-  mvpActuelNom,
   orgChartData,
   plMonths,
 }: {
   membres:       Membre[]
   currentUserId: string
   isAdmin:       boolean
-  stats:         StatsGlobales
-  bonusClosers:  BonusMembre[]
-  bonusSetters:  BonusMembre[]
-  mvpActuelNom:  string | null
   orgChartData:  OrgNode
   plMonths:      PLMonthRecord[]
 }) {
@@ -439,7 +431,6 @@ export default function AdminView({
   const [filtreRole,  setFiltreRole]  = useState<string>('tous')
   const [modalInviter, setModalInviter] = useState(false)
   const [membreEdit,   setMembreEdit]   = useState<Membre | null>(null)
-  const [showModalMVP, setShowModalMVP] = useState(false)
   const [isPending,    startTransition] = useTransition()
   const [deleteError,  setDeleteError]  = useState<string | null>(null)
 
@@ -475,11 +466,9 @@ export default function AdminView({
   }
 
   const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { key: 'membres',       label: 'Membres',         icon: Users    },
-    { key: 'stats',         label: 'Statistiques',    icon: BarChart3 },
-    { key: 'bonus',         label: 'Bonus & MVP',     icon: Trophy   },
-    { key: 'organigramme',  label: 'Organigramme',    icon: Network     },
-    { key: 'pl',            label: 'P&L',             icon: TrendingUp  },
+    { key: 'membres',      label: 'Membres',      icon: Users      },
+    { key: 'organigramme', label: 'Organigramme', icon: Network    },
+    { key: 'pl',           label: 'P&L',          icon: TrendingUp },
   ]
 
   return (
@@ -498,15 +487,6 @@ export default function AdminView({
           >
             <Plus className="w-4 h-4" />
             Inviter un membre
-          </button>
-        )}
-        {isAdmin && activeTab === 'bonus' && !mvpActuelNom && (
-          <button
-            onClick={() => setShowModalMVP(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors shrink-0"
-          >
-            <Star className="w-4 h-4" />
-            Assigner MVP du mois
           </button>
         )}
       </div>
@@ -615,185 +595,6 @@ export default function AdminView({
         </>
       )}
 
-      {/* ── TAB : STATISTIQUES ─────────────────────────────────────────── */}
-      {activeTab === 'stats' && (
-        <div className="space-y-6">
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-              Performance — {stats.moisLabel}
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {[
-                {
-                  label:    'Total closes du mois',
-                  value:    stats.totalCloses,
-                  icon:     CheckCircle2,
-                  color:    'text-green-400',
-                  bg:       'bg-green-500/10',
-                  sub:      'Tous closers confondus',
-                },
-                {
-                  label:    'Cash collecté du mois',
-                  value:    dollar(stats.cashCollecte),
-                  icon:     Wallet,
-                  color:    'text-blue-400',
-                  bg:       'bg-blue-500/10',
-                  sub:      'Encaissements cash_entries',
-                },
-                {
-                  label:    'Score IA moyen',
-                  value:    stats.scoreIaMoyen !== null ? `${stats.scoreIaMoyen} / 100` : '—',
-                  icon:     TrendingUp,
-                  color:    'text-violet-400',
-                  bg:       'bg-violet-500/10',
-                  sub:      'Feedback appels IA ce mois',
-                },
-              ].map(({ label, value, icon: Icon, color, bg, sub }) => (
-                <div key={label} className="bg-white/5 border border-white/10 rounded-xl p-5">
-                  <div className={`${bg} w-10 h-10 rounded-xl flex items-center justify-center mb-4`}>
-                    <Icon className={`w-5 h-5 ${color}`} />
-                  </div>
-                  <p className="text-2xl font-bold text-white tabular-nums">{value}</p>
-                  <p className="text-xs font-medium text-gray-400 mt-0.5">{label}</p>
-                  <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-white/5">{sub}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-              Composition de l'équipe
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: 'Administrateurs', count: counts.admin,  role: 'admin'  },
-                { label: 'CSM',             count: counts.csm,    role: 'csm'    },
-                { label: 'Closers',         count: counts.closer, role: 'closer' },
-                { label: 'Setters',         count: counts.setter, role: 'setter' },
-              ].map(({ label, count, role }) => {
-                const style = ROLE_STYLE[role]
-                return (
-                  <div key={role} className="bg-white/5 border border-white/10 rounded-xl p-4">
-                    <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg mb-3 bg-white/5`}>
-                      <span className={`w-2.5 h-2.5 rounded-full ${style.dot}`} />
-                    </div>
-                    <p className="text-3xl font-bold text-white tabular-nums">{count}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <p className="text-xs text-gray-500">
-              Total équipe : <span className="text-white font-semibold">{counts.total} membres</span>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── TAB : BONUS & MVP ──────────────────────────────────────────── */}
-      {activeTab === 'bonus' && (
-        <div className="space-y-6">
-
-          {/* MVP actuel ou invitation */}
-          {mvpActuelNom ? (
-            <div className="flex items-center gap-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-                <Trophy className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-amber-300">MVP du mois — {stats.moisLabel}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  <span className="text-white font-medium">{mvpActuelNom}</span> a reçu un bonus de 500 $ ce mois-ci.
-                </p>
-              </div>
-            </div>
-          ) : isAdmin ? (
-            <div className="flex items-center justify-between gap-4 p-4 bg-white/5 border border-white/10 rounded-xl">
-              <div>
-                <p className="text-sm font-semibold text-white">Aucun MVP assigné — {stats.moisLabel}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Choisissez un membre à récompenser ce mois.</p>
-              </div>
-              <button
-                onClick={() => setShowModalMVP(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors shrink-0"
-              >
-                <Star className="w-4 h-4" />
-                Assigner
-              </button>
-            </div>
-          ) : null}
-
-          {/* Paliers */}
-          <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/10">
-              <h3 className="text-sm font-semibold text-white">Bonus automatiques — {stats.moisLabel}</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Calculés sur le cash collecté associé à chaque membre</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-white/5 text-gray-500">
-                    <th className="px-4 py-2.5 text-left">Palier collecté</th>
-                    <th className="px-4 py-2.5 text-right">Closer</th>
-                    <th className="px-4 py-2.5 text-right">Setter</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {PALIERS.map(p => (
-                    <tr key={p.seuil} className="hover:bg-white/3 transition-colors">
-                      <td className="px-4 py-2.5 font-medium text-white">{dollar(p.seuil)}</td>
-                      <td className="px-4 py-2.5 text-right text-green-400 font-semibold">+{dollar(p.closer)}</td>
-                      <td className="px-4 py-2.5 text-right text-amber-400 font-semibold">+{dollar(p.setter)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Bonus par closer / setter */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Closers */}
-            <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-white/10 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-400" />
-                <h3 className="text-sm font-semibold text-white">Closers</h3>
-              </div>
-              <div className="px-5">
-                {bonusClosers.length === 0 ? (
-                  <p className="py-6 text-sm text-gray-500 text-center">Aucune donnée ce mois</p>
-                ) : (
-                  bonusClosers.map(item => (
-                    <LigneBonus key={item.id} item={item} type="closer" />
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Setters */}
-            <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-white/10 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-amber-400" />
-                <h3 className="text-sm font-semibold text-white">Setters</h3>
-              </div>
-              <div className="px-5">
-                {bonusSetters.length === 0 ? (
-                  <p className="py-6 text-sm text-gray-500 text-center">Aucune donnée ce mois</p>
-                ) : (
-                  bonusSetters.map(item => (
-                    <LigneBonus key={item.id} item={item} type="setter" />
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── TAB : ORGANIGRAMME ─────────────────────────────────────────── */}
       {activeTab === 'organigramme' && (
         <OrgChartView initialData={orgChartData} />
@@ -807,7 +608,6 @@ export default function AdminView({
       {/* Modals */}
       {modalInviter     && <ModalInviter onClose={() => setModalInviter(false)} />}
       {membreEdit       && <ModalModifier membre={membreEdit} onClose={() => setMembreEdit(null)} />}
-      {showModalMVP     && <ModalMVP membres={membres} onClose={() => setShowModalMVP(false)} />}
     </div>
   )
 }

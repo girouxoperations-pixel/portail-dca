@@ -187,6 +187,39 @@ export async function ajouterBonusManuel(data: {
   revalidatePath('/payes')
 }
 
+export async function creerRemboursement(data: {
+  clientName:    string
+  closerId:      string | null
+  setterId:      string | null
+  montantRefund: number
+  commCloser:    number
+  commSetter:    number
+  periodLabel:   string
+  month:         number
+  year:          number
+}) {
+  const { userId } = await requireRole(['admin'])
+  const db = createAdminClient()
+
+  const { error } = await db.from('paye_entries').insert({
+    period_label:      data.periodLabel,
+    month:             data.month,
+    year:              data.year,
+    client_name:       data.clientName,
+    closer_id:         data.closerId,
+    setter_id:         data.setterId,
+    montant:           -data.montantRefund,
+    commission:        -data.commCloser,
+    commission_setter: -data.commSetter,
+    statut:            'Remboursé',
+    notes:             'Remboursement',
+    created_by:        userId,
+  })
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/payes')
+}
+
 export async function assignerMVP(
   personId: string,
   personRole: string,

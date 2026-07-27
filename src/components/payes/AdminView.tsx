@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useEffect } from 'react'
 import { CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutGrid, Table2, Pencil, History, XCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   basculerStatut,
   approuverPeriode, approuverPayesBatch, modifierPaye,
-  ajouterBonusManuel, supprimerPaye,
+  ajouterBonusManuel, supprimerPaye, creerRemboursement,
 } from '@/app/(portal)/payes/actions'
 import { dollar, MOIS_FR } from '@/lib/constants'
 import Badge      from '@/components/ui/Badge'
@@ -61,7 +61,7 @@ type DealItem = {
   maCommission: number
   statut: string
   notes: string | null
-  type: 'nouveau' | 'recurrent' | 'alveo' | 'bonus'
+  type: 'nouveau' | 'recurrent' | 'alveo' | 'bonus' | 'refund'
 }
 
 interface EmployeeGroup {
@@ -95,6 +95,10 @@ function isAlveoNote(notes: string | null): boolean {
 
 function isBonusNote(notes: string | null): boolean {
   return notes?.startsWith('Bonus') ?? false
+}
+
+function isRefundNote(notes: string | null): boolean {
+  return notes?.startsWith('Remboursement') ?? false
 }
 
 // ── Section bonus manuel ──────────────────────────────────────────────
@@ -195,6 +199,228 @@ function SectionBonus({ isAdmin, teamMembers, periodes }: {
 }
 
 
+// ── Section remboursement ─────────────────────────────────────────────
+
+function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
+  isAdmin:     boolean
+  entrees:     PayeEntry[]
+  allProfiles: Profil[]
+  periodes:    { label: string; month: number; year: number }[]
+}) {
+  const [periodeIdx,   setPeriodeIdx]   = useState(0)
+  const [query,        setQuery]        = useState('')
+  const [showDrop,     setShowDrop]     = useState(false)
+  const [selected,     setSelected]     = useState<PayeEntry | null>(null)
+  const [montantInput, setMontantInput] = useState('')
+  const [commCloserIn, setCommCloserIn] = useState('')
+  const [commSetterIn, setCommSetterIn] = useState('')
+  const [pending,      startT]          = useTransition()
+  const [msg,          setMsg]          = useState<string | null>(null)
+
+  const profileMap = useMemo(
+    () => new Map(allProfiles.map(p => [p.id, p.full_name ?? 'Inconnu'])),
+    [allProfiles],
+  )
+
+  const candidates = useMemo(() => {
+    if (query.trim().length < 2) return []
+    const q = query.toLowerCase()
+    const seen = new Set<string>()
+    return entrees
+      .filter(e => !isRefundNote(e.notes) && e.client_name.toLowerCase().includes(q))
+      .filter(e => {
+        const key = `${e.client_name}|${e.closer_id}|${e.setter_id}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .slice(0, 6)
+  }, [entrees, query])
+
+  const amount     = parseFloat(montantInput) || 0
+  const origCloser = Math.abs(selected?.commission ?? 0)
+  const origSetter = Math.abs(selected?.commission_setter ?? 0)
+  const origTotal  = origCloser + origSetter
+
+  // Auto-fill commission splits when amount or selection changes
+  useEffect(() => {
+    if (!selected || !amount) { setCommCloserIn(''); setCommSetterIn(''); return }
+    if (origTotal > 0) {
+      setCommCloserIn(String(Math.round(amount * (origCloser / origTotal) * 100) / 100))
+      setCommSetterIn(String(Math.round(amount * (origSetter / origTotal) * 100) / 100))
+    } else {
+      setCommCloserIn(selected.closer_id ? String(amount) : '0')
+      setCommSetterIn(selected.setter_id && !selected.closer_id ? String(amount) : '0')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [montantInput, selected?.id])
+
+  function pick(entry: PayeEntry) {
+    setSelected(entry)
+    setQuery(entry.client_name)
+    setShowDrop(false)
+    setMontantInput('')
+  }
+
+  function handleSubmit() {
+    const periode = periodes[periodeIdx]
+    if (!selected || !amount || !periode) return
+    startT(async () => {
+      await creerRemboursement({
+        clientName:    selected.client_name,
+        closerId:      selected.closer_id,
+        setterId:      selected.setter_id,
+        montantRefund: amount,
+        commCloser:    parseFloat(commCloserIn) || 0,
+        commSetter:    parseFloat(commSetterIn) || 0,
+        periodLabel:   periode.label,
+        month:         periode.month,
+        year:          periode.year,
+      })
+      setSelected(null); setQuery(''); setMontantInput('')
+      setMsg('Remboursement enregistré ✓')
+      setTimeout(() => setMsg(null), 4000)
+    })
+  }
+
+  if (!isAdmin) return null
+
+  const closerNom = selected?.closer_id ? profileMap.get(selected.closer_id) : null
+  const setterNom = selected?.setter_id ? profileMap.get(selected.setter_id) : null
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-50">
+        <h3 className="text-sm font-semibold text-gray-900">Remboursements</h3>
+        <p className="text-xs text-gray-400 mt-0.5">Impact négatif automatique sur la paie du closer et du setter associés</p>
+      </div>
+
+      <div className="px-5 py-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Période */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">Période de paye</label>
+            <select
+              value={periodeIdx}
+              onChange={e => setPeriodeIdx(Number(e.target.value))}
+              className={INPUT_CLS}
+            >
+              {periodes.map((p, i) => (
+                <option key={p.label} value={i}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Client search */}
+          <div className="flex flex-col gap-1 relative">
+            <label className="text-xs font-medium text-gray-500">Cliente</label>
+            <input
+              type="text"
+              value={query}
+              onChange={e => { setQuery(e.target.value); setShowDrop(true); if (!e.target.value) setSelected(null) }}
+              onFocus={() => setShowDrop(true)}
+              onBlur={() => setTimeout(() => setShowDrop(false), 150)}
+              placeholder="Chercher par nom…"
+              className={INPUT_CLS}
+            />
+            {showDrop && candidates.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-xl z-20 overflow-hidden">
+                {candidates.map(e => (
+                  <button
+                    key={e.id}
+                    onMouseDown={() => pick(e)}
+                    className="w-full px-4 py-2.5 text-left hover:bg-violet-50 transition-colors border-b border-gray-50 last:border-0"
+                  >
+                    <p className="text-sm font-medium text-gray-800 truncate">{e.client_name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {e.closer_id && <span className="text-violet-600">{profileMap.get(e.closer_id)}</span>}
+                      {e.closer_id && e.setter_id && <span className="text-gray-300"> · </span>}
+                      {e.setter_id && <span className="text-blue-600">{profileMap.get(e.setter_id)}</span>}
+                      <span className="text-gray-300"> — </span>
+                      <span>{e.period_label}</span>
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Montant */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">Montant remboursé ($)</label>
+            <input
+              type="number" min="0.01" step="0.01" placeholder="ex. 1 500"
+              value={montantInput}
+              onChange={e => setMontantInput(e.target.value)}
+              disabled={!selected}
+              className={cn(INPUT_CLS, !selected && 'opacity-40 cursor-not-allowed')}
+            />
+          </div>
+
+          {/* Submit */}
+          <div className="flex flex-col gap-1 justify-end">
+            <button
+              onClick={handleSubmit}
+              disabled={pending || !selected || !amount}
+              className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40"
+            >
+              {pending ? 'Enregistrement…' : 'Créer le remboursement'}
+            </button>
+          </div>
+        </div>
+
+        {/* Commission impact preview */}
+        {selected && (
+          <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-xl">
+            <p className="text-xs font-bold text-red-700 mb-3 uppercase tracking-wide">Impact sur les paies</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {selected.closer_id && (
+                <div>
+                  <label className="text-xs font-semibold text-violet-700 block mb-1.5">
+                    Déduction closer — {closerNom}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-red-600">−</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={commCloserIn}
+                      onChange={e => setCommCloserIn(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-lg border border-red-200 bg-white text-sm font-semibold text-red-700 text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-red-300"
+                    />
+                    <span className="text-sm text-red-400">$</span>
+                  </div>
+                </div>
+              )}
+              {selected.setter_id && (
+                <div>
+                  <label className="text-xs font-semibold text-blue-700 block mb-1.5">
+                    Déduction setter — {setterNom}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-red-600">−</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={commSetterIn}
+                      onChange={e => setCommSetterIn(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-lg border border-red-200 bg-white text-sm font-semibold text-red-700 text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-red-300"
+                    />
+                    <span className="text-sm text-red-400">$</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-red-400 mt-3">
+              Répartition calculée proportionnellement aux commissions d'origine. Modifiable manuellement.
+            </p>
+          </div>
+        )}
+
+        {msg && <p className="mt-3 text-sm text-green-600 font-medium">{msg}</p>}
+      </div>
+    </div>
+  )
+}
+
 // ── Deal table (shared between sections) ─────────────────────────────
 
 function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }: {
@@ -226,9 +452,11 @@ function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }
             </td>
             <td className={cn(
               'px-4 py-2.5 text-right tabular-nums font-semibold',
-              role === 'closer' ? 'text-violet-700' : 'text-blue-700',
+              d.maCommission < 0
+                ? 'text-red-600'
+                : role === 'closer' ? 'text-violet-700' : 'text-blue-700',
             )}>
-              {dollar(d.maCommission)}
+              {d.maCommission < 0 ? `−${dollar(-d.maCommission)}` : dollar(d.maCommission)}
             </td>
             <td className="px-4 py-2.5">
               <StatutBadge statut={d.statut} />
@@ -320,6 +548,7 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
   const recurrents = group.deals.filter(d => d.type === 'recurrent')
   const alveos     = group.deals.filter(d => d.type === 'alveo')
   const bonus      = group.deals.filter(d => d.type === 'bonus')
+  const refunds    = group.deals.filter(d => d.type === 'refund')
 
   const salaire         = getSalaire(group.nom)
   const totalAvecSalaire = group.totalCommission + salaire
@@ -410,6 +639,11 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
           <SectionDeals
             label="Bonus" labelCls="text-emerald-600" headerCls="bg-emerald-50/30"
             deals={bonus} role={group.role} isAdmin={isAdmin} pending={pending}
+            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete}
+          />
+          <SectionDeals
+            label="Remboursements" labelCls="text-red-600" headerCls="bg-red-50/40"
+            deals={refunds} role={group.role} isAdmin={isAdmin} pending={pending}
             onEdit={onEdit} onToggle={onToggle} onDelete={onDelete}
           />
         </>
@@ -599,7 +833,7 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
     return { perPerson: map, totalCollected, totalNet }
   }, [vue, profileMap])
 
-  const nouvelles   = vue.filter(e => !isRecurringNote(e.notes) && !isAlveoNote(e.notes) && !isBonusNote(e.notes))
+  const nouvelles   = vue.filter(e => !isRecurringNote(e.notes) && !isAlveoNote(e.notes) && !isBonusNote(e.notes) && !isRefundNote(e.notes))
   const recurrentes = vue.filter(e => isRecurringNote(e.notes) || isAlveoNote(e.notes))
   const totalCols   = 4 + personCols.length + (isAdmin ? 1 : 0)
 
@@ -958,17 +1192,17 @@ export default function AdminView({
           maCommission: maComm,
           statut: e.statut,
           notes: e.notes,
-          type: isAlveoNote(e.notes) ? 'alveo' : isRecurringNote(e.notes) ? 'recurrent' : isBonusNote(e.notes) ? 'bonus' : 'nouveau',
+          type: isRefundNote(e.notes) ? 'refund' : isAlveoNote(e.notes) ? 'alveo' : isRecurringNote(e.notes) ? 'recurrent' : isBonusNote(e.notes) ? 'bonus' : 'nouveau',
         })
         g.totalCommission  += maComm
-        if (e.statut !== 'Payé') {
+        if (e.statut !== 'Payé' && e.statut !== 'Remboursé') {
           g.pendingCommission += maComm
           if (!g.pendingIds.includes(e.id)) g.pendingIds.push(e.id)
         }
       }
 
-      if (e.closer_id && e.commission > 0) addToGroup(e.closer_id, 'closer', e.commission, collectedFromCloser)
-      if (e.setter_id && e.commission_setter > 0) addToGroup(e.setter_id, 'setter', e.commission_setter, collectedFromSetter)
+      if (e.closer_id && e.commission !== 0) addToGroup(e.closer_id, 'closer', e.commission, collectedFromCloser)
+      if (e.setter_id && e.commission_setter !== 0) addToGroup(e.setter_id, 'setter', e.commission_setter, collectedFromSetter)
     }
 
     return Array.from(map.values())
@@ -1080,6 +1314,13 @@ export default function AdminView({
       <SectionBonus
         isAdmin={isAdmin}
         teamMembers={teamMembers}
+        periodes={periodesCourant}
+      />
+
+      <SectionRefund
+        isAdmin={isAdmin}
+        entrees={entrees}
+        allProfiles={allProfiles}
         periodes={periodesCourant}
       />
 
