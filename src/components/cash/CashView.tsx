@@ -56,6 +56,7 @@ interface Props {
   closers:          Profil[]
   setters:          Profil[]
   allProfiles:      Profil[]
+  csmMembers:       Profil[]
   isAdmin:          boolean
   recurringCashIds: string[]
   perfs:            WeeklyPerf[]
@@ -349,11 +350,12 @@ function ModalForm({
 // ── Modal nouveau deal (full form, replaces CashCollect) ─────────
 
 function ModalNouveauDeal({
-  closers, setters, onClose,
+  closers, setters, csmMembers, onClose,
 }: {
-  closers: Profil[]
-  setters: Profil[]
-  onClose: () => void
+  closers:    Profil[]
+  setters:    Profil[]
+  csmMembers: Profil[]
+  onClose:    () => void
 }) {
   const [pending, startTransition] = useTransition()
   const today = new Date().toISOString().slice(0, 10)
@@ -635,6 +637,13 @@ function ModalNouveauDeal({
             </select>
           </Champ>
         </div>
+
+        <Champ label="CSM">
+          <select name="csm_id" className={INPUT_CLS}>
+            <option value="">— Aucune CSM —</option>
+            {csmMembers.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>)}
+          </select>
+        </Champ>
 
         <Champ label="Source">
           <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
@@ -993,7 +1002,7 @@ function StatsBlock({
 // ── Composant principal ───────────────────────────────────────────
 
 export default function CashView({
-  entrees, closers, setters, allProfiles, isAdmin, recurringCashIds, perfs, csmClients,
+  entrees, closers, setters, allProfiles, csmMembers, isAdmin, recurringCashIds, perfs, csmClients,
 }: Props) {
   const today     = new Date().toISOString().slice(0, 10)
   const yearNow   = new Date().getFullYear()
@@ -1987,6 +1996,7 @@ export default function CashView({
         <ModalNouveauDeal
           closers={closers}
           setters={setters}
+          csmMembers={csmMembers}
           onClose={() => setShowNouveauDeal(false)}
         />
       )}
