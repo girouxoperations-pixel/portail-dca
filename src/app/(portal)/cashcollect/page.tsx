@@ -37,7 +37,7 @@ export default async function CashCollectPage() {
       .order('entry_date', { ascending: false }),
     db.from('profiles').select('id, full_name').eq('role', 'closer'),
     db.from('profiles').select('id, full_name').eq('role', 'setter'),
-    db.from('profiles').select('id, full_name').contains('roles', ['csm']),
+    db.from('profiles').select('id, full_name').or('role.eq.csm,roles.cs.["csm"]'),
     db.from('recurring_occurrences')
       .select('cash_entry_id')
       .not('cash_entry_id', 'is', null),

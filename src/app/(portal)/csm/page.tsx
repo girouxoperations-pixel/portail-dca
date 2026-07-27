@@ -20,7 +20,7 @@ export default async function CsmPage() {
   const [{ data: clients }, { data: dealData }, { data: csmMembers }] = await Promise.all([
     db.from('csm_clients').select('*').order('enrollment_date', { ascending: false }),
     db.from('recurring_deals').select('client_name, versements_total, recurring_occurrences(recu)'),
-    db.from('profiles').select('id, full_name').contains('roles', ['csm']),
+    db.from('profiles').select('id, full_name').or('role.eq.csm,roles.cs.["csm"]'),
   ])
 
   // Build set of client names that have fully paid all their installments
