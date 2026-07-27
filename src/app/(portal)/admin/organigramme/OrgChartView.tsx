@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback, useTransition, useRef } from 'react'
-import { Plus, Trash2, ChevronLeft, ChevronRight, X, Check, GripVertical } from 'lucide-react'
+import { useState, useCallback, useTransition } from 'react'
+import { Plus, Trash2, ChevronLeft, ChevronRight, X, Check, Move, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { saveOrgChart } from './actions'
 
@@ -58,9 +58,7 @@ function updateNode(tree: OrgNode, id: string, patch: Partial<OrgNode>): OrgNode
 function deleteNode(tree: OrgNode, id: string): OrgNode {
   return {
     ...tree,
-    children: tree.children
-      .filter(c => c.id !== id)
-      .map(c => deleteNode(c, id)),
+    children: tree.children.filter(c => c.id !== id).map(c => deleteNode(c, id)),
   }
 }
 
@@ -82,15 +80,12 @@ function moveSibling(tree: OrgNode, id: string, dir: 'left' | 'right'): OrgNode 
   return { ...tree, children: tree.children.map(c => moveSibling(c, id, dir)) }
 }
 
-// Move dragged node to be a child of target node
-function moveNodeToParent(tree: OrgNode, draggedId: string, targetId: string): OrgNode {
-  if (draggedId === targetId) return tree
-  const dragged = findNodeById(tree, draggedId)
-  if (!dragged) return tree
-  // Prevent dropping into own descendants
-  if (findNodeById(dragged, targetId)) return tree
-  const without = deleteNode(tree, draggedId)
-  return addChild(without, targetId, dragged)
+function reparent(tree: OrgNode, nodeId: string, newParentId: string): OrgNode {
+  if (nodeId === newParentId) return tree
+  const node = findNodeById(tree, nodeId)
+  if (!node) return tree
+  if (findNodeById(node, newParentId)) return tree   // can't move into own descendant
+  return addChild(deleteNode(tree, nodeId), newParentId, node)
 }
 
 // ── Node card ─────────────────────────────────────────────────────────
@@ -99,76 +94,87 @@ interface NodeCardProps {
   node:        OrgNode
   isRoot:      boolean
   selectedId:  string | null
-  draggedId:   string | null
-  dragOverId:  string | null
+  moveMode:    boolean
+  movingNode:  OrgNode | null   // the node currently being moved
   onSelect:    (id: string) => void
-  onDragStart: (id: string) => void
-  onDragOver:  (id: string) => void
-  onDragLeave: () => void
-  onDrop:      (targetId: string) => void
+  onPlaceHere: (targetId: string) => void
 }
 
-function NodeCard({
-  node, isRoot, selectedId, draggedId, dragOverId,
-  onSelect, onDragStart, onDragOver, onDragLeave, onDrop,
-}: NodeCardProps) {
+function NodeCard({ node, isRoot, selectedId, moveMode, movingNode, onSelect, onPlaceHere }: NodeCardProps) {
   const isSelected  = selectedId === node.id
-  const isDragging  = draggedId  === node.id
-  const isDropTarget = dragOverId === node.id && draggedId !== node.id
+  const isMoving    = movingNode?.id === node.id
+
+  // In move mode: is this a valid target?
+  const isValidTarget = moveMode && movingNode &&
+    !isMoving &&
+    !findNodeById(movingNode, node.id)  // not a descendant of the moving node
 
   return (
     <li className="org-li">
-      <div
-        draggable={!isRoot}
-        onClick={() => onSelect(node.id)}
-        onDragStart={e => { e.stopPropagation(); onDragStart(node.id) }}
-        onDragOver={e  => { e.preventDefault(); e.stopPropagation(); onDragOver(node.id) }}
-        onDragLeave={e => { e.stopPropagation(); onDragLeave() }}
-        onDrop={e      => { e.preventDefault(); e.stopPropagation(); onDrop(node.id) }}
-        className={cn(
-          'org-card relative cursor-pointer select-none transition-all duration-150',
-          'bg-white rounded-xl border-2 shadow-sm',
-          'flex flex-col items-center gap-1 px-5 py-3 min-w-[140px] max-w-[180px]',
-          isSelected   && 'border-violet-500 shadow-violet-100 shadow-md scale-[1.03]',
-          !isSelected && !isDropTarget && 'border-gray-100 hover:border-gray-300 hover:shadow-md',
-          isDropTarget && 'border-blue-400 shadow-blue-100 shadow-md bg-blue-50 scale-[1.03]',
-          isDragging   && 'opacity-40 scale-95',
-        )}
-        style={{ borderLeftColor: isDropTarget ? '#60a5fa' : node.color, borderLeftWidth: 4 }}
-      >
-        {!isRoot && (
-          <GripVertical size={10} className="absolute top-1 right-1 text-gray-300" />
-        )}
+      <div className="relative">
+        {/* Main card */}
         <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-          style={{ backgroundColor: node.color }}
+          onClick={() => {
+            if (moveMode) return
+            onSelect(node.id)
+          }}
+          className={cn(
+            'org-card relative cursor-pointer select-none transition-all duration-150',
+            'bg-white rounded-xl border-2 shadow-sm',
+            'flex flex-col items-center gap-1 px-5 py-3 min-w-[140px] max-w-[180px]',
+            // Normal mode
+            !moveMode && isSelected  && 'border-violet-500 shadow-violet-200 shadow-md scale-[1.03]',
+            !moveMode && !isSelected && 'border-gray-100 hover:border-gray-300 hover:shadow-md',
+            // Move mode — the node being moved
+            isMoving && 'border-orange-400 border-dashed opacity-60 cursor-default scale-95',
+            // Move mode — dimmed invalid targets
+            moveMode && !isMoving && !isValidTarget && 'opacity-30 cursor-default',
+            // Move mode — valid target (styled by the overlay button instead)
+            moveMode && isValidTarget && 'cursor-default',
+          )}
+          style={{ borderLeftColor: isMoving ? '#fb923c' : node.color, borderLeftWidth: 4 }}
         >
-          {node.name.charAt(0).toUpperCase()}
+          {isMoving && (
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+              En déplacement
+            </span>
+          )}
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+            style={{ backgroundColor: node.color }}
+          >
+            {node.name.charAt(0).toUpperCase()}
+          </div>
+          <p className="text-[13px] font-bold text-gray-900 text-center leading-tight">{node.name}</p>
+          {node.title && (
+            <p className="text-[10px] text-gray-400 text-center leading-tight">{node.title}</p>
+          )}
         </div>
-        <p className="text-[13px] font-bold text-gray-900 text-center leading-tight">{node.name}</p>
-        {node.title && (
-          <p className="text-[10px] text-gray-400 text-center leading-tight">{node.title}</p>
-        )}
-        {isDropTarget && (
-          <p className="text-[9px] text-blue-500 font-semibold mt-0.5">Déposer ici</p>
+
+        {/* "Placer ici" overlay — only in move mode on valid targets */}
+        {isValidTarget && (
+          <button
+            onClick={() => onPlaceHere(node.id)}
+            className="absolute inset-0 rounded-xl border-2 border-emerald-400 bg-emerald-50/90 flex flex-col items-center justify-center gap-1 transition-all hover:bg-emerald-100 hover:shadow-lg hover:shadow-emerald-100 hover:scale-[1.04] z-10"
+          >
+            <ArrowRight size={16} className="text-emerald-600" />
+            <span className="text-[10px] font-bold text-emerald-700">Placer ici</span>
+          </button>
         )}
       </div>
 
       {node.children.length > 0 && (
         <ol className="org-ol">
-          {node.children.map((child, i) => (
+          {node.children.map(child => (
             <NodeCard
               key={child.id}
               node={child}
               isRoot={false}
               selectedId={selectedId}
-              draggedId={draggedId}
-              dragOverId={dragOverId}
+              moveMode={moveMode}
+              movingNode={movingNode}
               onSelect={onSelect}
-              onDragStart={onDragStart}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
+              onPlaceHere={onPlaceHere}
             />
           ))}
         </ol>
@@ -180,18 +186,19 @@ function NodeCard({
 // ── Edit panel ────────────────────────────────────────────────────────
 
 interface EditPanelProps {
-  node:       OrgNode
-  isRoot:     boolean
-  sibIdx:     number
-  siblings:   number
-  onUpdate:   (id: string, patch: Partial<OrgNode>) => void
-  onDelete:   (id: string) => void
-  onAddChild: (parentId: string) => void
-  onMove:     (id: string, dir: 'left' | 'right') => void
-  onClose:    () => void
+  node:        OrgNode
+  isRoot:      boolean
+  sibIdx:      number
+  siblings:    number
+  onUpdate:    (id: string, patch: Partial<OrgNode>) => void
+  onDelete:    (id: string) => void
+  onAddChild:  (parentId: string) => void
+  onMove:      (id: string, dir: 'left' | 'right') => void
+  onStartMove: (id: string) => void
+  onClose:     () => void
 }
 
-function EditPanel({ node, isRoot, sibIdx, siblings, onUpdate, onDelete, onAddChild, onMove, onClose }: EditPanelProps) {
+function EditPanel({ node, isRoot, sibIdx, siblings, onUpdate, onDelete, onAddChild, onMove, onStartMove, onClose }: EditPanelProps) {
   const [name,  setName]  = useState(node.name)
   const [title, setTitle] = useState(node.title)
   const [color, setColor] = useState(node.color)
@@ -252,7 +259,7 @@ function EditPanel({ node, isRoot, sibIdx, siblings, onUpdate, onDelete, onAddCh
 
         {!isRoot && siblings > 1 && (
           <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Position</label>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">Ordre parmi les frères</label>
             <div className="flex gap-2">
               <button
                 disabled={sibIdx === 0}
@@ -287,29 +294,37 @@ function EditPanel({ node, isRoot, sibIdx, siblings, onUpdate, onDelete, onAddCh
           <Plus size={13} /> Ajouter un sous-nœud
         </button>
         {!isRoot && (
-          confirmDelete ? (
-            <div className="flex gap-2">
-              <button
-                onClick={() => onDelete(node.id)}
-                className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors"
-              >
-                Confirmer
-              </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="px-3 py-1.5 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          ) : (
+          <>
             <button
-              onClick={() => setConfirmDelete(true)}
-              className="w-full py-1.5 border border-red-100 text-red-500 hover:bg-red-50 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
+              onClick={() => onStartMove(node.id)}
+              className="w-full py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors border border-blue-200"
             >
-              <Trash2 size={12} /> Supprimer
+              <Move size={13} /> Déplacer dans l'arbre
             </button>
-          )
+            {confirmDelete ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onDelete(node.id)}
+                  className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors"
+                >
+                  Confirmer
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-3 py-1.5 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="w-full py-1.5 border border-red-100 text-red-500 hover:bg-red-50 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
+              >
+                <Trash2 size={12} /> Supprimer
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -321,12 +336,13 @@ function EditPanel({ node, isRoot, sibIdx, siblings, onUpdate, onDelete, onAddCh
 export default function OrgChartView({ initialData }: { initialData: OrgNode }) {
   const [tree,       setTree]       = useState<OrgNode>(initialData)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [draggedId,  setDraggedId]  = useState<string | null>(null)
-  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [movingId,   setMovingId]   = useState<string | null>(null)   // node being relocated
   const [saved,      setSaved]      = useState(false)
   const [pending,    startT]        = useTransition()
 
   const selectedNode  = selectedId ? findNodeById(tree, selectedId) : null
+  const movingNode    = movingId   ? findNodeById(tree, movingId)   : null
+  const moveMode      = !!movingId
   const parentNode    = selectedId ? findParent(tree, selectedId)   : null
   const sibIdx        = parentNode ? parentNode.children.findIndex(c => c.id === selectedId) : 0
   const siblingsCount = parentNode ? parentNode.children.length : 0
@@ -344,33 +360,28 @@ export default function OrgChartView({ initialData }: { initialData: OrgNode }) 
     const child: OrgNode = { id: genId(), name: 'Nouveau', title: '', color: '#7c3aed', children: [] }
     setTree(t => addChild(t, parentId, child))
     setSelectedId(child.id)
+    setMovingId(null)
   }, [])
 
-  const handleMove = useCallback((id: string, dir: 'left' | 'right') => {
+  const handleMoveSibling = useCallback((id: string, dir: 'left' | 'right') => {
     setTree(t => moveSibling(t, id, dir))
   }, [])
 
-  // Drag handlers
-  const handleDragStart = useCallback((id: string) => {
-    setDraggedId(id)
+  const handleStartMove = useCallback((id: string) => {
+    setMovingId(id)
     setSelectedId(null)
   }, [])
 
-  const handleDragOver = useCallback((id: string) => {
-    setDragOverId(id)
-  }, [])
+  const handlePlaceHere = useCallback((targetId: string) => {
+    if (!movingId) return
+    setTree(t => reparent(t, movingId, targetId))
+    setMovingId(null)
+    setSelectedId(null)
+  }, [movingId])
 
-  const handleDragLeave = useCallback(() => {
-    setDragOverId(null)
+  const handleCancelMove = useCallback(() => {
+    setMovingId(null)
   }, [])
-
-  const handleDrop = useCallback((targetId: string) => {
-    if (draggedId && draggedId !== targetId) {
-      setTree(t => moveNodeToParent(t, draggedId, targetId))
-    }
-    setDraggedId(null)
-    setDragOverId(null)
-  }, [draggedId])
 
   function handleSave() {
     startT(async () => {
@@ -399,7 +410,7 @@ export default function OrgChartView({ initialData }: { initialData: OrgNode }) 
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs text-gray-400">
-          Glisser un nœud sur un autre pour le déplacer · Cliquer pour modifier
+          Cliquer sur un nœud pour le modifier · Utiliser "Déplacer" pour le repositionner
         </p>
         <div className="flex items-center gap-2">
           <button
@@ -423,40 +434,50 @@ export default function OrgChartView({ initialData }: { initialData: OrgNode }) 
         </div>
       </div>
 
-      {/* Canvas + edit panel side by side */}
-      <div className="flex gap-4 h-[560px]">
-        {/* Tree canvas */}
-        <div
-          className="flex-1 bg-gray-50 rounded-xl border border-gray-100 overflow-auto p-8"
-          onDragOver={e => e.preventDefault()}
-          onDrop={() => { setDraggedId(null); setDragOverId(null) }}
-        >
+      {/* Move mode banner */}
+      {moveMode && movingNode && (
+        <div className="mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Move size={14} className="text-blue-500 shrink-0" />
+            <p className="text-sm text-blue-700">
+              Choisissez où placer <strong>{movingNode.name}</strong> — cliquez sur un nœud vert
+            </p>
+          </div>
+          <button
+            onClick={handleCancelMove}
+            className="text-xs text-blue-500 hover:text-blue-700 font-medium transition-colors ml-4 shrink-0"
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
+      {/* Canvas + edit panel */}
+      <div className="flex gap-4 h-[520px]">
+        <div className="flex-1 bg-gray-50 rounded-xl border border-gray-100 overflow-auto p-8">
           <div className="min-w-max mx-auto">
             <ol className="org-root">
               <NodeCard
                 node={tree}
                 isRoot
                 selectedId={selectedId}
-                draggedId={draggedId}
-                dragOverId={dragOverId}
+                moveMode={moveMode}
+                movingNode={movingNode}
                 onSelect={id => setSelectedId(prev => prev === id ? null : id)}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
+                onPlaceHere={handlePlaceHere}
               />
             </ol>
           </div>
 
-          {tree.children.length === 0 && (
+          {tree.children.length === 0 && !moveMode && (
             <p className="text-center text-sm text-gray-400 mt-12">
               Clique sur <strong>+ Ajouter un nœud</strong> pour créer le premier niveau.
             </p>
           )}
         </div>
 
-        {/* Edit panel */}
-        {selectedNode && (
+        {/* Edit panel — hidden in move mode */}
+        {selectedNode && !moveMode && (
           <div className="shrink-0">
             <EditPanel
               node={selectedNode}
@@ -466,7 +487,8 @@ export default function OrgChartView({ initialData }: { initialData: OrgNode }) 
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               onAddChild={handleAddChild}
-              onMove={handleMove}
+              onMove={handleMoveSibling}
+              onStartMove={handleStartMove}
               onClose={() => setSelectedId(null)}
             />
           </div>
