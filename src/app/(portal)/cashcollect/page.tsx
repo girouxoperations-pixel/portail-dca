@@ -27,6 +27,7 @@ export default async function CashCollectPage() {
     { data: entrees },
     { data: closers },
     { data: setters },
+    { data: csmMembers },
     { data: recOccs },
     { data: recurringDeals },
   ] = await Promise.all([
@@ -36,6 +37,7 @@ export default async function CashCollectPage() {
       .order('entry_date', { ascending: false }),
     db.from('profiles').select('id, full_name').eq('role', 'closer'),
     db.from('profiles').select('id, full_name').eq('role', 'setter'),
+    db.from('profiles').select('id, full_name').contains('roles', ['csm']),
     db.from('recurring_occurrences')
       .select('cash_entry_id')
       .not('cash_entry_id', 'is', null),
@@ -54,6 +56,7 @@ export default async function CashCollectPage() {
       entrees={entrees  ?? []}
       closers={closers  ?? []}
       setters={setters  ?? []}
+      csmMembers={csmMembers ?? []}
       isAdmin={role === 'admin'}
       recurringCashIds={recurringCashIds}
       recurringDeals={recurringDeals ?? []}

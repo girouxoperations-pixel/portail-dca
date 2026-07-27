@@ -14,6 +14,7 @@ import { computeDueDates, today, formatDate } from './types'
 import {
   updateMeeting, updateMissed, toggleText, toggleMilestone, updateStatus,
   marquerRemboursement, updateOnboardingDate, updateEmailAvis, creerCsmClientManuel,
+  updateCsmId,
 } from './actions'
 
 type StatusFilter =
@@ -444,9 +445,46 @@ function ToggleCell({ clientId, field, done, green }: {
   )
 }
 
+// ── CSM assignation cell ──────────────────────────────────────────────
+
+function CsmCell({ clientId, csmId, csmMembers }: {
+  clientId:   string
+  csmId:      string | null
+  csmMembers: { id: string; full_name: string | null }[]
+}) {
+  const [pending, startT] = useTransition()
+  function handleChange(newId: string) {
+    startT(async () => { await updateCsmId(clientId, newId || null) })
+  }
+  if (csmMembers.length === 0) return null
+  const name = csmId ? (csmMembers.find(m => m.id === csmId)?.full_name ?? '?') : null
+  const initials = name ? name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() : null
+  return (
+    <td className="px-2 py-2 text-center relative">
+      <select
+        value={csmId ?? ''}
+        onChange={e => handleChange(e.target.value)}
+        disabled={pending}
+        title={name ?? 'Assigner une CSM'}
+        className="text-[10px] font-semibold rounded px-1 py-0.5 border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-1 focus:ring-violet-400 text-center"
+        style={{ maxWidth: 56 }}
+      >
+        <option value="">—</option>
+        {csmMembers.map(m => (
+          <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>
+        ))}
+      </select>
+      {initials && (
+        <span className="block text-[9px] text-violet-500 font-bold mt-0.5 truncate">{initials}</span>
+      )}
+    </td>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────
 
-interface Props { clients: CsmClient[]; fullyPaidNames: string[] }
+interface Profil { id: string; full_name: string | null }
+interface Props { clients: CsmClient[]; fullyPaidNames: string[]; csmMembers: Profil[] }
 
 function paymentBadgeCls(payment: string | null, fullyPaid: boolean): string {
   if (!payment) return 'text-gray-400'
@@ -456,13 +494,16 @@ function paymentBadgeCls(payment: string | null, fullyPaid: boolean): string {
   return 'font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded'
 }
 
-export default function CsmClientList({ clients, fullyPaidNames }: Props) {
+export default function CsmClientList({ clients, fullyPaidNames, csmMembers }: Props) {
   const fullyPaidSet = useMemo(() => new Set(fullyPaidNames), [fullyPaidNames])
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
+  const [csmFilter, setCsmFilter]       = useState<string>('tous')
   const [ajoutOpen, setAjoutOpen]       = useState(false)
   const [ajoutPending, startAjoutTrans] = useTransition()
   const todayStr = today()
+
+  const csmMap = useMemo(() => new Map(csmMembers.map(m => [m.id, m.full_name ?? 'CSM'])), [csmMembers])
 
   function handleAjoutManuel(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -474,6 +515,7 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
         payment_type:    (fd.get('payment_type') as string) || 'pif',
         phone:           (fd.get('phone') as string) || null,
         email:           (fd.get('email') as string) || null,
+        csm_id:          (fd.get('csm_id') as string) || null,
       })
       setAjoutOpen(false)
     })
@@ -512,11 +554,12 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
       if (statusFilter === 'tous' && (c.status === 'refund' || c.status === 'eval_failed')) return false
       const simpleStatusFilters = ['active', 'paused', 'eval_failed', 'dropped', 'refund']
       if (simpleStatusFilters.includes(statusFilter) && c.status !== statusFilter) return false
+      if (csmFilter !== 'tous' && c.csm_id !== csmFilter) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients, search, statusFilter, todayStr])
+  }, [clients, search, statusFilter, csmFilter, todayStr])
 
   // KPIs
   const active      = clients.filter(c => c.status === 'active').length
@@ -635,6 +678,18 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
             className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
+        {csmMembers.length > 0 && (
+          <select
+            value={csmFilter}
+            onChange={e => setCsmFilter(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-gray-600"
+          >
+            <option value="tous">Toutes les CSM</option>
+            {csmMembers.map(m => (
+              <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>
+            ))}
+          </select>
+        )}
         <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5 flex-wrap">
           {STATUS_FILTERS.map(f => (
             <button
@@ -715,6 +770,18 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
                       className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
                   </div>
                 </div>
+                {csmMembers.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">CSM responsable</label>
+                    <select name="csm_id"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
+                      <option value="">— Non assignée —</option>
+                      {csmMembers.map(m => (
+                        <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex justify-end gap-2 pt-2">
                   <button type="button" onClick={() => setAjoutOpen(false)}
                     className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
@@ -812,6 +879,7 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
                   <th className="px-2 py-2.5 text-center border-l border-gray-100">Email</th>
                   <th className="px-2 py-2.5 text-center">Statut</th>
                   <th className="px-2 py-2.5 text-center">Paie</th>
+                  {csmMembers.length > 0 && <th className="px-2 py-2.5 text-center text-violet-400">CSM</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -910,6 +978,11 @@ export default function CsmClientList({ clients, fullyPaidNames }: Props) {
                           {c.payment_type ?? '—'}
                         </span>
                       </td>
+
+                      {/* CSM assignée */}
+                      {csmMembers.length > 0 && (
+                        <CsmCell clientId={c.id} csmId={c.csm_id} csmMembers={csmMembers} />
+                      )}
                     </tr>
                   )
                 })}

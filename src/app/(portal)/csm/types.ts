@@ -2,6 +2,7 @@ export interface CsmClient {
   id:                  string
   name:                string
   enrollment_date:     string
+  csm_id:              string | null
   payment_type:        string | null
   invoice_sent:        boolean
   onboarding_notes:    string | null

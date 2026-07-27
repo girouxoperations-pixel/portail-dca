@@ -218,7 +218,7 @@ function SectionBonus({
 
 // ── Modal ajout ───────────────────────────────────────────────────────
 
-function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters: Profil[]; onClose: () => void }) {
+function ModalAjout({ closers, setters, csmMembers, onClose }: { closers: Profil[]; setters: Profil[]; csmMembers: Profil[]; onClose: () => void }) {
   const [pending, startTransition] = useTransition()
   const today = new Date().toISOString().slice(0, 10)
 
@@ -475,6 +475,16 @@ function ModalAjout({ closers, setters, onClose }: { closers: Profil[]; setters:
             </select>
           </div>
         </div>
+
+        {csmMembers.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">CSM responsable</label>
+            <select name="csm_id" className={INPUT_CLS}>
+              <option value="">— Non assignée —</option>
+              {csmMembers.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>)}
+            </select>
+          </div>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Source</label>
@@ -892,11 +902,12 @@ function isRecurring(e: CashEntry, recurringIds: Set<string>) {
 }
 
 export default function CashCollectView({
-  entrees, closers, setters, isAdmin, recurringCashIds, recurringDeals,
+  entrees, closers, setters, csmMembers, isAdmin, recurringCashIds, recurringDeals,
 }: {
   entrees:          CashEntry[]
   closers:          Profil[]
   setters:          Profil[]
+  csmMembers:       Profil[]
   isAdmin:          boolean
   recurringCashIds: string[]
   recurringDeals:   RecurringDeal[]
@@ -1392,7 +1403,7 @@ export default function CashCollectView({
       />
 
       {modal?.type === 'add' && (
-        <ModalAjout closers={closers} setters={setters} onClose={() => setModal(null)} />
+        <ModalAjout closers={closers} setters={setters} csmMembers={csmMembers} onClose={() => setModal(null)} />
       )}
       {modal?.type === 'edit' && (
         <ModalModifier entry={modal.entry} closers={closers} setters={setters} onClose={() => setModal(null)} />

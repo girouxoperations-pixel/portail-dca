@@ -17,9 +17,10 @@ export default async function CsmPage() {
   if (!profile || !['admin', 'csm'].includes(profile.role)) redirect('/dashboard')
 
   const db = createAdminClient()
-  const [{ data: clients }, { data: dealData }] = await Promise.all([
+  const [{ data: clients }, { data: dealData }, { data: csmMembers }] = await Promise.all([
     db.from('csm_clients').select('*').order('enrollment_date', { ascending: false }),
     db.from('recurring_deals').select('client_name, versements_total, recurring_occurrences(recu)'),
+    db.from('profiles').select('id, full_name').contains('roles', ['csm']),
   ])
 
   // Build set of client names that have fully paid all their installments
@@ -33,5 +34,5 @@ export default async function CsmPage() {
     .map(d => (d.client_name ?? '').toLowerCase().trim())
     .filter(Boolean)
 
-  return <CsmClientList clients={clients ?? []} fullyPaidNames={fullyPaidNames} />
+  return <CsmClientList clients={clients ?? []} fullyPaidNames={fullyPaidNames} csmMembers={csmMembers ?? []} />
 }

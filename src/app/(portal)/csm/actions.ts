@@ -217,6 +217,7 @@ export async function creerCsmClientManuel(data: {
   payment_type:     string
   phone?:           string | null
   email?:           string | null
+  csm_id?:          string | null
 }) {
   await verifyAdminOrCsm()
   const db = createAdminClient()
@@ -226,8 +227,17 @@ export async function creerCsmClientManuel(data: {
     payment_type:    data.payment_type || 'pif',
     phone:           data.phone || null,
     email:           data.email || null,
+    csm_id:          data.csm_id || null,
     status:          'active',
   })
+  if (error) throw error
+  revalidatePath('/csm')
+}
+
+export async function updateCsmId(clientId: string, csmId: string | null) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_clients').update({ csm_id: csmId || null }).eq('id', clientId)
   if (error) throw error
   revalidatePath('/csm')
 }

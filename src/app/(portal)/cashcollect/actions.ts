@@ -44,6 +44,7 @@ export async function creerCashCollect(formData: FormData) {
   const onboardingDate = (formData.get('onboarding_date') as string) || null
   const sourceType     = (formData.get('source_type') as string) || null
   const isFinancement  = formData.get('is_financement') === 'true'
+  const csmId          = (formData.get('csm_id') as string) || null
 
   // 1. Insert cash entry
   const { data: cashEntry, error: cashErr } = await db
@@ -64,6 +65,7 @@ export async function creerCashCollect(formData: FormData) {
       year,
       notes,
       source_type:     sourceType,
+      csm_id:          csmId,
       created_by:      userId,
     })
     .select('id')
@@ -85,6 +87,7 @@ export async function creerCashCollect(formData: FormData) {
       commission:        Math.round(collected * TAUX_CLOSER * 100) / 100,
       commission_setter: Math.round(collected * TAUX_SETTER * 100) / 100,
       statut:            'En attente',
+      csm_id:            csmId,
       created_by:        userId,
     })
     if (payeErr) throw new Error(payeErr.message)
