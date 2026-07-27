@@ -155,11 +155,13 @@ export async function creerCashCollect(formData: FormData) {
     }
   }
 
-  // 4. Mettre à jour le payment_type CSM avec le bon nombre de versements
-  //    (le trigger a créé le CSM client avec 'pif' par défaut)
-  if (versements > 1) {
+  // 4. Mettre à jour le csm_clients créé par le trigger (pif par défaut)
+  const csmUpdate: Record<string, unknown> = {}
+  if (versements > 1) csmUpdate.payment_type = `${versements}-vers`
+  if (csmId)          csmUpdate.csm_id       = csmId
+  if (Object.keys(csmUpdate).length > 0) {
     await db.from('csm_clients')
-      .update({ payment_type: `${versements}-vers` })
+      .update(csmUpdate)
       .eq('cash_entry_id', cashEntry.id)
   }
 
