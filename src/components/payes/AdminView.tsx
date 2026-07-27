@@ -258,20 +258,24 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
     const periode = periodes[periodeIdx]
     if (!selected || !amount || !periode) return
     startT(async () => {
-      await creerRemboursement({
-        clientName:    selected.client_name,
-        closerId:      selected.closer_id,
-        setterId:      selected.setter_id,
-        montantRefund: amount,
-        commCloser:    parseFloat(commCloserIn) || 0,
-        commSetter:    parseFloat(commSetterIn) || 0,
-        periodLabel:   periode.label,
-        month:         periode.month,
-        year:          periode.year,
-      })
-      setSelected(null); setQuery(''); setMontantInput('')
-      setMsg('Remboursement enregistré ✓')
-      setTimeout(() => setMsg(null), 4000)
+      try {
+        await creerRemboursement({
+          clientName:    selected.client_name,
+          closerId:      selected.closer_id,
+          setterId:      selected.setter_id,
+          montantRefund: amount,
+          commCloser:    parseFloat(commCloserIn) || 0,
+          commSetter:    parseFloat(commSetterIn) || 0,
+          periodLabel:   periode.label,
+          month:         periode.month,
+          year:          periode.year,
+        })
+        setSelected(null); setQuery(''); setMontantInput('')
+        setMsg('Remboursement enregistré ✓')
+        setTimeout(() => setMsg(null), 6000)
+      } catch (err) {
+        setMsg(`Erreur : ${err instanceof Error ? err.message : 'Une erreur est survenue'}`)
+      }
     })
   }
 
@@ -409,7 +413,11 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
           </div>
         )}
 
-        {msg && <p className="mt-3 text-sm text-green-600 font-medium">{msg}</p>}
+        {msg && (
+          <p className={cn('mt-3 text-sm font-medium', msg.startsWith('Erreur') ? 'text-red-600' : 'text-green-600')}>
+            {msg}
+          </p>
+        )}
       </div>
     </div>
   )
