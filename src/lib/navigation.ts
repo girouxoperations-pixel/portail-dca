@@ -16,7 +16,6 @@ import {
   Trophy,
   Archive,
   Mic,
-  Network,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -49,7 +48,6 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Analyseur',   href: '/analyseur',    icon: Mic             },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
-    { label: 'Organigramme', href: '/admin/organigramme', icon: Network    },
     { label: 'Admin',       href: '/admin',        icon: ShieldCheck     },
   ],
   csm: [

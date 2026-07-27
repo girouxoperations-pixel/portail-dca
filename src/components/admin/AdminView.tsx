@@ -4,12 +4,13 @@ import { useState, useTransition, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, X, UserCircle2, Mail, Shield, Users,
   Trophy, Award, TrendingUp, CheckCircle2, Wallet, Star,
-  BarChart3,
+  BarChart3, Network,
 } from 'lucide-react'
 import {
   inviterMembre, modifierMembre, supprimerMembre, assignerMVP,
 } from '@/app/(portal)/admin/actions'
 import { PALIERS, dollar, getPalier } from '@/lib/constants'
+import OrgChartView, { type OrgNode } from '@/app/(portal)/admin/organigramme/OrgChartView'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ type StatsGlobales = {
   moisLabel:    string
 }
 
-type Tab = 'membres' | 'stats' | 'bonus'
+type Tab = 'membres' | 'stats' | 'bonus' | 'organigramme'
 
 // ── Constantes ───────────────────────────────────────────────────────
 
@@ -420,6 +421,7 @@ export default function AdminView({
   bonusClosers,
   bonusSetters,
   mvpActuelNom,
+  orgChartData,
 }: {
   membres:       Membre[]
   currentUserId: string
@@ -428,6 +430,7 @@ export default function AdminView({
   bonusClosers:  BonusMembre[]
   bonusSetters:  BonusMembre[]
   mvpActuelNom:  string | null
+  orgChartData:  OrgNode
 }) {
   const [activeTab,   setActiveTab]   = useState<Tab>('membres')
   const [filtreRole,  setFiltreRole]  = useState<string>('tous')
@@ -469,9 +472,10 @@ export default function AdminView({
   }
 
   const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { key: 'membres', label: 'Membres',         icon: Users      },
-    { key: 'stats',   label: 'Statistiques',    icon: BarChart3  },
-    { key: 'bonus',   label: 'Bonus & MVP',     icon: Trophy     },
+    { key: 'membres',       label: 'Membres',         icon: Users    },
+    { key: 'stats',         label: 'Statistiques',    icon: BarChart3 },
+    { key: 'bonus',         label: 'Bonus & MVP',     icon: Trophy   },
+    { key: 'organigramme',  label: 'Organigramme',    icon: Network  },
   ]
 
   return (
@@ -784,6 +788,11 @@ export default function AdminView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── TAB : ORGANIGRAMME ─────────────────────────────────────────── */}
+      {activeTab === 'organigramme' && (
+        <OrgChartView initialData={orgChartData} />
       )}
 
       {/* Modals */}

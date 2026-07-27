@@ -4,6 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import AdminView from '@/components/admin/AdminView'
 import { dateQC } from '@/lib/dates'
 
+const DEFAULT_TREE = {
+  id: 'root', name: 'She Closes', title: 'Direction', color: '#7c3aed', children: [],
+}
+
 const MOIS_FR = [
   'Janvier','Février','Mars','Avril','Mai','Juin',
   'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
@@ -33,6 +37,7 @@ export default async function AdminPage() {
     { data: cashEntries },
     { data: feedbackEntries },
     { data: mvpEntries },
+    { data: orgChart },
   ] = await Promise.all([
     db.from('profiles')
       .select('id, full_name, email, role, roles, avatar_url, created_at')
@@ -53,6 +58,7 @@ export default async function AdminPage() {
       .eq('year', now.getFullYear())
       .eq('client_name', '🏆 Bonus MVP')
       .limit(1),
+    db.from('org_chart').select('data').eq('id', 'main').single(),
   ])
 
   // ── Stats globales ────────────────────────────────────────────────
@@ -100,6 +106,7 @@ export default async function AdminPage() {
       bonusClosers={bonusClosers}
       bonusSetters={bonusSetters}
       mvpActuelNom={mvpActuelNom}
+      orgChartData={orgChart?.data ?? DEFAULT_TREE}
     />
   )
 }
