@@ -32,7 +32,6 @@ export default async function EquipePage() {
   const [
     { data: profiles },
     { data: goals },
-    { data: closerEntries },
     { data: setterEntries },
     { data: cashEntries },
   ] = await Promise.all([
@@ -44,50 +43,52 @@ export default async function EquipePage() {
       .select('user_id, target_cash, target_closes, target_rdv, target_calls')
       .eq('year', year)
       .eq('month', month),
-    db.from('closer_entries')
-      .select('user_id, cash_collected, closes')
-      .gte('entry_date', dateMin)
-      .lt('entry_date', dateMax),
     db.from('setter_entries')
-      .select('user_id, rdv_booked, attempts')
+      .select('user_id, attempts')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
     db.from('cash_entries')
-      .select('closed_by, set_by, collected')
+      .select('closed_by, set_by, collected, close_type, notes')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
   ])
 
   const goalMap = new Map((goals ?? []).map(g => [g.user_id, g]))
 
-  // Closes count only (cash now comes from cash_entries)
+  // Only count real new deals (exclude recurring payments and financement)
+  function isRealDeal(e: { close_type: string | null; notes: string | null }) {
+    return e.close_type !== 'recurring' &&
+      e.close_type !== 'financement' &&
+      !e.notes?.startsWith('Récurrent') &&
+      !e.notes?.startsWith('Alveo')
+  }
+
   const closerClosesAgg = new Map<string, number>()
-  for (const e of closerEntries ?? []) {
-    closerClosesAgg.set(e.user_id, (closerClosesAgg.get(e.user_id) ?? 0) + (e.closes ?? 0))
-  }
+  const closerCashAgg   = new Map<string, number>()
+  const setterDealsAgg  = new Map<string, number>()
+  const setterCashAgg   = new Map<string, number>()
 
-  const setterAgg = new Map<string, { rdv: number; calls: number }>()
-  for (const e of setterEntries ?? []) {
-    const cur = setterAgg.get(e.user_id) ?? { rdv: 0, calls: 0 }
-    setterAgg.set(e.user_id, {
-      rdv:   cur.rdv   + (e.rdv_booked ?? 0),
-      calls: cur.calls + (e.attempts   ?? 0),
-    })
-  }
-
-  // Cash total (récurrents + nouveaux deals) par closer et setter
-  const closerCashAgg = new Map<string, number>()
-  const setterCashAgg = new Map<string, number>()
   for (const e of cashEntries ?? []) {
-    if (e.closed_by) closerCashAgg.set(e.closed_by, (closerCashAgg.get(e.closed_by) ?? 0) + (e.collected ?? 0))
-    if (e.set_by)    setterCashAgg.set(e.set_by,    (setterCashAgg.get(e.set_by)    ?? 0) + (e.collected ?? 0))
+    if (e.closed_by) {
+      closerCashAgg.set(e.closed_by, (closerCashAgg.get(e.closed_by) ?? 0) + (e.collected ?? 0))
+      if (isRealDeal(e)) closerClosesAgg.set(e.closed_by, (closerClosesAgg.get(e.closed_by) ?? 0) + 1)
+    }
+    if (e.set_by) {
+      setterCashAgg.set(e.set_by, (setterCashAgg.get(e.set_by) ?? 0) + (e.collected ?? 0))
+      if (isRealDeal(e)) setterDealsAgg.set(e.set_by, (setterDealsAgg.get(e.set_by) ?? 0) + 1)
+    }
+  }
+
+  const setterCallsAgg = new Map<string, number>()
+  for (const e of setterEntries ?? []) {
+    setterCallsAgg.set(e.user_id, (setterCallsAgg.get(e.user_id) ?? 0) + (e.attempts ?? 0))
   }
 
   const closerCards: PersonGoal[] = (profiles ?? [])
     .filter(p => p.role === 'closer')
     .map(p => {
       const g      = goalMap.get(p.id)
-      const cash   = closerCashAgg.get(p.id) ?? 0
+      const cash   = closerCashAgg.get(p.id)   ?? 0
       const closes = closerClosesAgg.get(p.id) ?? 0
       const projectedCash =
         cash > 0 && dayOfMonth > 0
@@ -118,9 +119,10 @@ export default async function EquipePage() {
   const setterCards: PersonGoal[] = (profiles ?? [])
     .filter(p => p.role === 'setter')
     .map(p => {
-      const g = goalMap.get(p.id)
-      const a = setterAgg.get(p.id) ?? { rdv: 0, calls: 0 }
-      const sCash = setterCashAgg.get(p.id) ?? 0
+      const g     = goalMap.get(p.id)
+      const sCash = setterCashAgg.get(p.id)  ?? 0
+      const deals = setterDealsAgg.get(p.id) ?? 0
+      const calls = setterCallsAgg.get(p.id) ?? 0
       const projectedCash =
         sCash > 0 && dayOfMonth > 0
           ? Math.round(sCash + (sCash / dayOfMonth) * daysLeft)
@@ -136,8 +138,8 @@ export default async function EquipePage() {
         targetCalls:   g?.target_calls ?? 0,
         actualCash:    sCash,
         actualCloses:  0,
-        actualRdv:     a.rdv,
-        actualCalls:   a.calls,
+        actualRdv:     deals,
+        actualCalls:   calls,
         projectedCash,
         year,
         month,

@@ -417,7 +417,7 @@ export default function PersonCard({
                   onChange={e => setCash(Number(e.target.value))} className={INPUT_CLS} />
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Obj. RDV (nb)</label>
+                <label className="text-xs text-gray-500 mb-1 block">Obj. deals settés (nb)</label>
                 <input type="number" min="0" step="1" value={rdv}
                   onChange={e => setRdv(Number(e.target.value))} className={INPUT_CLS} />
               </div>
@@ -430,7 +430,7 @@ export default function PersonCard({
           ) : (
             <>
               <ProgressBar value={actualCash}  goal={targetCash}  label="Cash collecté"    format={dollar} />
-              <ProgressBar value={actualRdv}   goal={targetRdv}   label="RDV bookés"       format={n => String(n)} />
+              <ProgressBar value={actualRdv}   goal={targetRdv}   label="Deals settés"     format={n => String(n)} />
               <ProgressBar value={actualCalls} goal={targetCalls} label="Appels tentatives" format={n => String(n)} />
               {projectedCash !== null && projectedCash > 0 && (
                 <div className="mt-1 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
