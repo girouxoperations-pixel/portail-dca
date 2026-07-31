@@ -587,6 +587,7 @@ export default async function DashboardPage({
     { data: setterEntriesMois },
     { data: recurringOccs },
     { data: allCashEntries },
+    { data: csmMembers },
   ] = await Promise.all([
     supabase.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
@@ -620,6 +621,7 @@ export default async function DashboardPage({
       .eq('recu', false),
     supabase.from('cash_entries')
       .select('entry_date, closed_by, set_by, collected, close_type, notes'),
+    db.from('profiles').select('id, full_name').contains('roles', ['csm']),
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
@@ -1201,6 +1203,7 @@ export default async function DashboardPage({
       <QuickCashModal
         closers={closerProfiles.map(p => ({ id: p.id, full_name: p.full_name, role: p.role }))}
         setters={setterProfiles.map(p => ({ id: p.id, full_name: p.full_name, role: p.role }))}
+        csmMembers={csmMembers ?? []}
       />
 
       </>}

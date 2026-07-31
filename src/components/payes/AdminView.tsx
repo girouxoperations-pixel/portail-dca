@@ -216,6 +216,7 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
   const [commSetterIn, setCommSetterIn] = useState('')
   const [pending,      startT]          = useTransition()
   const [msg,          setMsg]          = useState<string | null>(null)
+  const [showConfirm,  setShowConfirm]  = useState(false)
 
   const profileMap = useMemo(
     () => new Map(allProfiles.map(p => [p.id, p.full_name ?? 'Inconnu'])),
@@ -257,6 +258,13 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
   function handleSubmit() {
     const periode = periodes[periodeIdx]
     if (!selected || !amount || !periode) return
+    setShowConfirm(true)
+  }
+
+  function doSubmit(propagate: boolean) {
+    const periode = periodes[periodeIdx]
+    if (!selected || !amount || !periode) return
+    setShowConfirm(false)
     startT(async () => {
       try {
         await creerRemboursement({
@@ -269,9 +277,10 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
           periodLabel:   periode.label,
           month:         periode.month,
           year:          periode.year,
+          propagate,
         })
         setSelected(null); setQuery(''); setMontantInput('')
-        setMsg('Remboursement enregistré ✓')
+        setMsg(propagate ? 'Remboursement enregistré et suivi mis à jour ✓' : 'Remboursement enregistré ✓')
         setTimeout(() => setMsg(null), 6000)
       } catch (err) {
         setMsg(`Erreur : ${err instanceof Error ? err.message : 'Une erreur est survenue'}`)
@@ -419,6 +428,49 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
           </p>
         )}
       </div>
+
+      {/* Confirmation popup — propagate to CSM / Cash / CM */}
+      {showConfirm && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-base font-semibold text-gray-900 mb-1">Mettre à jour le suivi?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Voulez-vous marquer <span className="font-semibold text-gray-800">{selected.client_name}</span> comme remboursée dans les autres sections?
+            </p>
+            <div className="space-y-2 mb-6">
+              {([
+                { label: 'Suivi CSM',     desc: 'Statut → Remboursée' },
+                { label: 'Cash / Stats',  desc: 'Entrée marquée remboursée' },
+                { label: 'Communauté',    desc: 'Suivi CM marqué remboursée' },
+              ] as const).map(item => (
+                <div key={item.label} className="flex items-center gap-3 px-3 py-2.5 bg-red-50 rounded-lg border border-red-100">
+                  <XCircle size={14} className="text-red-400 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-gray-800">{item.label}</p>
+                    <p className="text-xs text-gray-500">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => doSubmit(false)}
+                disabled={pending}
+                className="flex-1 px-4 py-2.5 border border-gray-200 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Non, seulement la paie
+              </button>
+              <button
+                onClick={() => doSubmit(true)}
+                disabled={pending}
+                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >
+                Oui, marquer partout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

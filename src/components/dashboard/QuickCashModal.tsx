@@ -10,11 +10,12 @@ interface Profile { id: string; full_name: string | null; role: string }
 interface Props {
   closers: Profile[]
   setters: Profile[]
+  csmMembers: { id: string; full_name: string | null }[]
 }
 
 const INPUT = 'w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500'
 
-export default function QuickCashModal({ closers, setters }: Props) {
+export default function QuickCashModal({ closers, setters, csmMembers }: Props) {
   const [open, setOpen]     = useState(false)
   const [error, setError]   = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -123,6 +124,16 @@ export default function QuickCashModal({ closers, setters }: Props) {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-gray-600">CSM</label>
+                  <select name="csm_id" className={INPUT}>
+                    <option value="">— Aucune CSM —</option>
+                    {csmMembers.map(m => (
+                      <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="flex flex-col gap-1.5">

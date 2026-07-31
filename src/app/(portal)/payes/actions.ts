@@ -197,6 +197,7 @@ export async function creerRemboursement(data: {
   periodLabel:   string
   month:         number
   year:          number
+  propagate:     boolean
 }) {
   const { userId } = await requireRole(['admin'])
   const db = createAdminClient()
@@ -215,8 +216,35 @@ export async function creerRemboursement(data: {
     notes:             'Remboursement',
     created_by:        userId,
   })
-
   if (error) throw new Error(error.message)
+
+  if (data.propagate) {
+    const { data: csmClient } = await db
+      .from('csm_clients')
+      .select('id, cash_entry_id')
+      .ilike('name', data.clientName.trim())
+      .maybeSingle()
+
+    if (csmClient) {
+      await db.from('csm_clients').update({ status: 'refund' }).eq('id', csmClient.id)
+      await db.from('cm_followups').update({ status: 'remboursee' }).eq('csm_client_id', csmClient.id)
+      if (csmClient.cash_entry_id) {
+        await db.from('cash_entries').update({ is_refunded: true }).eq('id', csmClient.cash_entry_id)
+      }
+    } else {
+      await Promise.all([
+        db.from('csm_clients').update({ status: 'refund' }).ilike('name', data.clientName.trim()),
+        db.from('cash_entries').update({ is_refunded: true }).ilike('client_name', data.clientName.trim()),
+        db.from('cm_followups').update({ status: 'remboursee' }).ilike('client_name', data.clientName.trim()),
+      ])
+    }
+
+    revalidatePath('/csm')
+    revalidatePath('/cm')
+    revalidatePath('/cash')
+    revalidatePath('/cashcollect')
+  }
+
   revalidatePath('/payes')
 }
 

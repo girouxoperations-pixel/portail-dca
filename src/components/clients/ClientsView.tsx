@@ -53,16 +53,24 @@ function formatDate(d: string | null) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status?.toLowerCase() === 'dropped') return (
+  const s = status?.toLowerCase()
+  if (s === 'dropped') return (
     <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600">
       <XCircle size={9} />Sortie
+    </span>
+  )
+  if (s === 'refund') return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600">
+      <XCircle size={9} />Remboursée
     </span>
   )
   return null
 }
 
 function BalanceCell({ montantReste, status }: { montantReste: number | null; status: string }) {
-  if (status?.toLowerCase() === 'dropped') return <span className="text-xs text-red-500 font-semibold">Sortie</span>
+  const s = status?.toLowerCase()
+  if (s === 'dropped') return <span className="text-xs text-red-500 font-semibold">Sortie</span>
+  if (s === 'refund')  return <span className="text-xs text-orange-500 font-semibold">Remboursée</span>
   if (!montantReste || montantReste <= 0) return (
     <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700">
       <CheckCircle2 size={10} />PIF
@@ -194,7 +202,7 @@ export default function ClientsView({
   const [editClient,  setEditClient]  = useState<LiveClient | null>(null)
 
   const allSorties: AnyClient[] = useMemo(() => {
-    const all = [...clients2026, ...historical].filter(c => c.status === 'dropped')
+    const all = [...clients2026, ...historical].filter(c => c.status === 'dropped' || c.status === 'refund')
     return all.sort((a, b) => (b.year - a.year) || (b.entry_date ?? '').localeCompare(a.entry_date ?? ''))
   }, [historical, clients2026])
 
@@ -219,11 +227,12 @@ export default function ClientsView({
 
   const stats = useMemo(() => {
     const total   = clients.length
-    const pif     = clients.filter(c => (c.montant_reste ?? 0) <= 0 && c.status !== 'dropped').length
-    const avecDette = clients.filter(c => (c.montant_reste ?? 0) > 0 && c.status !== 'dropped').length
-    const sortie  = clients.filter(c => c.status === 'dropped').length
+    const isExited = (c: AnyClient) => c.status === 'dropped' || c.status === 'refund'
+    const pif     = clients.filter(c => (c.montant_reste ?? 0) <= 0 && !isExited(c)).length
+    const avecDette = clients.filter(c => (c.montant_reste ?? 0) > 0 && !isExited(c)).length
+    const sortie  = clients.filter(c => isExited(c)).length
     const totalReste = clients.reduce((s, c) => {
-      if (c.status === 'dropped') return s
+      if (isExited(c)) return s
       return s + (c.montant_reste ?? 0)
     }, 0)
     return { total, pif, avecDette, sortie, totalReste }
@@ -377,7 +386,7 @@ export default function ClientsView({
                   return (
                   <tr key={c.id} className={cn(
                     'hover:bg-gray-50/50 transition-colors',
-                    c.status === 'dropped' && 'opacity-50',
+                    (c.status === 'dropped' || c.status === 'refund') && 'opacity-50',
                   )}>
                     <td className="px-4 py-3 text-xs text-gray-300 tabular-nums">{idx + 1}</td>
                     <td className="px-4 py-3 max-w-[180px]">

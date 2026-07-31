@@ -39,8 +39,8 @@ export default async function CashPage() {
     db.from('csm_clients')
       .select('id, status, payment_type'),
     db.from('profiles')
-      .select('id, full_name')
-      .or('role.eq.csm,roles.cs.["csm"]'),
+      .select('id, full_name, role')
+      .contains('roles', ['csm']),
   ])
 
   const closers = (allProfiles ?? []).filter(p => p.role === 'closer')

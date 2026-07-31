@@ -37,6 +37,7 @@ interface CashEntry {
   notes: string | null
   source_type: 'webi' | 'vsl' | null
   onboarding_date: string | null
+  is_refunded: boolean | null
 }
 
 interface Profil {
@@ -703,10 +704,18 @@ function EntryRow({ e, profileMap, recurringIds, isAdmin, onEdit, onDelete, pend
   isAdmin: boolean; onEdit: (e: CashEntry) => void; onDelete: (id: string) => void; pending: boolean
 }) {
   const type = getSourceType(e, recurringIds)
+  const isRefunded = !!e.is_refunded
   return (
-    <tr className="hover:bg-gray-50/50 transition-colors">
+    <tr className={cn('hover:bg-gray-50/50 transition-colors', isRefunded && 'opacity-60')}>
       <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">{formatDate(e.entry_date)}</td>
-      <td className="px-4 py-3 font-medium text-gray-800 max-w-[130px] truncate">{e.client_name ?? '—'}</td>
+      <td className="px-4 py-3 font-medium text-gray-800 max-w-[160px]">
+        <div className="flex items-center gap-1.5 truncate">
+          <span className="truncate">{e.client_name ?? '—'}</span>
+          {isRefunded && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-500 uppercase tracking-wide">Remboursée</span>
+          )}
+        </div>
+      </td>
       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}</td>
       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.set_by ? (profileMap.get(e.set_by) ?? '—') : '—'}</td>
       <td className="px-4 py-3"><TypeBadge type={type} closeType={e.close_type} /></td>

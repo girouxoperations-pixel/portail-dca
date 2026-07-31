@@ -655,6 +655,78 @@ function FuAddForm({ onDone }: { onDone: () => void }) {
   )
 }
 
+// ── Progression vs objectif mensuel ──────────────────────────────────
+
+function GoalProgressCard({ cashCollected, prevCashCollected, targetCash, closes }: {
+  cashCollected:     number
+  prevCashCollected: number
+  targetCash:        number
+  closes:            number
+}) {
+  const hasGoal   = targetCash > 0
+  const pctGoal   = hasGoal ? Math.min(Math.round((cashCollected / targetCash) * 100), 100) : 0
+  const remaining = hasGoal ? Math.max(targetCash - cashCollected, 0) : 0
+  const achieved  = hasGoal && cashCollected >= targetCash
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Cash collecté</p>
+          <p className="text-3xl font-bold text-gray-900 tabular-nums">{dollar(cashCollected)}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-gray-400">{closes} close{closes !== 1 ? 's' : ''}</span>
+            <DeltaBadge current={cashCollected} prev={prevCashCollected} />
+          </div>
+        </div>
+        {hasGoal && (
+          <div className="text-right shrink-0">
+            <p className="text-xs text-gray-400 mb-0.5">Objectif</p>
+            <p className="text-lg font-bold text-gray-700 tabular-nums">{dollar(targetCash)}</p>
+            {achieved ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 ring-1 ring-green-200 mt-1">
+                <CheckCircle2 size={10} />Atteint
+              </span>
+            ) : (
+              <span className={cn(
+                'inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1',
+                pctGoal >= 75 ? 'bg-green-50 text-green-700' :
+                pctGoal >= 50 ? 'bg-amber-50 text-amber-700' :
+                                'bg-red-50 text-red-600',
+              )}>
+                {pctGoal} %
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {hasGoal && (
+        <>
+          <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-2">
+            <div
+              className={cn(
+                'h-full rounded-full transition-all',
+                achieved ? 'bg-green-500' :
+                pctGoal >= 75 ? 'bg-violet-500' :
+                pctGoal >= 50 ? 'bg-amber-400' : 'bg-red-400',
+              )}
+              style={{ width: `${pctGoal}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-400">
+            <span>{dollar(cashCollected)} collecté</span>
+            {achieved
+              ? <span className="text-green-600 font-medium">Objectif atteint ✓</span>
+              : <span><span className="font-medium text-gray-600">{dollar(remaining)}</span> restant pour atteindre l&apos;objectif</span>
+            }
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Projection fin de mois ────────────────────────────────────────────
 
 function ProjectionCard({ cashCollected, targetCash, dayOfMonth, daysInMonth }: {
@@ -929,16 +1001,12 @@ export default function CloserView({ entrees, deals, setters, recurrents, userId
 
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Financier</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-                <MetricCard label="Cash collecté" value={dollar(kpis.cash_collected)} icon={Wallet}     color="blue"  sub={`${kpis.closes} close${kpis.closes !== 1 ? 's' : ''}`} />
-                <DeltaBadge current={kpis.cash_collected} prev={kpisPrev.cash_collected} />
-              </div>
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-                <MetricCard label="Revenue"       value={dollar(kpis.revenue)}        icon={DollarSign} color="green" sub="Valeur deals signés" />
-                <DeltaBadge current={kpis.revenue} prev={kpisPrev.revenue} />
-              </div>
-            </div>
+            <GoalProgressCard
+              cashCollected={kpis.cash_collected}
+              prevCashCollected={kpisPrev.cash_collected}
+              targetCash={targetCash}
+              closes={kpis.closes}
+            />
           </div>
 
           {/* ── Projection fin de mois (mois courant uniquement) ── */}
