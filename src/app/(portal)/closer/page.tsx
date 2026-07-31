@@ -23,7 +23,8 @@ export default async function CloserPage() {
 
   // ── Vue admin / CSM ─────────────────────────────────────────────
   if (role === 'admin' || role === 'csm') {
-    const [{ data: entrees }, { data: closers }, { data: cashEntries }] = await Promise.all([
+    const now = dateQC()
+    const [{ data: entrees }, { data: closers }, { data: cashEntries }, { data: teamGoalRaw }, { data: userGoalsRaw }] = await Promise.all([
       db.from('closer_entries')
         .select('*')
         .order('entry_date', { ascending: false }),
@@ -33,14 +34,26 @@ export default async function CloserPage() {
       db.from('cash_entries')
         .select('id, entry_date, closed_by, montant_courant, collected, close_type, notes')
         .order('entry_date', { ascending: false }),
+      db.from('goals')
+        .select('target_cash, target_closes')
+        .eq('year', now.getFullYear())
+        .eq('month', now.getMonth() + 1)
+        .maybeSingle(),
+      db.from('user_goals')
+        .select('user_id, target_cash, target_closes')
+        .eq('year', now.getFullYear())
+        .eq('month', now.getMonth() + 1),
     ])
 
     return (
       <AdminView
-        entrees={entrees      ?? []}
-        closers={closers      ?? []}
+        entrees={entrees         ?? []}
+        closers={closers         ?? []}
         cashEntries={cashEntries ?? []}
         isAdmin={role === 'admin'}
+        teamTargetCash={teamGoalRaw?.target_cash ?? 0}
+        teamTargetCloses={teamGoalRaw?.target_closes ?? 0}
+        userGoals={userGoalsRaw  ?? []}
       />
     )
   }

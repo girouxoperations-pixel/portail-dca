@@ -228,6 +228,7 @@ function ModalAjout({ closers, setters, csmMembers, onClose }: { closers: Profil
   const [entryDate,      setEntryDate]      = useState(today)
   const [montant,        setMontant]        = useState(0)
   const [isFinancement,  setIsFinancement]  = useState(false)
+  const [submitError,    setSubmitError]    = useState<string | null>(null)
 
   const versements = versementsMode === 'autre' ? autreDates.length + 1 : Number(versementsMode)
 
@@ -249,8 +250,9 @@ function ModalAjout({ closers, setters, csmMembers, onClose }: { closers: Profil
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    setSubmitError(null)
     const fd = new FormData(e.currentTarget)
-    if (versements > 1) {
+    if (!isFinancement && versements > 1) {
       fd.set('versements', String(versements))
       if (versementsMode === 'autre') {
         fd.set('collected', String(autreAmounts[0] ?? 0))
@@ -263,8 +265,12 @@ function ModalAjout({ closers, setters, csmMembers, onClose }: { closers: Profil
       }
     }
     startTransition(async () => {
-      await creerCashCollect(fd)
-      onClose()
+      try {
+        await creerCashCollect(fd)
+        onClose()
+      } catch (err) {
+        setSubmitError(err instanceof Error ? err.message : 'Erreur lors de la création')
+      }
     })
   }
 
@@ -319,6 +325,7 @@ function ModalAjout({ closers, setters, csmMembers, onClose }: { closers: Profil
               className={INPUT_CLS}
             />
           </div>
+          {!isFinancement && (
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-gray-700">Versements</label>
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
@@ -339,6 +346,7 @@ function ModalAjout({ closers, setters, csmMembers, onClose }: { closers: Profil
               ))}
             </div>
           </div>
+          )}
         </div>
 
         {/* Plan de versements */}
@@ -523,6 +531,10 @@ function ModalAjout({ closers, setters, csmMembers, onClose }: { closers: Profil
             <p className="text-xs text-gray-400">Crée automatiquement un deal dans l&apos;onglet Alveo avec les commissions en 3 versements</p>
           </div>
         </label>
+
+        {submitError && (
+          <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{submitError}</p>
+        )}
 
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose}

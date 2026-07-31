@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import {
   Plus, Trash2, Pencil, Phone, TrendingUp, Target, CheckCircle2,
-  Wallet, DollarSign, ArrowUp, ArrowDown, Minus,
+  ArrowUp, ArrowDown, Minus,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -322,11 +322,85 @@ function ModalModifier({ entry, closerName, onClose }: {
 
 // ── Composant principal ───────────────────────────────────────────────
 
-export default function AdminView({ entrees, closers, cashEntries, isAdmin }: {
-  entrees:     CloserEntry[]
-  closers:     Profil[]
-  cashEntries: CashEntry[]
-  isAdmin:     boolean
+// ── GoalProgressCard ──────────────────────────────────────────────
+
+function GoalProgressCard({
+  cashCollected, prevCashCollected, targetCash, closes, targetCloses, label,
+}: {
+  cashCollected: number; prevCashCollected: number; targetCash: number
+  closes: number; targetCloses: number; label?: string
+}) {
+  const hasGoal   = targetCash > 0
+  const pctGoal   = hasGoal ? Math.min(Math.round((cashCollected / targetCash) * 100), 100) : 0
+  const remaining = hasGoal ? Math.max(targetCash - cashCollected, 0) : 0
+  const achieved  = hasGoal && cashCollected >= targetCash
+
+  const barColor = achieved        ? 'bg-green-500'
+    : pctGoal >= 75                ? 'bg-violet-600'
+    : pctGoal >= 50                ? 'bg-amber-500'
+    :                                'bg-red-500'
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+            {label ?? 'Cash collecté'}
+          </p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-gray-900 tabular-nums">{dollar(cashCollected)}</span>
+            <DeltaBadge current={cashCollected} prev={prevCashCollected} />
+          </div>
+        </div>
+        {hasGoal && (
+          <div className="text-right">
+            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Objectif</p>
+            <p className="text-sm font-semibold text-gray-700 tabular-nums">{dollar(targetCash)}</p>
+          </div>
+        )}
+      </div>
+
+      {hasGoal && (
+        <>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden">
+              <div
+                className={cn('h-full rounded-full transition-all', barColor)}
+                style={{ width: `${pctGoal}%` }}
+              />
+            </div>
+            <span className={cn('text-xs font-bold tabular-nums', achieved ? 'text-green-600' : 'text-gray-500')}>
+              {pctGoal} %
+            </span>
+          </div>
+          <p className="text-xs text-gray-400">
+            {achieved
+              ? '✓ Objectif atteint'
+              : `${dollar(remaining)} restant`}
+          </p>
+        </>
+      )}
+
+      <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between text-xs text-gray-500">
+        <span><span className="font-semibold text-gray-700">{closes}</span> close{closes !== 1 ? 's' : ''}</span>
+        {targetCloses > 0 && (
+          <span className={cn('font-medium', closes >= targetCloses ? 'text-green-600' : 'text-gray-400')}>
+            / {targetCloses} objectif
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function AdminView({ entrees, closers, cashEntries, isAdmin, teamTargetCash, teamTargetCloses, userGoals }: {
+  entrees:          CloserEntry[]
+  closers:          Profil[]
+  cashEntries:      CashEntry[]
+  isAdmin:          boolean
+  teamTargetCash:   number
+  teamTargetCloses: number
+  userGoals:        { user_id: string; target_cash: number; target_closes: number }[]
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [closerFilter, setCloserFilter] = useState<string>('tout')
@@ -547,16 +621,23 @@ export default function AdminView({ entrees, closers, cashEntries, isAdmin }: {
       {/* KPIs financier */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Financier</p>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-            <MetricCard label="Cash collecté" value={dollar(kpis.cash_collected)} icon={Wallet}     color="blue"  sub="Total EOD" />
-            <DeltaBadge current={kpis.cash_collected} prev={kpisPrev.cash_collected} />
-          </div>
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
-            <MetricCard label="Revenue" value={dollar(kpis.revenue)} icon={DollarSign} color="green" sub="Valeur deals signés" />
-            <DeltaBadge current={kpis.revenue} prev={kpisPrev.revenue} />
-          </div>
-        </div>
+        {(() => {
+          const activeUserGoal = closerFilter !== 'tout'
+            ? userGoals.find(g => g.user_id === closerFilter)
+            : null
+          const targetCash   = activeUserGoal ? activeUserGoal.target_cash   : teamTargetCash
+          const targetCloses = activeUserGoal ? activeUserGoal.target_closes  : teamTargetCloses
+          return (
+            <GoalProgressCard
+              cashCollected={kpis.cash_collected}
+              prevCashCollected={kpisPrev.cash_collected}
+              targetCash={targetCash}
+              closes={kpis.closes}
+              targetCloses={targetCloses}
+              label={closerFilter !== 'tout' ? 'Cash collecté' : 'Cash collecté équipe'}
+            />
+          )
+        })()}
       </div>
 
       {/* Graphique comparatif */}
@@ -607,28 +688,45 @@ export default function AdminView({ entrees, closers, cashEntries, isAdmin }: {
                   <th className="px-4 py-2.5 text-right">Closes</th>
                   <th className="px-4 py-2.5 text-right">Close %</th>
                   <th className="px-4 py-2.5 text-right">Cash</th>
-                  <th className="px-4 py-2.5 text-right">Revenue</th>
+                  <th className="px-4 py-2.5 text-right min-w-[140px]">Progression</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {statsParCloser.map(s => (
-                  <tr
-                    key={s.uid}
-                    className="hover:bg-violet-50/30 transition-colors cursor-pointer"
-                    onClick={() => setCloserFilter(s.uid)}
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-800">{s.nom}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.scheduled}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.shows}</td>
-                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.shows, s.scheduled)} /></td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.pitches}</td>
-                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.pitches, s.shows)} /></td>
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{s.closes}</td>
-                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.closes, s.pitches)} bold /></td>
-                    <td className="px-4 py-3 text-right tabular-nums text-blue-700 font-medium">{dollar(s.cash_collected)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{dollar(s.revenue)}</td>
-                  </tr>
-                ))}
+                {statsParCloser.map(s => {
+                  const ug = userGoals.find(g => g.user_id === s.uid)
+                  const tgt = ug?.target_cash ?? 0
+                  const goalPct = tgt > 0 ? Math.min(Math.round((s.cash_collected / tgt) * 100), 100) : 0
+                  const barCol = goalPct >= 100 ? 'bg-green-500' : goalPct >= 75 ? 'bg-violet-600' : goalPct >= 50 ? 'bg-amber-500' : 'bg-red-400'
+                  return (
+                    <tr
+                      key={s.uid}
+                      className="hover:bg-violet-50/30 transition-colors cursor-pointer"
+                      onClick={() => setCloserFilter(s.uid)}
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-800">{s.nom}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.scheduled}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.shows}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(s.shows, s.scheduled)} /></td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.pitches}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(s.pitches, s.shows)} /></td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{s.closes}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(s.closes, s.pitches)} bold /></td>
+                      <td className="px-4 py-3 text-right tabular-nums text-blue-700 font-medium">{dollar(s.cash_collected)}</td>
+                      <td className="px-4 py-3">
+                        {tgt > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden min-w-[60px]">
+                              <div className={cn('h-full rounded-full', barCol)} style={{ width: `${goalPct}%` }} />
+                            </div>
+                            <span className="text-xs tabular-nums text-gray-500 shrink-0">{goalPct}%</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700 text-xs">
@@ -641,7 +739,7 @@ export default function AdminView({ entrees, closers, cashEntries, isAdmin }: {
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.closes}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.closeRate} bold /></td>
                   <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(kpis.cash_collected)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{dollar(kpis.revenue)}</td>
+                  <td className="px-4 py-3" />
                 </tr>
               </tfoot>
             </table>

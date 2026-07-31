@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useRef } from 'react'
 import { Plus, Trash2, X, Search, MessageSquare, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
 import {
   ajouterCmFollowup, toggleCmMessage, setCmStatus, updateCmNotes, supprimerCmFollowup,
@@ -8,7 +8,7 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────
 
-type CmStatus = 'en_cours' | 'pas_reponse_1' | 'pas_reponse_2'
+type CmStatus = 'en_cours' | 'pas_reponse_1' | 'pas_reponse_2' | 'remboursee'
 
 type CmFollowup = {
   id:             string
@@ -33,13 +33,15 @@ const STATUS_CONFIG: Record<CmStatus, { label: string; next: CmStatus; badge: st
   en_cours:      { label: 'En cours',         next: 'pas_reponse_1', badge: 'bg-blue-500/20 text-blue-300 border-blue-500/30',    icon: Clock       },
   pas_reponse_1: { label: 'Pas de réponse 1', next: 'pas_reponse_2', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30', icon: AlertCircle },
   pas_reponse_2: { label: 'Pas de réponse 2', next: 'en_cours',      badge: 'bg-red-500/20 text-red-300 border-red-500/30',       icon: AlertCircle },
+  remboursee:    { label: 'Remboursée',        next: 'remboursee',    badge: 'bg-gray-500/20 text-gray-400 border-gray-500/30',    icon: X           },
 }
 
 const FILTER_OPTS: { key: 'tous' | CmStatus; label: string }[] = [
-  { key: 'tous',          label: 'Tous'     },
-  { key: 'en_cours',      label: 'En cours' },
-  { key: 'pas_reponse_1', label: 'PR 1'     },
-  { key: 'pas_reponse_2', label: 'PR 2'     },
+  { key: 'tous',          label: 'Tous'         },
+  { key: 'en_cours',      label: 'En cours'     },
+  { key: 'pas_reponse_1', label: 'PR 1'         },
+  { key: 'pas_reponse_2', label: 'PR 2'         },
+  { key: 'remboursee',    label: 'Remboursées'  },
 ]
 
 function fmtDate(iso: string) {
@@ -67,6 +69,7 @@ function useFollowupState(followup: CmFollowup) {
   }
 
   function cycleStatus() {
+    if (local.status === 'remboursee') return
     const next = STATUS_CONFIG[local.status].next
     setLocal(prev => ({ ...prev, status: next }))
     start(() => setCmStatus(followup.id, next))
@@ -319,6 +322,14 @@ export default function CmView({
   const [search,    setSearch]   = useState('')
   const [filtre,    setFiltre]   = useState<'tous' | CmStatus>('tous')
 
+  // Stable insertion-order index — new IDs append, existing IDs never move
+  const stableOrder = useRef<Map<string, number>>(new Map())
+  followups.forEach(f => {
+    if (!stableOrder.current.has(f.id)) {
+      stableOrder.current.set(f.id, stableOrder.current.size)
+    }
+  })
+
   const filtered = useMemo(() => {
     let list = followups
     if (filtre !== 'tous') list = list.filter(f => f.status === filtre)
@@ -326,7 +337,11 @@ export default function CmView({
       const q = search.toLowerCase()
       list = list.filter(f => f.client_name.toLowerCase().includes(q))
     }
-    return list
+    return [...list].sort((a, b) => {
+      const ia = stableOrder.current.get(a.id) ?? Infinity
+      const ib = stableOrder.current.get(b.id) ?? Infinity
+      return ia - ib
+    })
   }, [followups, filtre, search])
 
   const kpis = useMemo(() => ({

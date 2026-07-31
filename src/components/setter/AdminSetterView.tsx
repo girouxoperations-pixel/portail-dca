@@ -271,11 +271,76 @@ function ModalModifier({ entry, setterName, onClose }: {
 
 // ── Composant principal ───────────────────────────────────────────────
 
-export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin }: {
+// ── GoalRdvCard ───────────────────────────────────────────────────
+
+function GoalRdvCard({
+  rdv, prevRdv, targetRdv, deals, label,
+}: {
+  rdv: number; prevRdv: number; targetRdv: number; deals: number; label?: string
+}) {
+  const hasGoal   = targetRdv > 0
+  const pctGoal   = hasGoal ? Math.min(Math.round((rdv / targetRdv) * 100), 100) : 0
+  const remaining = hasGoal ? Math.max(targetRdv - rdv, 0) : 0
+  const achieved  = hasGoal && rdv >= targetRdv
+
+  const barColor = achieved
+    ? 'bg-green-500'
+    : pctGoal >= 75  ? 'bg-violet-600'
+    : pctGoal >= 50  ? 'bg-amber-500'
+    :                   'bg-red-500'
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+            {label ?? 'RDV bookés'}
+          </p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-gray-900 tabular-nums">{rdv}</span>
+            <DeltaBadge current={rdv} prev={prevRdv} />
+          </div>
+        </div>
+        {hasGoal && (
+          <div className="text-right">
+            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Objectif</p>
+            <p className="text-sm font-semibold text-gray-700 tabular-nums">{targetRdv} RDV</p>
+          </div>
+        )}
+      </div>
+
+      {hasGoal && (
+        <>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden">
+              <div
+                className={cn('h-full rounded-full transition-all', barColor)}
+                style={{ width: `${pctGoal}%` }}
+              />
+            </div>
+            <span className={cn('text-xs font-bold tabular-nums', achieved ? 'text-green-600' : 'text-gray-500')}>
+              {pctGoal} %
+            </span>
+          </div>
+          <p className="text-xs text-gray-400">
+            {achieved ? '✓ Objectif atteint' : `${remaining} RDV restant${remaining > 1 ? 's' : ''}`}
+          </p>
+        </>
+      )}
+
+      <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between text-xs text-gray-500">
+        <span><span className="font-semibold text-gray-700">{deals}</span> deal{deals !== 1 ? 's' : ''} closés</span>
+      </div>
+    </div>
+  )
+}
+
+export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin, userGoals }: {
   entrees:     SetterEntry[]
   setters:     Profil[]
   cashEntries: CashEntry[]
   isAdmin:     boolean
+  userGoals:   { user_id: string; target_rdv: number; target_calls: number }[]
 }) {
   const { periode, offset, range, onChange: onPeriodChange, onCustomRange, customStart, customEnd } = usePeriodFilter()
   const [setterFilter, setSetterFilter] = useState<string>('tout')
@@ -519,6 +584,28 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
         </div>
       </div>
 
+      {/* Progression RDV */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Progression</p>
+        {(() => {
+          const activeUserGoal = setterFilter !== 'tout'
+            ? userGoals.find(g => g.user_id === setterFilter)
+            : null
+          const totalTargetRdv = activeUserGoal
+            ? activeUserGoal.target_rdv
+            : userGoals.reduce((s, g) => s + g.target_rdv, 0)
+          return (
+            <GoalRdvCard
+              rdv={kpis.rdv}
+              prevRdv={kpisPrev.rdv}
+              targetRdv={totalTargetRdv}
+              deals={kpis.deals}
+              label={setterFilter !== 'tout' ? 'RDV bookés' : 'RDV bookés équipe'}
+            />
+          )
+        })()}
+      </div>
+
       {/* Graphique comparatif */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
@@ -563,6 +650,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   <th className="px-4 py-2.5 text-right">Contacts</th>
                   <th className="px-4 py-2.5 text-right">Contact %</th>
                   <th className="px-4 py-2.5 text-right">RDV</th>
+                  <th className="px-4 py-2.5 text-right min-w-[140px]">Progression</th>
                   <th className="px-4 py-2.5 text-right">Agenda</th>
                   <th className="px-4 py-2.5 text-right">Book %</th>
                   <th className="px-4 py-2.5 text-right">Présentés</th>
@@ -574,27 +662,45 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {statsParSetter.map(s => (
-                  <tr
-                    key={s.uid}
-                    className="hover:bg-violet-50/30 transition-colors cursor-pointer"
-                    onClick={() => setSetterFilter(s.uid)}
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-800">{s.nom}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.attempts}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.contacts}</td>
-                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.contacts, s.attempts)} /></td>
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{s.rdv}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-blue-700">{s.rdv_agenda}</td>
-                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.rdv, s.contacts)} /></td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.showed}</td>
-                    <td className="px-4 py-3 text-right"><PctBadge value={pct(s.showed, s.rdv_agenda)} bold /></td>
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{s.deals > 0 ? s.deals : <span className="text-gray-300">—</span>}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-red-400">{s.no_show}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.disqualified}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.cancelled}</td>
-                  </tr>
-                ))}
+                {statsParSetter.map(s => {
+                  const ug = userGoals.find(g => g.user_id === s.uid)
+                  const tgt = ug?.target_rdv ?? 0
+                  const goalPct = tgt > 0 ? Math.min(Math.round((s.rdv / tgt) * 100), 100) : 0
+                  const barCol = goalPct >= 100 ? 'bg-green-500' : goalPct >= 75 ? 'bg-violet-600' : goalPct >= 50 ? 'bg-amber-500' : 'bg-red-400'
+                  return (
+                    <tr
+                      key={s.uid}
+                      className="hover:bg-violet-50/30 transition-colors cursor-pointer"
+                      onClick={() => setSetterFilter(s.uid)}
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-800">{s.nom}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.attempts}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.contacts}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(s.contacts, s.attempts)} /></td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{s.rdv}</td>
+                      <td className="px-4 py-3">
+                        {tgt > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden min-w-[60px]">
+                              <div className={cn('h-full rounded-full', barCol)} style={{ width: `${goalPct}%` }} />
+                            </div>
+                            <span className="text-xs tabular-nums text-gray-500 shrink-0">{goalPct}%</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-blue-700">{s.rdv_agenda}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(s.rdv, s.contacts)} /></td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">{s.showed}</td>
+                      <td className="px-4 py-3 text-right"><PctBadge value={pct(s.showed, s.rdv_agenda)} bold /></td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{s.deals > 0 ? s.deals : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-red-400">{s.no_show}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.disqualified}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.cancelled}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700 text-xs">
@@ -603,6 +709,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.contacts}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.contactRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.rdv}</td>
+                  <td className="px-4 py-3" />
                   <td className="px-4 py-3 text-right tabular-nums text-blue-700">{kpis.rdv_agenda}</td>
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.bookRate} /></td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.showed}</td>

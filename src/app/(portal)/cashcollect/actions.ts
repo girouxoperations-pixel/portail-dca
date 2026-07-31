@@ -94,8 +94,9 @@ export async function creerCashCollect(formData: FormData) {
   }
 
   // 3. Si versements > 1, créer les prochains versements dans Récurrents
+  // Skipped for financement — Alveo handles its own payment schedule
   const versements = Number(formData.get('versements')) || 1
-  if (versements > 1) {
+  if (!isFinancement && versements > 1) {
     const versementMontant = collected
 
     // Récupérer les dates et montants spécifiques choisis par l'admin
@@ -179,7 +180,7 @@ export async function creerCashCollect(formData: FormData) {
     const moisSetter = Math.round((commissionSetter / 3) * 100) / 100
     const moisCloser = Math.round((commissionCloser / 3) * 100) / 100
 
-    const { data: alveoDeal } = await db.from('alveo_deals').insert({
+    const { data: alveoDeal, error: alveoErr } = await db.from('alveo_deals').insert({
       client_name:       clientName ?? 'Client',
       deal_date:         entryDate,
       montant:           montantCourant,
@@ -194,21 +195,22 @@ export async function creerCashCollect(formData: FormData) {
       created_by:        userId,
     }).select('id').single()
 
-    if (alveoDeal?.id) {
-      const payments: { deal_id: string; person_role: string; mois: number; amount: number; paid: boolean }[] = []
-      if (commissionSetter > 0) {
-        for (const m of [1, 2, 3]) {
-          payments.push({ deal_id: alveoDeal.id, person_role: 'setter', mois: m, amount: moisSetter, paid: false })
-        }
+    if (alveoErr) throw new Error(`Alveo: ${alveoErr.message}`)
+
+    const payments: { deal_id: string; person_role: string; mois: number; amount: number; paid: boolean }[] = []
+    if (commissionSetter > 0) {
+      for (const m of [1, 2, 3]) {
+        payments.push({ deal_id: alveoDeal.id, person_role: 'setter', mois: m, amount: moisSetter, paid: false })
       }
-      if (commissionCloser > 0) {
-        for (const m of [1, 2, 3]) {
-          payments.push({ deal_id: alveoDeal.id, person_role: 'closer', mois: m, amount: moisCloser, paid: false })
-        }
+    }
+    if (commissionCloser > 0) {
+      for (const m of [1, 2, 3]) {
+        payments.push({ deal_id: alveoDeal.id, person_role: 'closer', mois: m, amount: moisCloser, paid: false })
       }
-      if (payments.length > 0) {
-        await db.from('alveo_payments').insert(payments)
-      }
+    }
+    if (payments.length > 0) {
+      const { error: paymentsErr } = await db.from('alveo_payments').insert(payments)
+      if (paymentsErr) throw new Error(`Alveo paiements: ${paymentsErr.message}`)
     }
 
     revalidatePath('/alveo')

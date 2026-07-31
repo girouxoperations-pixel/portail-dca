@@ -55,12 +55,12 @@ export async function toggleCmMessage(
     [`message_${messageNum}_date`]: done ? todayQC() : null,
   }).eq('id', followupId)
   if (error) throw new Error(error.message)
-  revalidatePath('/cm')
+  // No revalidatePath — optimistic local state handles UI; avoids reordering rows
 }
 
 export async function setCmStatus(
   followupId: string,
-  status: 'en_cours' | 'pas_reponse_1' | 'pas_reponse_2',
+  status: 'en_cours' | 'pas_reponse_1' | 'pas_reponse_2' | 'remboursee',
 ) {
   const { userId, isPrivileged } = await requireCm()
   const db = createAdminClient()
@@ -86,7 +86,7 @@ export async function updateCmNotes(followupId: string, notes: string) {
 
   const { error } = await db.from('cm_followups').update({ notes: notes.trim() || null }).eq('id', followupId)
   if (error) throw new Error(error.message)
-  revalidatePath('/cm')
+  // No revalidatePath — optimistic local state handles UI
 }
 
 export async function supprimerCmFollowup(followupId: string) {

@@ -3,6 +3,7 @@ import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import SetterView      from '@/components/setter/SetterView'
 import AdminSetterView from '@/components/setter/AdminSetterView'
+import { dateQC } from '@/lib/dates'
 
 export default async function SetterPage() {
   const supabase = await createClient()
@@ -50,7 +51,8 @@ export default async function SetterPage() {
   // ── Vue admin / CSM : toutes les entrées + liste des setters ─────
   if (role !== 'admin' && role !== 'csm') redirect('/dashboard')
 
-  const [{ data: entrees }, { data: setters }, { data: cashEntries }] = await Promise.all([
+  const now = dateQC()
+  const [{ data: entrees }, { data: setters }, { data: cashEntries }, { data: userGoalsRaw }] = await Promise.all([
     db.from('setter_entries')
       .select('*')
       .order('entry_date', { ascending: false }),
@@ -58,14 +60,19 @@ export default async function SetterPage() {
     db.from('cash_entries')
       .select('id, entry_date, set_by, montant_courant, collected, close_type, notes')
       .order('entry_date', { ascending: false }),
+    db.from('user_goals')
+      .select('user_id, target_rdv, target_calls')
+      .eq('year', now.getFullYear())
+      .eq('month', now.getMonth() + 1),
   ])
 
   return (
     <AdminSetterView
-      entrees={entrees      ?? []}
-      setters={setters      ?? []}
+      entrees={entrees         ?? []}
+      setters={setters         ?? []}
       cashEntries={cashEntries ?? []}
       isAdmin={role === 'admin'}
+      userGoals={userGoalsRaw  ?? []}
     />
   )
 }
