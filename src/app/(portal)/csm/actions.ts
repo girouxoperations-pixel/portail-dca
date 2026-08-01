@@ -170,6 +170,16 @@ export async function updateEmailAvis(clientId: string, avis: string | null) {
   revalidatePath('/csm')
 }
 
+// ── Payment type ─────────────────────────────────────────────────────
+export async function updatePaymentType(clientId: string, paymentType: string) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_clients').update({ payment_type: paymentType }).eq('id', clientId)
+  if (error) throw error
+  revalidatePath('/csm')
+  revalidatePath(`/csm/${clientId}`)
+}
+
 // ── Status ──────────────────────────────────────────────────────────
 export async function updateStatus(clientId: string, status: string) {
   await verifyAdminOrCsm()

@@ -14,7 +14,7 @@ import { computeDueDates, today, formatDate } from './types'
 import {
   updateMeeting, updateMissed, toggleText, toggleMilestone, updateStatus,
   marquerRemboursement, updateOnboardingDate, updateEmailAvis, creerCsmClientManuel,
-  updateCsmId,
+  updateCsmId, updatePaymentType,
 } from './actions'
 import { definirObjectifCsm } from '@/app/(portal)/payes/actions'
 
@@ -482,6 +482,47 @@ function CsmCell({ clientId, csmId, csmMembers }: {
   )
 }
 
+// ── Payment type cell ─────────────────────────────────────────────────
+
+const PAYMENT_OPTIONS = [
+  { value: 'pif',        label: 'PIF'          },
+  { value: 'financement', label: 'Financement' },
+  { value: '2-vers',     label: '2 versements' },
+  { value: '3-vers',     label: '3 versements' },
+  { value: '4-vers',     label: '4 versements' },
+]
+
+function PaymentTypeCell({ clientId, paymentType, fullyPaid }: {
+  clientId:    string
+  paymentType: string | null
+  fullyPaid:   boolean
+}) {
+  const [pending, startT] = useTransition()
+  const pLow = paymentType?.toLowerCase().trim() ?? ''
+  const isPif = pLow === 'pif' || fullyPaid
+
+  return (
+    <td className="px-2 py-2 text-center">
+      <select
+        value={paymentType ?? ''}
+        onChange={e => startT(async () => { await updatePaymentType(clientId, e.target.value) })}
+        disabled={pending}
+        className={cn(
+          'text-[10px] font-semibold rounded px-1.5 py-0.5 border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-violet-400',
+          isPif
+            ? 'bg-green-50 text-green-700 focus:ring-green-400'
+            : 'bg-yellow-50 text-yellow-700 focus:ring-amber-400',
+        )}
+      >
+        <option value="">—</option>
+        {PAYMENT_OPTIONS.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </td>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────
 
 interface Profil { id: string; full_name: string | null }
@@ -498,14 +539,6 @@ interface Props {
   currentMonth:     number
   currentUserId:    string
   isAdmin:          boolean
-}
-
-function paymentBadgeCls(payment: string | null, fullyPaid: boolean): string {
-  if (!payment) return 'text-gray-400'
-  const p = payment.toLowerCase().trim().replace(/\s+/g, '-')
-  if (p === 'pif' || fullyPaid) return 'font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded'
-  if (p.startsWith('fin'))      return 'font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded'
-  return 'font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded'
 }
 
 const MOIS_FR_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
@@ -1162,14 +1195,11 @@ export default function CsmClientList({
                       />
 
                       {/* Payment */}
-                      <td className="px-2 py-2 text-center">
-                        <span className={cn(
-                          'text-[10px] uppercase',
-                          paymentBadgeCls(c.payment_type, fullyPaidSet.has(c.name.toLowerCase().trim())),
-                        )}>
-                          {c.payment_type ?? '—'}
-                        </span>
-                      </td>
+                      <PaymentTypeCell
+                        clientId={c.id}
+                        paymentType={c.payment_type}
+                        fullyPaid={fullyPaidSet.has(c.name.toLowerCase().trim())}
+                      />
 
                       {/* CSM assignée */}
                       {csmMembers.length > 0 && (
