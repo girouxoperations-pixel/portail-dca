@@ -1,10 +1,10 @@
--- Fix Naïla Lesage: clear a_collecter on her original cash_entry so Clientes shows PIF
+-- Fix Naïla Lesage: set collected = montant_courant so a_collecter (generated) becomes 0
 UPDATE public.cash_entries
-SET a_collecter = 0
+SET collected = montant_courant
 WHERE id = (
   SELECT cash_entry_id
   FROM public.csm_clients
   WHERE name ILIKE 'naïla lesage'
   LIMIT 1
 )
-AND a_collecter > 0;
+AND montant_courant > collected;
