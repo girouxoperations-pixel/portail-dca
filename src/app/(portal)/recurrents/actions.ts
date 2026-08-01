@@ -314,6 +314,7 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
         client_name: deal.client_name, type: 'virement_2pct',
         amount: commission2pct, month, year,
         description: `Virement 2% — ${deal.client_name} (${montantRecu}$)`,
+        occurrence_id: occurrenceId,
       })
     }
   }
@@ -538,6 +539,12 @@ export async function annulerRecu(occurrenceId: string) {
     await db.from('paye_entries').delete().eq('id', occ.paye_entry_id)
   if (occ?.cash_entry_id)
     await db.from('cash_entries').delete().eq('id', occ.cash_entry_id)
+
+  // Supprimer la commission CSM 2% liée à ce virement
+  await db.from('csm_commissions')
+    .delete()
+    .eq('occurrence_id', occurrenceId)
+    .eq('type', 'virement_2pct')
 
   await db.from('recurring_occurrences').update({
     recu: false, date_recue: null, montant_recu: null,
