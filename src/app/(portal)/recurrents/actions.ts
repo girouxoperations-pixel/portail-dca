@@ -299,11 +299,23 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
 
   if (toutes && toutes.every(o => o.recu)) {
     await db.from('recurring_deals').update({ actif: false }).eq('id', occ.recurring_deal_id)
-    // All installments received — mark matching CSM client as PIF
-    await db.from('csm_clients')
-      .update({ payment_type: 'pif' })
+
+    // All installments received — sync CSM client record
+    const { data: csmClient } = await db.from('csm_clients')
+      .select('id, cash_entry_id')
       .ilike('name', deal.client_name)
-      .neq('payment_type', 'pif')
+      .maybeSingle()
+    if (csmClient) {
+      await db.from('csm_clients')
+        .update({ payment_type: 'pif' })
+        .eq('id', csmClient.id)
+      // Clear a_collecter on the original cash_entry so the Clientes page shows PIF
+      if (csmClient.cash_entry_id) {
+        await db.from('cash_entries')
+          .update({ a_collecter: 0 })
+          .eq('id', csmClient.cash_entry_id)
+      }
+    }
   }
 
   // Commission CSM 2% sur les virements
