@@ -5,6 +5,26 @@ import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { todayQC }           from '@/lib/dates'
 
+// ── Commission helpers ────────────────────────────────────────────────
+
+async function insertCommission(db: ReturnType<typeof createAdminClient>, {
+  csmId, clientId, clientName, type, amount, description,
+}: {
+  csmId:      string
+  clientId:   string
+  clientName: string
+  type:       'cert_setter' | 'placement' | 'cert_closer'
+  amount:     number
+  description: string
+}) {
+  const today = todayQC()
+  const [year, month] = today.split('-').map(Number)
+  await db.from('csm_commissions').insert({
+    csm_id: csmId, client_id: clientId, client_name: clientName,
+    type, amount, description, month, year,
+  })
+}
+
 async function verifyAdminOrCsm() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -27,7 +47,18 @@ export async function updateMeeting(
   if (fields.notes !== undefined) update[`m${num}_notes`] = fields.notes || null
 
   // Auto-set cert_setter when M4 is booked
-  if (num === 4 && fields.date) update.cert_setter_done = true
+  if (num === 4 && fields.date) {
+    const { data: client } = await db.from('csm_clients')
+      .select('csm_id, name, cert_setter_done').eq('id', clientId).single()
+    if (client && !client.cert_setter_done && client.csm_id) {
+      await insertCommission(db, {
+        csmId: client.csm_id, clientId, clientName: client.name,
+        type: 'cert_setter', amount: 50,
+        description: `Certification setter — ${client.name}`,
+      })
+    }
+    update.cert_setter_done = true
+  }
 
   const { error } = await db.from('csm_clients').update(update).eq('id', clientId)
   if (error) throw error
@@ -61,8 +92,42 @@ export async function toggleMilestone(
 ) {
   await verifyAdminOrCsm()
   const db = createAdminClient()
+
+  // Fetch client before update for commission logic
+  const { data: client } = await db.from('csm_clients')
+    .select('csm_id, name, cert_setter_done, cert_closer_done, opportunity_setter, opportunity_closer')
+    .eq('id', clientId).single()
+
   const { error } = await db.from('csm_clients').update({ [field]: value }).eq('id', clientId)
   if (error) throw error
+
+  // Auto-commission on first-time milestone trigger
+  if (value && client?.csm_id) {
+    if (field === 'cert_setter_done' && !client.cert_setter_done) {
+      await insertCommission(db, {
+        csmId: client.csm_id, clientId, clientName: client.name,
+        type: 'cert_setter', amount: 50,
+        description: `Certification setter — ${client.name}`,
+      })
+    }
+    if (field === 'cert_closer_done' && !client.cert_closer_done) {
+      await insertCommission(db, {
+        csmId: client.csm_id, clientId, clientName: client.name,
+        type: 'cert_closer', amount: 150,
+        description: `Certification closer — ${client.name}`,
+      })
+    }
+    // Placement: only once per client (neither opportunity was set before)
+    if ((field === 'opportunity_setter' || field === 'opportunity_closer')
+      && !client.opportunity_setter && !client.opportunity_closer) {
+      await insertCommission(db, {
+        csmId: client.csm_id, clientId, clientName: client.name,
+        type: 'placement', amount: 100,
+        description: `Placement — ${client.name}`,
+      })
+    }
+  }
+
   revalidatePath('/csm')
   revalidatePath(`/csm/${clientId}`)
 }

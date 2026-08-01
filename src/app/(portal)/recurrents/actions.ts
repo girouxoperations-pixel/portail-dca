@@ -221,7 +221,7 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
 
   const { data: occ, error: occErr } = await db
     .from('recurring_occurrences')
-    .select('*, recurring_deals(client_name, closer_id, setter_id)')
+    .select('*, recurring_deals(client_name, closer_id, setter_id, methode_paiement)')
     .eq('id', occurrenceId)
     .single()
 
@@ -229,9 +229,10 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
   if (occ.recu) throw new Error('Déjà reçue')
 
   const deal = occ.recurring_deals as {
-    client_name: string
-    closer_id:   string | null
-    setter_id:   string | null
+    client_name:      string
+    closer_id:        string | null
+    setter_id:        string | null
+    methode_paiement: string | null
   }
 
   const today              = todayQC()
@@ -300,6 +301,23 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
     await db.from('recurring_deals').update({ actif: false }).eq('id', occ.recurring_deal_id)
   }
 
+  // Commission CSM 2% sur les virements
+  if (deal.methode_paiement === 'virement') {
+    const { data: csmClient } = await db.from('csm_clients')
+      .select('id, csm_id')
+      .ilike('name', deal.client_name)
+      .maybeSingle()
+    if (csmClient?.csm_id) {
+      const commission2pct = Math.round(montantRecu * 0.02 * 100) / 100
+      await db.from('csm_commissions').insert({
+        csm_id: csmClient.csm_id, client_id: csmClient.id,
+        client_name: deal.client_name, type: 'virement_2pct',
+        amount: commission2pct, month, year,
+        description: `Virement 2% — ${deal.client_name} (${montantRecu}$)`,
+      })
+    }
+  }
+
   revalidatePath('/recurrents')
   revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
   revalidatePath('/dashboard')
@@ -318,7 +336,7 @@ export async function marquerRecuAvecSolde(
 
   const { data: occ, error: occErr } = await db
     .from('recurring_occurrences')
-    .select('*, recurring_deals(client_name, closer_id, setter_id)')
+    .select('*, recurring_deals(client_name, closer_id, setter_id, methode_paiement)')
     .eq('id', occurrenceId)
     .single()
 
@@ -413,7 +431,7 @@ export async function marquerRecuAvecSoldes(
 
   const { data: occ, error: occErr } = await db
     .from('recurring_occurrences')
-    .select('*, recurring_deals(client_name, closer_id, setter_id)')
+    .select('*, recurring_deals(client_name, closer_id, setter_id, methode_paiement)')
     .eq('id', occurrenceId)
     .single()
 

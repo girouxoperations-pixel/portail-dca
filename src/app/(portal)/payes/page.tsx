@@ -41,6 +41,8 @@ export default async function PayesPage() {
       { data: closers },
       { data: setters },
       { data: allProfiles },
+      { data: csmCommissions },
+      { data: csmProfiles },
     ] = await Promise.all([
       db.from('paye_entries')
         .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
@@ -49,6 +51,10 @@ export default async function PayesPage() {
       db.from('profiles').select('id, full_name, role').eq('role', 'closer'),
       db.from('profiles').select('id, full_name, role').eq('role', 'setter'),
       db.from('profiles').select('id, full_name, role').in('role', ['closer', 'setter']),
+      db.from('csm_commissions')
+        .select('id, csm_id, client_name, type, amount, paid, paid_at, month, year, description, created_at')
+        .order('created_at', { ascending: false }),
+      db.from('profiles').select('id, full_name').contains('roles', ['csm']),
     ])
 
     const entreesNorm = (entrees ?? []).map(e => ({
@@ -66,6 +72,8 @@ export default async function PayesPage() {
         isAdmin={role === 'admin'}
         periodesCourant={periodes}
         periodeDefaut={periode.label}
+        csmCommissions={csmCommissions ?? []}
+        csmProfiles={csmProfiles ?? []}
       />
     )
   }

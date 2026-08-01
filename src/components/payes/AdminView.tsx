@@ -7,6 +7,7 @@ import {
   basculerStatut,
   approuverPeriode, approuverPayesBatch, modifierPaye,
   ajouterBonusManuel, supprimerPaye, creerRemboursement,
+  payerCommissionCsm,
 } from '@/app/(portal)/payes/actions'
 import { dollar, MOIS_FR } from '@/lib/constants'
 import Badge      from '@/components/ui/Badge'
@@ -37,15 +38,31 @@ interface Profil {
   role: string
 }
 
+interface CsmCommission {
+  id:          string
+  csm_id:      string
+  client_name: string | null
+  type:        'virement_2pct' | 'cert_setter' | 'placement' | 'cert_closer'
+  amount:      number
+  paid:        boolean
+  paid_at:     string | null
+  month:       number | null
+  year:        number | null
+  description: string | null
+  created_at:  string
+}
+
 interface Props {
-  entrees:         PayeEntry[]
-  closers:         Profil[]
-  setters:         Profil[]
-  allProfiles:     Profil[]
-  teamMembers:     Profil[]
-  isAdmin:         boolean
-  periodesCourant: { label: string; month: number; year: number }[]
-  periodeDefaut:   string
+  entrees:          PayeEntry[]
+  closers:          Profil[]
+  setters:          Profil[]
+  allProfiles:      Profil[]
+  teamMembers:      Profil[]
+  isAdmin:          boolean
+  periodesCourant:  { label: string; month: number; year: number }[]
+  periodeDefaut:    string
+  csmCommissions:   CsmCommission[]
+  csmProfiles:      { id: string; full_name: string | null }[]
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -1175,11 +1192,118 @@ function SectionSalaire({ montant, isAdmin }: { montant: number; isAdmin: boolea
   )
 }
 
+// ── Section CSM commissions ───────────────────────────────────────────
+
+const TYPE_CONFIG: Record<CsmCommission['type'], { label: string; color: string; dot: string }> = {
+  virement_2pct: { label: 'Virement 2%',        color: 'bg-blue-50 text-blue-700',    dot: 'bg-blue-400'   },
+  cert_setter:   { label: 'Cert. setter (+50$)', color: 'bg-violet-50 text-violet-700', dot: 'bg-violet-400' },
+  placement:     { label: 'Placement (+100$)',    color: 'bg-amber-50 text-amber-700',  dot: 'bg-amber-400'  },
+  cert_closer:   { label: 'Cert. closer (+150$)', color: 'bg-green-50 text-green-700', dot: 'bg-green-500'  },
+}
+
+function SectionCsm({ isAdmin, commissions, csmProfiles }: {
+  isAdmin:     boolean
+  commissions: CsmCommission[]
+  csmProfiles: { id: string; full_name: string | null }[]
+}) {
+  const [filterCsm, setFilterCsm]     = useState<string>('tous')
+  const [filterPaid, setFilterPaid]   = useState<'tous' | 'impayé' | 'payé'>('tous')
+  const [pending, startT]             = useTransition()
+  const csmMap = useMemo(() => new Map(csmProfiles.map(p => [p.id, p.full_name ?? '—'])), [csmProfiles])
+
+  const filtered = useMemo(() => {
+    let list = commissions
+    if (filterCsm !== 'tous') list = list.filter(c => c.csm_id === filterCsm)
+    if (filterPaid === 'impayé') list = list.filter(c => !c.paid)
+    if (filterPaid === 'payé')   list = list.filter(c =>  c.paid)
+    return list
+  }, [commissions, filterCsm, filterPaid])
+
+  const totalImpaye = useMemo(
+    () => commissions.filter(c => !c.paid).reduce((s, c) => s + (c.amount ?? 0), 0),
+    [commissions],
+  )
+
+  function handlePay(id: string) {
+    startT(() => payerCommissionCsm(id))
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">Commissions CSM</p>
+          {totalImpaye > 0 && (
+            <p className="text-xs text-amber-600 mt-0.5">{dollar(totalImpaye)} à payer</p>
+          )}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <select
+            value={filterCsm}
+            onChange={e => setFilterCsm(e.target.value)}
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          >
+            <option value="tous">Toutes les CSM</option>
+            {csmProfiles.map(p => (
+              <option key={p.id} value={p.id}>{p.full_name ?? p.id}</option>
+            ))}
+          </select>
+          {(['tous', 'impayé', 'payé'] as const).map(f => (
+            <button key={f} onClick={() => setFilterPaid(f)}
+              className={cn('text-xs px-3 py-1.5 rounded-lg font-medium transition-colors',
+                filterPaid === f ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
+              {f === 'tous' ? 'Tout' : f === 'impayé' ? 'Impayé' : 'Payé'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-8">Aucune commission</p>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {filtered.map(c => {
+            const cfg = TYPE_CONFIG[c.type]
+            return (
+              <div key={c.id} className={cn('flex items-center gap-3 px-5 py-3', c.paid && 'opacity-50')}>
+                <div className={cn('w-2 h-2 rounded-full shrink-0', cfg.dot)} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-gray-800">{csmMap.get(c.csm_id) ?? '—'}</span>
+                    <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', cfg.color)}>{cfg.label}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-0.5 truncate">{c.description ?? c.client_name ?? '—'}</p>
+                </div>
+                <span className="text-sm font-bold tabular-nums text-gray-900 shrink-0">{dollar(c.amount)}</span>
+                {isAdmin && !c.paid && (
+                  <button
+                    onClick={() => handlePay(c.id)}
+                    disabled={pending}
+                    className="shrink-0 px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Payer
+                  </button>
+                )}
+                {c.paid && (
+                  <span className="shrink-0 flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <CheckCircle2 size={12} />Payé
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Vue principale admin / CSM ────────────────────────────────────────
 
 export default function AdminView({
   entrees, allProfiles, teamMembers,
   isAdmin, periodesCourant, periodeDefaut,
+  csmCommissions, csmProfiles,
 }: Props) {
   const [modeGlobal, setModeGlobal]             = useState<'periode' | 'historique'>('periode')
   const [periodeSelect, setPeriodeSelect]       = useState<string>(periodeDefaut)
@@ -1376,6 +1500,12 @@ export default function AdminView({
         entrees={entrees}
         allProfiles={allProfiles}
         periodes={periodesCourant}
+      />
+
+      <SectionCsm
+        isAdmin={isAdmin}
+        commissions={csmCommissions}
+        csmProfiles={csmProfiles}
       />
 
       {/* ── Historique groupé ─────────────────────────────────────────── */}

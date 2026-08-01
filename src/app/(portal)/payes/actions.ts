@@ -277,3 +277,40 @@ export async function assignerMVP(
   if (error) throw new Error(error.message)
   revalidatePath('/payes')
 }
+
+// ── CSM commissions ──────────────────────────────────────────────────
+
+export async function payerCommissionCsm(commissionId: string) {
+  await requireRole(['admin'])
+  const db = createAdminClient()
+  const { error } = await db.from('csm_commissions')
+    .update({ paid: true, paid_at: new Date().toISOString() })
+    .eq('id', commissionId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/payes')
+}
+
+export async function definirObjectifCsm(
+  csmId: string,
+  year: number,
+  month: number,
+  targetCertSetter: number,
+  targetPlacement: number,
+  targetCertCloser: number,
+) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+  const { error } = await db.from('user_goals').upsert(
+    {
+      user_id:            csmId,
+      year,
+      month,
+      target_cert_setter: targetCertSetter,
+      target_placement:   targetPlacement,
+      target_cert_closer: targetCertCloser,
+    },
+    { onConflict: 'user_id,year,month' },
+  )
+  if (error) throw new Error(error.message)
+  revalidatePath('/csm')
+}
