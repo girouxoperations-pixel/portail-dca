@@ -21,14 +21,6 @@ export default async function CsmPage() {
   const db = createAdminClient()
   const { year, month } = nowQC()
 
-  // Week boundaries (Mon–Sun)
-  const todayDate = new Date()
-  const day = todayDate.getDay() // 0=Sun
-  const diffToMon = (day === 0 ? -6 : 1 - day)
-  const weekStart = new Date(todayDate)
-  weekStart.setDate(todayDate.getDate() + diffToMon)
-  const weekStartStr = weekStart.toISOString().split('T')[0]
-
   const [
     { data: clients },
     { data: dealData },
@@ -41,13 +33,11 @@ export default async function CsmPage() {
     db.from('profiles').select('id, full_name').contains('roles', ['csm']),
     db.from('csm_commissions')
       .select('csm_id, type, amount, created_at, month, year')
-      .in('type', ['cert_setter', 'placement', 'cert_closer'])
-      .gte('year', year)
+      .in('type', ['cert_setter', 'placement', 'cert_closer', 'upsell'])
       .order('created_at', { ascending: false }),
     db.from('user_goals')
-      .select('user_id, target_cert_setter, target_placement, target_cert_closer')
-      .eq('year', year)
-      .eq('month', month),
+      .select('user_id, year, month, target_cert_setter, target_placement, target_cert_closer, target_upsell')
+      .eq('year', year),
   ])
 
   // Build set of client names that have fully paid all their installments
@@ -70,7 +60,6 @@ export default async function CsmPage() {
       csmGoals={csmGoals ?? []}
       currentYear={year}
       currentMonth={month}
-      weekStartStr={weekStartStr}
       currentUserId={user.id}
       isAdmin={userRoles.includes('admin')}
     />

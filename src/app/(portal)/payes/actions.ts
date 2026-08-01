@@ -297,6 +297,7 @@ export async function definirObjectifCsm(
   targetCertSetter: number,
   targetPlacement: number,
   targetCertCloser: number,
+  targetUpsell: number = 0,
 ) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()
@@ -308,6 +309,7 @@ export async function definirObjectifCsm(
       target_cert_setter: targetCertSetter,
       target_placement:   targetPlacement,
       target_cert_closer: targetCertCloser,
+      target_upsell:      targetUpsell,
     },
     { onConflict: 'user_id,year,month' },
   )

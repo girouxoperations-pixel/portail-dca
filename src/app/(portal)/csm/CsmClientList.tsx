@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import {
   Search, Users, CheckCircle2, AlertCircle, Clock,
-  Shield, X, AlertTriangle, ChevronDown, Upload, Plus, Pencil,
+  Shield, X, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Upload, Plus, Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ExportCsvButton from '@/components/ui/ExportCsvButton'
@@ -486,7 +486,7 @@ function CsmCell({ clientId, csmId, csmMembers }: {
 
 interface Profil { id: string; full_name: string | null }
 interface DashCommission { csm_id: string; type: string; amount: number; created_at: string; month: number | null; year: number | null }
-interface CsmGoal { user_id: string; target_cert_setter: number; target_placement: number; target_cert_closer: number }
+interface CsmGoal { user_id: string; year: number; month: number; target_cert_setter: number; target_placement: number; target_cert_closer: number; target_upsell: number }
 
 interface Props {
   clients:          CsmClient[]
@@ -496,7 +496,6 @@ interface Props {
   csmGoals:         CsmGoal[]
   currentYear:      number
   currentMonth:     number
-  weekStartStr:     string
   currentUserId:    string
   isAdmin:          boolean
 }
@@ -509,69 +508,108 @@ function paymentBadgeCls(payment: string | null, fullyPaid: boolean): string {
   return 'font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded'
 }
 
+const MOIS_FR_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+const MOIS_FR_LONG  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+
 // ── Dashboard CSM ─────────────────────────────────────────────────────
 
 function CsmDashboard({
-  commissions, csmMembers, goals, currentYear, currentMonth, weekStartStr, isAdmin,
+  commissions, csmMembers, goals, currentYear, currentMonth, isAdmin,
 }: {
   commissions:  DashCommission[]
   csmMembers:   Profil[]
   goals:        CsmGoal[]
   currentYear:  number
   currentMonth: number
-  weekStartStr: string
   isAdmin:      boolean
 }) {
+  const [selYear, setSelYear]         = useState(currentYear)
+  const [selMonth, setSelMonth]       = useState(currentMonth)
   const [editGoalFor, setEditGoalFor] = useState<string | null>(null)
   const [gSetter, setGSetter]         = useState(0)
   const [gPlacement, setGPlacement]   = useState(0)
   const [gCloser, setGCloser]         = useState(0)
+  const [gUpsell, setGUpsell]         = useState(0)
   const [saving, startSave]           = useTransition()
 
-  const goalMap = useMemo(() => new Map(goals.map(g => [g.user_id, g])), [goals])
+  function prevMonth() {
+    if (selMonth === 1) { setSelMonth(12); setSelYear(y => y - 1) }
+    else setSelMonth(m => m - 1)
+    setEditGoalFor(null)
+  }
+  function nextMonth() {
+    const isCurrentOrFuture = selYear > currentYear || (selYear === currentYear && selMonth >= currentMonth)
+    if (isCurrentOrFuture) return
+    if (selMonth === 12) { setSelMonth(1); setSelYear(y => y + 1) }
+    else setSelMonth(m => m + 1)
+    setEditGoalFor(null)
+  }
+
+  const goalMap = useMemo(() => {
+    const map = new Map<string, CsmGoal>()
+    goals.forEach(g => { if (g.year === selYear && g.month === selMonth) map.set(g.user_id, g) })
+    return map
+  }, [goals, selYear, selMonth])
 
   function openEdit(csmId: string) {
     const g = goalMap.get(csmId)
     setGSetter(g?.target_cert_setter ?? 0)
     setGPlacement(g?.target_placement ?? 0)
     setGCloser(g?.target_cert_closer ?? 0)
+    setGUpsell(g?.target_upsell ?? 0)
     setEditGoalFor(csmId)
   }
 
   function saveGoal(csmId: string) {
     startSave(async () => {
-      await definirObjectifCsm(csmId, currentYear, currentMonth, gSetter, gPlacement, gCloser)
+      await definirObjectifCsm(csmId, selYear, selMonth, gSetter, gPlacement, gCloser, gUpsell)
       setEditGoalFor(null)
     })
   }
 
-  const todayStr = new Date().toISOString().split('T')[0]
-
-  function countFor(csmId: string, type: string, period: 'month' | 'week') {
-    return commissions.filter(c => {
-      if (c.csm_id !== csmId || c.type !== type) return false
-      if (period === 'month') return c.month === currentMonth && c.year === currentYear
-      return c.created_at.slice(0, 10) >= weekStartStr && c.created_at.slice(0, 10) <= todayStr
-    }).length
+  function countFor(csmId: string, type: string) {
+    return commissions.filter(c =>
+      c.csm_id === csmId && c.type === type && c.month === selMonth && c.year === selYear
+    ).length
   }
+
+  const isCurrentMonth = selYear === currentYear && selMonth === currentMonth
 
   if (csmMembers.length === 0) return null
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-100">
-        <p className="text-sm font-semibold text-gray-900">Performance CSM — certifications & placements</p>
-        <p className="text-xs text-gray-400 mt-0.5">Semaine en cours · Mois en cours · Objectif mensuel</p>
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">Performance CSM</p>
+          <p className="text-xs text-gray-400 mt-0.5">Certifications · Placements · Upsells — par mois</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={prevMonth} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-sm font-semibold text-gray-700 w-32 text-center">
+            {MOIS_FR_LONG[selMonth - 1]} {selYear}
+          </span>
+          <button
+            onClick={nextMonth}
+            disabled={isCurrentMonth}
+            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
       </div>
       <div className="divide-y divide-gray-50">
         {csmMembers.map(csm => {
           const g       = goalMap.get(csm.id)
           const editing = editGoalFor === csm.id
 
-          const rows: { label: string; type: string; color: string; goal: number }[] = [
-            { label: 'Cert. setter',  type: 'cert_setter', color: 'text-violet-600', goal: g?.target_cert_setter ?? 0 },
-            { label: 'Placement',     type: 'placement',   color: 'text-amber-600',  goal: g?.target_placement   ?? 0 },
-            { label: 'Cert. closer',  type: 'cert_closer', color: 'text-green-600',  goal: g?.target_cert_closer ?? 0 },
+          const rows: { label: string; type: string; color: string; bg: string; goal: number }[] = [
+            { label: 'Cert. setter', type: 'cert_setter', color: 'text-violet-600', bg: 'bg-violet-50', goal: g?.target_cert_setter ?? 0 },
+            { label: 'Placement',    type: 'placement',   color: 'text-amber-600',  bg: 'bg-amber-50',  goal: g?.target_placement   ?? 0 },
+            { label: 'Cert. closer', type: 'cert_closer', color: 'text-green-600',  bg: 'bg-green-50',  goal: g?.target_cert_closer ?? 0 },
+            { label: 'Upsell',       type: 'upsell',      color: 'text-pink-600',   bg: 'bg-pink-50',   goal: g?.target_upsell      ?? 0 },
           ]
 
           return (
@@ -585,16 +623,19 @@ function CsmDashboard({
                   </button>
                 )}
                 {editing && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <input type="number" min="0" value={gSetter} onChange={e => setGSetter(+e.target.value)}
-                      placeholder="Setter" title="Objectif cert. setter"
-                      className="w-16 text-xs px-2 py-1 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-violet-500 tabular-nums" />
+                      title="Objectif cert. setter" placeholder="Setter"
+                      className="w-14 text-xs px-2 py-1 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-violet-500 tabular-nums" />
                     <input type="number" min="0" value={gPlacement} onChange={e => setGPlacement(+e.target.value)}
-                      placeholder="Placement" title="Objectif placement"
-                      className="w-16 text-xs px-2 py-1 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-violet-500 tabular-nums" />
+                      title="Objectif placement" placeholder="Placement"
+                      className="w-14 text-xs px-2 py-1 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-violet-500 tabular-nums" />
                     <input type="number" min="0" value={gCloser} onChange={e => setGCloser(+e.target.value)}
-                      placeholder="Closer" title="Objectif cert. closer"
-                      className="w-16 text-xs px-2 py-1 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-violet-500 tabular-nums" />
+                      title="Objectif cert. closer" placeholder="Closer"
+                      className="w-14 text-xs px-2 py-1 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-violet-500 tabular-nums" />
+                    <input type="number" min="0" value={gUpsell} onChange={e => setGUpsell(+e.target.value)}
+                      title="Objectif upsell" placeholder="Upsell"
+                      className="w-14 text-xs px-2 py-1 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-violet-500 tabular-nums" />
                     <button onClick={() => saveGoal(csm.id)} disabled={saving}
                       className="text-xs px-2 py-1 bg-violet-600 text-white rounded disabled:opacity-50">✓</button>
                     <button onClick={() => setEditGoalFor(null)}
@@ -602,27 +643,23 @@ function CsmDashboard({
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-2">
                 {rows.map(row => {
-                  const week  = countFor(csm.id, row.type, 'week')
-                  const month = countFor(csm.id, row.type, 'month')
-                  const pct   = row.goal > 0 ? Math.min(100, Math.round((month / row.goal) * 100)) : 0
+                  const count = countFor(csm.id, row.type)
+                  const pct   = row.goal > 0 ? Math.min(100, Math.round((count / row.goal) * 100)) : 0
                   const barCl = pct >= 100 ? 'bg-green-500' : pct >= 60 ? 'bg-violet-500' : pct >= 30 ? 'bg-amber-400' : 'bg-red-400'
                   return (
-                    <div key={row.type} className="bg-gray-50 rounded-xl p-3">
+                    <div key={row.type} className={cn('rounded-xl p-3', row.bg)}>
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">{row.label}</p>
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className={cn('text-xl font-bold tabular-nums', row.color)}>{month}</span>
-                        <span className="text-xs text-gray-400">/ {row.goal > 0 ? row.goal : '—'}</span>
+                      <div className="flex items-baseline gap-1.5 mb-1">
+                        <span className={cn('text-2xl font-bold tabular-nums', row.color)}>{count}</span>
+                        {row.goal > 0 && <span className="text-xs text-gray-400">/ {row.goal}</span>}
                       </div>
                       {row.goal > 0 && (
-                        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-1.5">
+                        <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
                           <div className={cn('h-full rounded-full transition-all', barCl)} style={{ width: `${pct}%` }} />
                         </div>
                       )}
-                      <p className="text-[10px] text-gray-400">
-                        <span className="font-semibold text-gray-600">{week}</span> cette semaine
-                      </p>
                     </div>
                   )
                 })}
@@ -638,7 +675,7 @@ function CsmDashboard({
 export default function CsmClientList({
   clients, fullyPaidNames, csmMembers,
   dashCommissions, csmGoals, currentYear, currentMonth,
-  weekStartStr, currentUserId, isAdmin,
+  currentUserId, isAdmin,
 }: Props) {
   const fullyPaidSet = useMemo(() => new Set(fullyPaidNames), [fullyPaidNames])
   const [search, setSearch]             = useState('')
@@ -766,7 +803,6 @@ export default function CsmClientList({
         goals={csmGoals}
         currentYear={currentYear}
         currentMonth={currentMonth}
-        weekStartStr={weekStartStr}
         isAdmin={isAdmin}
       />
 

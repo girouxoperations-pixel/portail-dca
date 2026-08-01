@@ -42,7 +42,7 @@ interface CsmCommission {
   id:          string
   csm_id:      string
   client_name: string | null
-  type:        'virement_2pct' | 'cert_setter' | 'placement' | 'cert_closer'
+  type:        'virement_2pct' | 'cert_setter' | 'placement' | 'cert_closer' | 'upsell'
   amount:      number
   paid:        boolean
   paid_at:     string | null
@@ -1195,10 +1195,11 @@ function SectionSalaire({ montant, isAdmin }: { montant: number; isAdmin: boolea
 // ── Section CSM commissions ───────────────────────────────────────────
 
 const TYPE_CONFIG: Record<CsmCommission['type'], { label: string; color: string; dot: string }> = {
-  virement_2pct: { label: 'Virement 2%',        color: 'bg-blue-50 text-blue-700',    dot: 'bg-blue-400'   },
-  cert_setter:   { label: 'Cert. setter (+50$)', color: 'bg-violet-50 text-violet-700', dot: 'bg-violet-400' },
-  placement:     { label: 'Placement (+100$)',    color: 'bg-amber-50 text-amber-700',  dot: 'bg-amber-400'  },
-  cert_closer:   { label: 'Cert. closer (+150$)', color: 'bg-green-50 text-green-700', dot: 'bg-green-500'  },
+  virement_2pct: { label: 'Virement 2%',        color: 'bg-blue-50 text-blue-700',      dot: 'bg-blue-400'    },
+  cert_setter:   { label: 'Cert. setter (+50$)', color: 'bg-violet-50 text-violet-700',  dot: 'bg-violet-400'  },
+  placement:     { label: 'Placement (+100$)',    color: 'bg-amber-50 text-amber-700',    dot: 'bg-amber-400'   },
+  cert_closer:   { label: 'Cert. closer (+150$)', color: 'bg-green-50 text-green-700',   dot: 'bg-green-500'   },
+  upsell:        { label: 'Upsell',               color: 'bg-pink-50 text-pink-700',      dot: 'bg-pink-400'    },
 }
 
 function SectionCsm({ isAdmin, commissions, csmProfiles }: {
