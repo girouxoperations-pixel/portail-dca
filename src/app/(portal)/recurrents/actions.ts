@@ -525,13 +525,14 @@ export async function marquerRecuAvecSoldes(
   revalidatePath('/payes')
 }
 
+// Soft undo: deletes cash/paye/CSM entries, resets occurrence to pending (stays in planning)
 export async function annulerRecu(occurrenceId: string) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()
 
   const { data: occ } = await db
     .from('recurring_occurrences')
-    .select('cash_entry_id, paye_entry_id')
+    .select('cash_entry_id, paye_entry_id, recurring_deal_id')
     .eq('id', occurrenceId)
     .single()
 
@@ -540,7 +541,6 @@ export async function annulerRecu(occurrenceId: string) {
   if (occ?.cash_entry_id)
     await db.from('cash_entries').delete().eq('id', occ.cash_entry_id)
 
-  // Supprimer la commission CSM 2% liée à ce virement
   await db.from('csm_commissions')
     .delete()
     .eq('occurrence_id', occurrenceId)
@@ -551,7 +551,12 @@ export async function annulerRecu(occurrenceId: string) {
     cash_entry_id: null, paye_entry_id: null,
   }).eq('id', occurrenceId)
 
+  // Re-activate the deal since there is now at least one pending occurrence
+  if (occ?.recurring_deal_id)
+    await db.from('recurring_deals').update({ actif: true }).eq('id', occ.recurring_deal_id)
+
   revalidatePath('/recurrents')
+  if (occ?.recurring_deal_id) revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
   revalidatePath('/cash')
   revalidatePath('/payes')
 }
@@ -797,6 +802,48 @@ export async function supprimerImportRecent(sinceISO: string) {
   await db.from('recurring_deals').delete().in('id', ids)
   revalidatePath('/recurrents')
   return { count: ids.length }
+}
+
+// Hard delete: deletes cash/paye/CSM entries AND removes the occurrence from planning entirely
+export async function effacerOccurrenceRecue(occurrenceId: string) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { data: occ } = await db
+    .from('recurring_occurrences')
+    .select('cash_entry_id, paye_entry_id, recurring_deal_id')
+    .eq('id', occurrenceId)
+    .single()
+
+  if (!occ) throw new Error('Occurrence introuvable')
+
+  if (occ.paye_entry_id)
+    await db.from('paye_entries').delete().eq('id', occ.paye_entry_id)
+  if (occ.cash_entry_id)
+    await db.from('cash_entries').delete().eq('id', occ.cash_entry_id)
+
+  await db.from('csm_commissions')
+    .delete()
+    .eq('occurrence_id', occurrenceId)
+    .eq('type', 'virement_2pct')
+
+  await db.from('recurring_occurrences').delete().eq('id', occurrenceId)
+
+  // Re-activate deal only if there are still pending occurrences remaining
+  if (occ.recurring_deal_id) {
+    const { data: remaining } = await db
+      .from('recurring_occurrences')
+      .select('recu')
+      .eq('recurring_deal_id', occ.recurring_deal_id)
+    if ((remaining ?? []).some(o => !o.recu))
+      await db.from('recurring_deals').update({ actif: true }).eq('id', occ.recurring_deal_id)
+
+    revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
+  }
+
+  revalidatePath('/recurrents')
+  revalidatePath('/cash')
+  revalidatePath('/payes')
 }
 
 export async function annulerDealAvecRaison(id: string, raison: string) {

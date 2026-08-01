@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import {
   ArrowLeft, CheckCircle2, Clock, AlertCircle,
@@ -10,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { dollar, MOIS_FR, formatDate } from '@/lib/constants'
 import Badge from '@/components/ui/Badge'
 import {
-  marquerRecu, annulerRecu, modifierRecurringDeal, ajouterPaiementManuel,
+  marquerRecu, annulerRecu, effacerOccurrenceRecue, modifierRecurringDeal, ajouterPaiementManuel,
   modifierDateOccurrence, supprimerOccurrence, ajouterOccurrencesEnLot,
   planifierVersement,
 } from '@/app/(portal)/recurrents/actions'
@@ -55,11 +56,12 @@ const INPUT = 'w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focu
 // ── Ligne occurrence ──────────────────────────────────────────────────
 
 function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) {
-  const [amount, setAmount]          = useState(String(occ.montant_attendu))
-  const [editDate, setEditDate]      = useState(false)
-  const [newDate, setNewDate]        = useState(occ.date_attendue)
-  const [pending, startTransition]   = useTransition()
+  const [amount, setAmount]           = useState(String(occ.montant_attendu))
+  const [editDate, setEditDate]       = useState(false)
+  const [newDate, setNewDate]         = useState(occ.date_attendue)
+  const [pending, startTransition]    = useTransition()
   const [datePending, startDateTrans] = useTransition()
+  const [showModal, setShowModal]     = useState(false)
 
   const today   = new Date(); today.setHours(0, 0, 0, 0)
   const dueDate = new Date(occ.date_attendue + 'T00:00:00')
@@ -78,8 +80,7 @@ function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) 
   }
 
   function handleAnnuler() {
-    if (!confirm('Annuler ce paiement ? Les entrées Cash Collect et Paie seront supprimées.')) return
-    startTransition(async () => { await annulerRecu(occ.id) })
+    setShowModal(true)
   }
 
   function handleSaveDate() {
@@ -212,6 +213,58 @@ function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) 
           </button>
         ) : null}
       </td>
+
+      {showModal && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Annuler ce paiement reçu</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Que faire avec l&apos;entrée Cash Collect associée&nbsp;?
+                </p>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-300 hover:text-gray-500 shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                disabled={pending}
+                onClick={() => {
+                  setShowModal(false)
+                  startTransition(async () => { await annulerRecu(occ.id) })
+                }}
+                className="w-full flex flex-col items-start gap-0.5 px-4 py-3 rounded-xl border-2 border-violet-200 bg-violet-50 hover:bg-violet-100 transition-colors disabled:opacity-50 text-left"
+              >
+                <span className="text-sm font-semibold text-violet-800">Remettre dans les récurrents</span>
+                <span className="text-[11px] text-violet-500">
+                  Aucune paie — remet le versement en attente dans le planning
+                </span>
+              </button>
+
+              <button
+                disabled={pending}
+                onClick={() => {
+                  setShowModal(false)
+                  startTransition(async () => { await effacerOccurrenceRecue(occ.id) })
+                }}
+                className="w-full flex flex-col items-start gap-0.5 px-4 py-3 rounded-xl border-2 border-red-100 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 text-left"
+              >
+                <span className="text-sm font-semibold text-red-700">Tout effacer</span>
+                <span className="text-[11px] text-red-400">
+                  Supprime ce versement du planning, la paie et la commission CSM
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </tr>
   )
 }
