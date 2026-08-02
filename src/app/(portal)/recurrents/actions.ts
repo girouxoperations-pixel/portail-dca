@@ -229,7 +229,7 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number, csm
 
   const { data: occ, error: occErr } = await db
     .from('recurring_occurrences')
-    .select('*, recurring_deals(id, client_name, closer_id, setter_id, methode_paiement, csm_id)')
+    .select('*, recurring_deals(id, client_name, closer_id, setter_id, methode_paiement)')
     .eq('id', occurrenceId)
     .single()
 
@@ -242,8 +242,18 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number, csm
     closer_id:        string | null
     setter_id:        string | null
     methode_paiement: string | null
-    csm_id:           string | null
   }
+
+  // Try to read csm_id from the deal (column may not exist yet if migration pending)
+  let dealCsmId: string | null = null
+  try {
+    const { data: dealRow } = await db
+      .from('recurring_deals')
+      .select('csm_id')
+      .eq('id', dealRaw.id)
+      .single()
+    dealCsmId = (dealRow as { csm_id?: string | null } | null)?.csm_id ?? null
+  } catch { /* column doesn't exist yet — ignore */ }
 
   // If caller provides a payment method and the deal doesn't have one, persist it
   if (methodePaiement && !dealRaw.methode_paiement) {
@@ -342,9 +352,11 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number, csm
   }
 
   // If a CSM override is provided and the deal has no csm_id yet, persist it
-  const resolvedCsmId = csmIdOverride ?? deal.csm_id
-  if (csmIdOverride && !deal.csm_id) {
-    await db.from('recurring_deals').update({ csm_id: csmIdOverride }).eq('id', dealRaw.id)
+  const resolvedCsmId = csmIdOverride ?? dealCsmId
+  if (csmIdOverride && !dealCsmId) {
+    try {
+      await db.from('recurring_deals').update({ csm_id: csmIdOverride }).eq('id', dealRaw.id)
+    } catch { /* column may not exist yet — ignore */ }
   }
 
   // Commission CSM 2% sur les virements
