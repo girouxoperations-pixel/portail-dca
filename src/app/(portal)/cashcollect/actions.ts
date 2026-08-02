@@ -115,14 +115,17 @@ export async function creerCashCollect(formData: FormData) {
       return d.toISOString().split('T')[0]
     })()
 
+    const methode = (formData.get('methode_paiement') as string) || null
+
     const { data: deal } = await db.from('recurring_deals').insert({
-      client_name:     clientName ?? 'Client',
-      closer_id:       closedBy,
-      setter_id:       setBy,
-      montant_mensuel: versementMontant,
-      date_debut:      dateDebut,
-      notes:           `Plan ${versements} versements — deal du ${entryDate}`,
-      created_by:      userId,
+      client_name:      clientName ?? 'Client',
+      closer_id:        closedBy,
+      setter_id:        setBy,
+      montant_mensuel:  versementMontant,
+      date_debut:       dateDebut,
+      methode_paiement: methode,
+      notes:            `Plan ${versements} versements — deal du ${entryDate}`,
+      created_by:       userId,
     }).select('id').single()
 
     if (deal) {

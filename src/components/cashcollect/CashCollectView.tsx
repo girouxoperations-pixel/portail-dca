@@ -454,9 +454,16 @@ function ModalAjout({ closers, setters, csmMembers, onClose }: { closers: Profil
               </>
             )}
 
-            <p className="text-[11px] text-violet-500 pt-1 border-t border-violet-100">
-              Ces dates apparaîtront dans l&apos;onglet Récurrents comme rappel de contact.
-            </p>
+            <div className="pt-1 border-t border-violet-100">
+              <label className="text-[11px] text-violet-600 font-semibold block mb-1">Méthode de paiement <span className="text-red-400">*</span></label>
+              <select name="methode_paiement" required
+                className="w-full px-2 py-1.5 rounded border border-violet-200 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                <option value="" disabled selected>— Choisir —</option>
+                <option value="carte">💳 Carte de crédit</option>
+                <option value="virement">🏦 Virement</option>
+              </select>
+              <p className="text-[11px] text-violet-500 mt-1">Ces dates apparaîtront dans l&apos;onglet Récurrents comme rappel de contact.</p>
+            </div>
           </div>
         )}
 
