@@ -56,13 +56,16 @@ const INPUT = 'w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focu
 // ── Ligne occurrence ──────────────────────────────────────────────────
 
 function OccurrenceRow({ occ, isAdmin, methode }: { occ: Occurrence; isAdmin: boolean; methode: string | null }) {
-  const [amount, setAmount]           = useState(String(occ.montant_attendu))
-  const [editDate, setEditDate]       = useState(false)
-  const [newDate, setNewDate]         = useState(occ.date_attendue)
-  const [pending, startTransition]    = useTransition()
-  const [datePending, startDateTrans] = useTransition()
-  const [showModal, setShowModal]     = useState(false)
-  const [csmFollowup, setCsmFollowup] = useState(methode === 'virement')
+  const [amount, setAmount]                   = useState(String(occ.montant_attendu))
+  const [editDate, setEditDate]               = useState(false)
+  const [newDate, setNewDate]                 = useState(occ.date_attendue)
+  const [pending, startTransition]            = useTransition()
+  const [datePending, startDateTrans]         = useTransition()
+  const [showModal, setShowModal]             = useState(false)
+  const [csmFollowup, setCsmFollowup]         = useState(methode === 'virement')
+  const [methodeOverride, setMethodeOverride] = useState<string>(methode ?? '')
+
+  const methodeEffective = methodeOverride || methode || null
 
   const today   = new Date(); today.setHours(0, 0, 0, 0)
   const dueDate = new Date(occ.date_attendue + 'T00:00:00')
@@ -77,7 +80,7 @@ function OccurrenceRow({ occ, isAdmin, methode }: { occ: Occurrence; isAdmin: bo
   function handleMarquer() {
     const val = Number(amount)
     if (!val || val <= 0) return
-    startTransition(async () => { await marquerRecu(occ.id, val, csmFollowup) })
+    startTransition(async () => { await marquerRecu(occ.id, val, csmFollowup, methodeEffective) })
   }
 
   function handleAnnuler() {
@@ -205,17 +208,28 @@ function OccurrenceRow({ occ, isAdmin, methode }: { occ: Occurrence; isAdmin: bo
               </button>
             )}
             </div>
-            {(methode === 'carte' || methode === 'virement') && (
-              <label className={cn('flex items-center gap-1.5 select-none', methode === 'virement' ? 'cursor-default' : 'cursor-pointer')}>
+            {!methode && (
+              <select
+                value={methodeOverride}
+                onChange={e => setMethodeOverride(e.target.value)}
+                className="text-[11px] border border-amber-300 rounded px-1.5 py-0.5 bg-amber-50 text-amber-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
+              >
+                <option value="">— Méthode ? —</option>
+                <option value="virement">🏦 Virement</option>
+                <option value="carte">💳 Carte</option>
+              </select>
+            )}
+            {(methodeEffective === 'carte' || methodeEffective === 'virement') && (
+              <label className={cn('flex items-center gap-1.5 select-none', methodeEffective === 'virement' ? 'cursor-default' : 'cursor-pointer')}>
                 <input
                   type="checkbox"
                   checked={csmFollowup}
-                  onChange={e => methode !== 'virement' && setCsmFollowup(e.target.checked)}
-                  disabled={methode === 'virement'}
+                  onChange={e => methodeEffective !== 'virement' && setCsmFollowup(e.target.checked)}
+                  disabled={methodeEffective === 'virement'}
                   className="rounded border-gray-300 text-violet-600 focus:ring-violet-500 disabled:opacity-60"
                 />
                 <span className="text-[10px] text-gray-400">
-                  {methode === 'virement' ? '2% virement (auto)' : 'Suivi email requis (2%)'}
+                  {methodeEffective === 'virement' ? '2% virement (auto)' : 'Suivi email requis (2%)'}
                 </span>
               </label>
             )}

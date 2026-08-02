@@ -251,15 +251,16 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
 }) {
   type SoldeLine = { montant: string; date: string }
 
-  const [showDiff, setShowDiff]       = useState(false)
-  const [amount, setAmount]           = useState(String(occ.montant_attendu))
-  const [soldeLines, setSoldeLines]   = useState<SoldeLine[]>([{ montant: '', date: '' }])
-  const [editOpen, setEditOpen]       = useState(false)
-  const [editDate, setEditDate]       = useState(false)
-  const [newDate, setNewDate]         = useState(occ.date_attendue)
-  const [dateError, setDateError]     = useState('')
-  const [pending, startTransition]    = useTransition()
-  const [datePending, startDateTrans] = useTransition()
+  const [showDiff, setShowDiff]         = useState(false)
+  const [amount, setAmount]             = useState(String(occ.montant_attendu))
+  const [soldeLines, setSoldeLines]     = useState<SoldeLine[]>([{ montant: '', date: '' }])
+  const [editOpen, setEditOpen]         = useState(false)
+  const [editDate, setEditDate]         = useState(false)
+  const [newDate, setNewDate]           = useState(occ.date_attendue)
+  const [dateError, setDateError]       = useState('')
+  const [pending, startTransition]      = useTransition()
+  const [datePending, startDateTrans]   = useTransition()
+  const [methodeOverride, setMethodeOverride] = useState<string>(deal.methode_paiement ?? '')
 
   const isPartial   = showDiff && !occ.recu && Number(amount) > 0 && Number(amount) < occ.montant_attendu
   const soldeTotal  = soldeLines.reduce((s, l) => s + (Number(l.montant) || 0), 0)
@@ -332,8 +333,10 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
     normal:  <span className="text-[10px] text-gray-400">Dans {diffDays}j</span>,
   }[urgency]
 
+  const methodeEffective = methodeOverride || deal.methode_paiement || null
+
   function handleMarquerExact() {
-    startTransition(async () => { await marquerRecu(occ.id, occ.montant_attendu) })
+    startTransition(async () => { await marquerRecu(occ.id, occ.montant_attendu, false, methodeEffective) })
   }
 
   function handleMarquerDiff() {
@@ -344,7 +347,7 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
         const lignes = soldeLines.filter(l => l.date && Number(l.montant) > 0)
         await marquerRecuAvecSoldes(occ.id, val, lignes.map(l => ({ montant: Number(l.montant), date: l.date })))
       } else {
-        await marquerRecu(occ.id, val)
+        await marquerRecu(occ.id, val, false, methodeEffective)
       }
     })
   }
@@ -482,6 +485,17 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
             <td className="px-4 py-3 text-right">
               {!showDiff ? (
                 <div className="flex flex-col items-end gap-1.5">
+                  {!deal.methode_paiement && (
+                    <select
+                      value={methodeOverride}
+                      onChange={e => setMethodeOverride(e.target.value)}
+                      className="text-[11px] border border-amber-300 rounded px-1.5 py-0.5 bg-amber-50 text-amber-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    >
+                      <option value="">— Méthode ? —</option>
+                      <option value="virement">🏦 Virement</option>
+                      <option value="carte">💳 Carte</option>
+                    </select>
+                  )}
                   <button
                     onClick={handleMarquerExact}
                     disabled={pending}

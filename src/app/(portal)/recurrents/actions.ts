@@ -215,25 +215,33 @@ export async function modifierDateOccurrence(occurrenceId: string, newDate: stri
   if (occ) revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
 }
 
-export async function marquerRecu(occurrenceId: string, montantRecu: number, csmFollowup = false) {
+export async function marquerRecu(occurrenceId: string, montantRecu: number, csmFollowup = false, methodePaiement?: string | null) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()
 
   const { data: occ, error: occErr } = await db
     .from('recurring_occurrences')
-    .select('*, recurring_deals(client_name, closer_id, setter_id, methode_paiement)')
+    .select('*, recurring_deals(id, client_name, closer_id, setter_id, methode_paiement)')
     .eq('id', occurrenceId)
     .single()
 
   if (occErr || !occ) throw new Error('Occurrence introuvable')
   if (occ.recu) throw new Error('Déjà reçue')
 
-  const deal = occ.recurring_deals as {
+  const dealRaw = occ.recurring_deals as {
+    id:               string
     client_name:      string
     closer_id:        string | null
     setter_id:        string | null
     methode_paiement: string | null
   }
+
+  // If caller provides a payment method and the deal doesn't have one, persist it
+  if (methodePaiement && !dealRaw.methode_paiement) {
+    await db.from('recurring_deals').update({ methode_paiement: methodePaiement }).eq('id', dealRaw.id)
+  }
+
+  const deal = { ...dealRaw, methode_paiement: methodePaiement ?? dealRaw.methode_paiement }
 
   const today              = todayQC()
   const [year, month]      = today.split('-').map(Number)
