@@ -739,6 +739,27 @@ function CsmDashboard({
                   </>
                 )}
               </div>
+
+              {/* Carte suivi section */}
+              {(() => {
+                const carteComms = commissions.filter(c =>
+                  c.csm_id === csm.id && c.type === 'carte_2pct' && c.month === selMonth && c.year === selYear
+                )
+                if (carteComms.length === 0) return null
+                const carteTotal = carteComms.reduce((sum, c) => sum + c.amount, 0)
+                return (
+                  <div className="mt-2 rounded-xl bg-orange-50 p-3">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Carte — suivis email (2%)</p>
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-sm font-bold tabular-nums text-orange-700">{carteComms.length}</span>
+                      <span className="text-xs text-gray-400">suivi{carteComms.length > 1 ? 's' : ''}</span>
+                      <span className="text-xs text-orange-500 ml-auto tabular-nums">
+                        Comm. : {fmtMoney(Math.round(carteTotal * 100) / 100)} $
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
           )
         })}

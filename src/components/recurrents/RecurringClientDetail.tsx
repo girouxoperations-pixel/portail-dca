@@ -55,13 +55,14 @@ const INPUT = 'w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focu
 
 // ── Ligne occurrence ──────────────────────────────────────────────────
 
-function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) {
+function OccurrenceRow({ occ, isAdmin, methode }: { occ: Occurrence; isAdmin: boolean; methode: string | null }) {
   const [amount, setAmount]           = useState(String(occ.montant_attendu))
   const [editDate, setEditDate]       = useState(false)
   const [newDate, setNewDate]         = useState(occ.date_attendue)
   const [pending, startTransition]    = useTransition()
   const [datePending, startDateTrans] = useTransition()
   const [showModal, setShowModal]     = useState(false)
+  const [csmFollowup, setCsmFollowup] = useState(false)
 
   const today   = new Date(); today.setHours(0, 0, 0, 0)
   const dueDate = new Date(occ.date_attendue + 'T00:00:00')
@@ -76,7 +77,7 @@ function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) 
   function handleMarquer() {
     const val = Number(amount)
     if (!val || val <= 0) return
-    startTransition(async () => { await marquerRecu(occ.id, val) })
+    startTransition(async () => { await marquerRecu(occ.id, val, csmFollowup) })
   }
 
   function handleAnnuler() {
@@ -180,16 +181,17 @@ function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) 
 
       <td className="px-5 py-3 text-right">
         {!occ.recu ? (
-          <div className="flex items-center justify-end gap-2">
-            <button
-              onClick={handleMarquer}
-              disabled={pending}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
-            >
-              <CheckCircle2 size={12} />
-              {pending ? '…' : 'Marquer reçu'}
-            </button>
-            {isAdmin && (
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleMarquer}
+                disabled={pending}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >
+                <CheckCircle2 size={12} />
+                {pending ? '…' : 'Marquer reçu'}
+              </button>
+              {isAdmin && (
               <button
                 onClick={() => {
                   if (!confirm('Supprimer ce versement du planning ?')) return
@@ -201,6 +203,18 @@ function OccurrenceRow({ occ, isAdmin }: { occ: Occurrence; isAdmin: boolean }) 
               >
                 <X size={13} />
               </button>
+            )}
+            </div>
+            {methode === 'carte' && (
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={csmFollowup}
+                  onChange={e => setCsmFollowup(e.target.checked)}
+                  className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                />
+                <span className="text-[10px] text-gray-400">Suivi email requis (2%)</span>
+              </label>
             )}
           </div>
         ) : isAdmin ? (
@@ -690,7 +704,7 @@ export default function RecurringClientDetail({
               </thead>
               <tbody>
                 {occs.map(o => (
-                  <OccurrenceRow key={o.id} occ={o} isAdmin={isAdmin} />
+                  <OccurrenceRow key={o.id} occ={o} isAdmin={isAdmin} methode={deal.methode_paiement} />
                 ))}
               </tbody>
               <tfoot>

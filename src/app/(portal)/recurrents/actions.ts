@@ -215,7 +215,7 @@ export async function modifierDateOccurrence(occurrenceId: string, newDate: stri
   if (occ) revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
 }
 
-export async function marquerRecu(occurrenceId: string, montantRecu: number) {
+export async function marquerRecu(occurrenceId: string, montantRecu: number, csmFollowup = false) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()
 
@@ -337,6 +337,24 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number) {
         client_name: deal.client_name, type: 'virement_2pct',
         amount: commission2pct, month, year,
         description: `Virement 2% — ${deal.client_name} (${montantRecu}$)`,
+        occurrence_id: occurrenceId,
+      })
+    }
+  }
+
+  // Commission CSM 2% sur les cartes avec suivi email
+  if (csmFollowup && deal.methode_paiement === 'carte') {
+    const { data: csmClient } = await db.from('csm_clients')
+      .select('id, csm_id')
+      .ilike('name', deal.client_name)
+      .maybeSingle()
+    if (csmClient?.csm_id) {
+      const commission2pct = Math.round(montantRecu * 0.02 * 100) / 100
+      await db.from('csm_commissions').insert({
+        csm_id: csmClient.csm_id, client_id: csmClient.id,
+        client_name: deal.client_name, type: 'carte_2pct',
+        amount: commission2pct, month, year,
+        description: `Carte suivi 2% — ${deal.client_name} (${montantRecu}$)`,
         occurrence_id: occurrenceId,
       })
     }
@@ -567,7 +585,7 @@ export async function annulerRecu(occurrenceId: string) {
   await db.from('csm_commissions')
     .delete()
     .eq('occurrence_id', occurrenceId)
-    .eq('type', 'virement_2pct')
+    .in('type', ['virement_2pct', 'carte_2pct'])
 
   await db.from('recurring_occurrences').update({
     recu: false, date_recue: null, montant_recu: null,
@@ -848,7 +866,7 @@ export async function effacerOccurrenceRecue(occurrenceId: string) {
   await db.from('csm_commissions')
     .delete()
     .eq('occurrence_id', occurrenceId)
-    .eq('type', 'virement_2pct')
+    .in('type', ['virement_2pct', 'carte_2pct'])
 
   await db.from('recurring_occurrences').delete().eq('id', occurrenceId)
 

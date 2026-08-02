@@ -34,7 +34,7 @@ export default async function CsmPage() {
     db.from('profiles').select('id, full_name').contains('roles', ['csm']),
     db.from('csm_commissions')
       .select('csm_id, type, amount, created_at, month, year')
-      .in('type', ['cert_setter', 'placement', 'cert_closer', 'upsell'])
+      .in('type', ['cert_setter', 'placement', 'cert_closer', 'upsell', 'carte_2pct'])
       .order('created_at', { ascending: false }),
     db.from('user_goals')
       .select('user_id, year, month, target_cert_setter, target_placement, target_cert_closer, target_upsell')
