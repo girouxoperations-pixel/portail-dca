@@ -528,6 +528,7 @@ function PaymentTypeCell({ clientId, paymentType, fullyPaid }: {
 interface Profil { id: string; full_name: string | null }
 interface DashCommission { csm_id: string; type: string; amount: number; created_at: string; month: number | null; year: number | null }
 interface CsmGoal { user_id: string; year: number; month: number; target_cert_setter: number; target_placement: number; target_cert_closer: number; target_upsell: number }
+interface VirementStatEntry { csm_id: string; month: number; year: number; attendu: number; recu_montant: number }
 
 interface Props {
   clients:          CsmClient[]
@@ -535,6 +536,7 @@ interface Props {
   csmMembers:       Profil[]
   dashCommissions:  DashCommission[]
   csmGoals:         CsmGoal[]
+  virementStats:    VirementStatEntry[]
   currentYear:      number
   currentMonth:     number
   currentUserId:    string
@@ -546,15 +548,20 @@ const MOIS_FR_LONG  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet
 
 // ── Dashboard CSM ─────────────────────────────────────────────────────
 
+function fmtMoney(n: number) {
+  return n.toLocaleString('fr-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+
 function CsmDashboard({
-  commissions, csmMembers, goals, currentYear, currentMonth, isAdmin,
+  commissions, csmMembers, goals, virementStats, currentYear, currentMonth, isAdmin,
 }: {
-  commissions:  DashCommission[]
-  csmMembers:   Profil[]
-  goals:        CsmGoal[]
-  currentYear:  number
-  currentMonth: number
-  isAdmin:      boolean
+  commissions:   DashCommission[]
+  csmMembers:    Profil[]
+  goals:         CsmGoal[]
+  virementStats: VirementStatEntry[]
+  currentYear:   number
+  currentMonth:  number
+  isAdmin:       boolean
 }) {
   const [selYear, setSelYear]         = useState(currentYear)
   const [selMonth, setSelMonth]       = useState(currentMonth)
@@ -606,6 +613,11 @@ function CsmDashboard({
     ).length
   }
 
+  function virementFor(csmId: string) {
+    const stat = virementStats.find(s => s.csm_id === csmId && s.month === selMonth && s.year === selYear)
+    return { attendu: stat?.attendu ?? 0, recu: stat?.recu_montant ?? 0 }
+  }
+
   const isCurrentMonth = selYear === currentYear && selMonth === currentMonth
 
   if (csmMembers.length === 0) return null
@@ -644,6 +656,10 @@ function CsmDashboard({
             { label: 'Cert. closer', type: 'cert_closer', color: 'text-green-600',  bg: 'bg-green-50',  goal: g?.target_cert_closer ?? 0 },
             { label: 'Upsell',       type: 'upsell',      color: 'text-pink-600',   bg: 'bg-pink-50',   goal: g?.target_upsell      ?? 0 },
           ]
+
+          const virement = virementFor(csm.id)
+          const vPct     = virement.attendu > 0 ? Math.min(100, Math.round((virement.recu / virement.attendu) * 100)) : 0
+          const vBarCl   = vPct >= 100 ? 'bg-green-500' : vPct >= 60 ? 'bg-sky-500' : vPct >= 30 ? 'bg-amber-400' : 'bg-red-400'
 
           return (
             <div key={csm.id} className="px-5 py-4">
@@ -697,6 +713,32 @@ function CsmDashboard({
                   )
                 })}
               </div>
+
+              {/* Virement recurring section */}
+              <div className="mt-2 rounded-xl bg-sky-50 p-3">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Virements récurrents</p>
+                {virement.attendu === 0 ? (
+                  <p className="text-xs text-gray-400">Aucun virement planifié ce mois</p>
+                ) : (
+                  <>
+                    <div className="flex items-baseline gap-3 mb-1.5">
+                      <span className="text-sm font-bold tabular-nums text-sky-700">
+                        {fmtMoney(virement.recu)} $
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        / {fmtMoney(virement.attendu)} $ attendu
+                      </span>
+                      <span className="text-xs text-sky-500 ml-auto tabular-nums">
+                        Comm. 2 % : {fmtMoney(Math.round(virement.recu * 0.02))} $
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
+                      <div className={cn('h-full rounded-full transition-all', vBarCl)} style={{ width: `${vPct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">{vPct} % collecté</p>
+                  </>
+                )}
+              </div>
             </div>
           )
         })}
@@ -707,7 +749,7 @@ function CsmDashboard({
 
 export default function CsmClientList({
   clients, fullyPaidNames, csmMembers,
-  dashCommissions, csmGoals, currentYear, currentMonth,
+  dashCommissions, csmGoals, virementStats, currentYear, currentMonth,
   currentUserId, isAdmin,
 }: Props) {
   const fullyPaidSet = useMemo(() => new Set(fullyPaidNames), [fullyPaidNames])
@@ -834,6 +876,7 @@ export default function CsmClientList({
         commissions={dashCommissions}
         csmMembers={csmMembers}
         goals={csmGoals}
+        virementStats={virementStats}
         currentYear={currentYear}
         currentMonth={currentMonth}
         isAdmin={isAdmin}

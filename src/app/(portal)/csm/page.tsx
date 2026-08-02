@@ -27,6 +27,7 @@ export default async function CsmPage() {
     { data: csmMembers },
     { data: dashCommissions },
     { data: csmGoals },
+    { data: virementDeals },
   ] = await Promise.all([
     db.from('csm_clients').select('*').order('enrollment_date', { ascending: false }),
     db.from('recurring_deals').select('client_name, versements_total, recurring_occurrences(recu)'),
@@ -38,7 +39,32 @@ export default async function CsmPage() {
     db.from('user_goals')
       .select('user_id, year, month, target_cert_setter, target_placement, target_cert_closer, target_upsell')
       .eq('year', year),
+    db.from('recurring_deals')
+      .select('id, client_name, recurring_occurrences(mois, annee, montant_attendu, montant_recu, recu)')
+      .eq('methode_paiement', 'virement'),
   ])
+
+  // Build per-CSM virement stats (attendu / collecté) per month
+  const nameToCsmId = new Map<string, string>()
+  for (const c of clients ?? []) {
+    if (c.csm_id && c.name) nameToCsmId.set(c.name.toLowerCase().trim(), c.csm_id)
+  }
+
+  type VirementStatEntry = { csm_id: string; month: number; year: number; attendu: number; recu_montant: number }
+  const virementMap = new Map<string, VirementStatEntry>()
+
+  for (const deal of virementDeals ?? []) {
+    const csmId = nameToCsmId.get((deal.client_name ?? '').toLowerCase().trim())
+    if (!csmId) continue
+    for (const occ of (deal.recurring_occurrences ?? []) as { mois: number; annee: number; montant_attendu: number | null; montant_recu: number | null; recu: boolean }[]) {
+      const key = `${csmId}|${occ.annee}|${occ.mois}`
+      if (!virementMap.has(key)) virementMap.set(key, { csm_id: csmId, month: occ.mois, year: occ.annee, attendu: 0, recu_montant: 0 })
+      const stat = virementMap.get(key)!
+      stat.attendu      += occ.montant_attendu ?? 0
+      if (occ.recu) stat.recu_montant += occ.montant_recu ?? occ.montant_attendu ?? 0
+    }
+  }
+  const virementStats = Array.from(virementMap.values())
 
   // Build set of client names that have fully paid all their installments
   const fullyPaidNames: string[] = (dealData ?? [])
@@ -58,6 +84,7 @@ export default async function CsmPage() {
       csmMembers={csmMembers ?? []}
       dashCommissions={dashCommissions ?? []}
       csmGoals={csmGoals ?? []}
+      virementStats={virementStats}
       currentYear={year}
       currentMonth={month}
       currentUserId={user.id}
