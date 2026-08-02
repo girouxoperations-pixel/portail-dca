@@ -84,7 +84,7 @@ type DealItem = {
 interface EmployeeGroup {
   uid: string
   nom: string
-  role: 'closer' | 'setter'
+  role: string
   deals: DealItem[]
   totalCommission: number
   pendingCommission: number
@@ -496,7 +496,7 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
 
 function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }: {
   deals:    DealItem[]
-  role:     'closer' | 'setter'
+  role:     string
   isAdmin:  boolean
   pending:  boolean
   onEdit:   (id: string) => void
@@ -583,7 +583,7 @@ function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pendin
   labelCls: string
   headerCls: string
   deals:    DealItem[]
-  role:     'closer' | 'setter'
+  role:     string
   isAdmin:  boolean
   pending:  boolean
   onEdit:   (id: string) => void
@@ -1382,6 +1382,18 @@ export default function AdminView({
 
       if (e.closer_id && e.commission !== 0) addToGroup(e.closer_id, 'closer', e.commission, collectedFromCloser)
       if (e.setter_id && e.commission_setter !== 0) addToGroup(e.setter_id, 'setter', e.commission_setter, collectedFromSetter)
+    }
+
+    // Always show payroll employees even if they have no deals this period (salary-only)
+    for (const [uid, nom] of profileMap) {
+      if (!map.has(uid) && isPayroll(nom)) {
+        const profile = allProfiles.find(p => p.id === uid)
+        map.set(uid, {
+          uid, nom,
+          role: profile?.role ?? 'closer',
+          deals: [], totalCommission: 0, pendingCommission: 0, pendingIds: [],
+        })
+      }
     }
 
     return Array.from(map.values())
