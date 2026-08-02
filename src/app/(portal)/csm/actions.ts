@@ -309,6 +309,14 @@ export async function creerCsmClientManuel(data: {
   revalidatePath('/csm')
 }
 
+export async function supprimerCsmClient(clientId: string) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_clients').delete().eq('id', clientId)
+  if (error) throw error
+  revalidatePath('/csm')
+}
+
 export async function updateCsmId(clientId: string, csmId: string | null) {
   await verifyAdminOrCsm()
   const db = createAdminClient()

@@ -14,7 +14,7 @@ import { computeDueDates, today, formatDate } from './types'
 import {
   updateMeeting, updateMissed, toggleText, toggleMilestone, updateStatus,
   marquerRemboursement, updateOnboardingDate, updateEmailAvis, creerCsmClientManuel,
-  updateCsmId, updatePaymentType,
+  updateCsmId, updatePaymentType, supprimerCsmClient,
 } from './actions'
 import { definirObjectifCsm } from '@/app/(portal)/payes/actions'
 
@@ -307,13 +307,14 @@ function EmailCell({ clientId, avis }: { clientId: string; avis: EmailAvis | nul
 // ── Inline status + cert badge ────────────────────────────────────────
 
 function StatusCell({
-  clientId, status, certSetterDone, certCloserDone, dayN,
+  clientId, status, certSetterDone, certCloserDone, dayN, isAdmin,
 }: {
   clientId:       string
   status:         CsmClient['status']
   certSetterDone: boolean
   certCloserDone: boolean
   dayN:           number
+  isAdmin:        boolean
 }) {
   const [open, setOpen]   = useState(false)
   const [pending, startT] = useTransition()
@@ -414,6 +415,20 @@ function StatusCell({
                 <span className={cn('px-1.5 py-0.5 rounded-full text-[10px]', STATUS_CONFIG['refund'].cls)}>{STATUS_CONFIG['refund'].label}</span>
               </button>
             </div>
+            {isAdmin && (
+              <div className="border-t border-red-200">
+                <button
+                  disabled={pending}
+                  onClick={() => {
+                    if (!confirm('Supprimer définitivement cette cliente ?\n\nCette action est irréversible.')) return
+                    startT(async () => { await supprimerCsmClient(clientId); setOpen(false) })
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  🗑 Supprimer
+                </button>
+              </div>
+            )}
           </div>
         </>,
         document.body
@@ -1256,6 +1271,7 @@ export default function CsmClientList({
                         certSetterDone={c.cert_setter_done}
                         certCloserDone={c.cert_closer_done}
                         dayN={dayN}
+                        isAdmin={isAdmin}
                       />
 
                       {/* Payment */}
