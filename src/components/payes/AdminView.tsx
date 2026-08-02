@@ -603,17 +603,22 @@ function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pendin
   )
 }
 
-function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, onDelete }: {
-  group:        EmployeeGroup
-  isAdmin:      boolean
-  pending:      boolean
-  onApprouver:  (ids: string[]) => void
-  onToggle:     (id: string, statut: string) => void
-  onEdit:       (id: string) => void
-  onDelete:     (id: string) => void
+function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, onDelete, myCsmCommissions }: {
+  group:             EmployeeGroup
+  isAdmin:           boolean
+  pending:           boolean
+  onApprouver:       (ids: string[]) => void
+  onToggle:          (id: string, statut: string) => void
+  onEdit:            (id: string) => void
+  onDelete:          (id: string) => void
+  myCsmCommissions:  CsmCommission[]
 }) {
-  const [ouvert, setOuvert] = useState(false)
-  const allPaid = group.pendingIds.length === 0
+  const [ouvert, setOuvert]   = useState(false)
+  const [csmPending, startCsmT] = useTransition()
+
+  const csmTotal   = myCsmCommissions.reduce((s, c) => s + (c.amount ?? 0), 0)
+  const csmUnpaid  = myCsmCommissions.filter(c => !c.paid).reduce((s, c) => s + (c.amount ?? 0), 0)
+  const allPaid    = group.pendingIds.length === 0 && csmUnpaid === 0
 
   const nouveaux   = group.deals.filter(d => d.type === 'nouveau')
   const recurrents = group.deals.filter(d => d.type === 'recurrent')
@@ -621,8 +626,8 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
   const bonus      = group.deals.filter(d => d.type === 'bonus')
   const refunds    = group.deals.filter(d => d.type === 'refund')
 
-  const salaire         = getSalaire(group.nom)
-  const totalAvecSalaire = group.totalCommission + salaire
+  const salaire          = getSalaire(group.nom)
+  const totalAvecSalaire = group.totalCommission + salaire + csmTotal
 
   return (
     <div className={cn(
@@ -653,7 +658,7 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
           <p className="text-xs text-gray-400 mt-0.5">
             {allPaid
               ? <span className="text-green-600 font-medium">Tout payé ✓</span>
-              : <span className="text-amber-600 font-medium">{dollar(group.pendingCommission)} en attente</span>
+              : <span className="text-amber-600 font-medium">{dollar(group.pendingCommission + csmUnpaid)} en attente</span>
             }
           </p>
         </div>
@@ -717,6 +722,43 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
             deals={refunds} role={group.role} isAdmin={isAdmin} pending={pending}
             onEdit={onEdit} onToggle={onToggle} onDelete={onDelete}
           />
+          {myCsmCommissions.length > 0 && (
+            <div className="border-t border-gray-100">
+              <div className="px-5 py-2.5 flex items-center justify-between bg-gray-50/40">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Commissions CSM</span>
+                <span className="text-xs font-bold tabular-nums text-gray-700">{dollar(csmTotal)}</span>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {myCsmCommissions.map(c => {
+                  const cfg = TYPE_CONFIG[c.type] ?? { label: c.type, color: 'bg-gray-50 text-gray-600', dot: 'bg-gray-400' }
+                  return (
+                    <div key={c.id} className={cn('flex items-center gap-3 px-5 py-2.5', c.paid && 'opacity-50')}>
+                      <div className={cn('w-2 h-2 rounded-full shrink-0', cfg.dot)} />
+                      <div className="flex-1 min-w-0">
+                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', cfg.color)}>{cfg.label}</span>
+                        <p className="text-[11px] text-gray-400 mt-0.5 truncate">{c.description ?? c.client_name ?? '—'}</p>
+                      </div>
+                      <span className="text-sm font-bold tabular-nums text-gray-900 shrink-0">{dollar(c.amount)}</span>
+                      {isAdmin && !c.paid && (
+                        <button
+                          onClick={() => startCsmT(() => payerCommissionCsm(c.id))}
+                          disabled={csmPending}
+                          className="shrink-0 px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          Payer
+                        </button>
+                      )}
+                      {c.paid && (
+                        <span className="shrink-0 flex items-center gap-1 text-xs text-green-600 font-medium">
+                          <CheckCircle2 size={12} />Payé
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -1515,11 +1557,6 @@ export default function AdminView({
         periodes={periodesCourant}
       />
 
-      <SectionCsm
-        isAdmin={isAdmin}
-        commissions={csmCommissions}
-        csmProfiles={csmProfiles}
-      />
 
       {/* ── Historique groupé ─────────────────────────────────────────── */}
       {modeGlobal === 'historique' && (
@@ -1702,6 +1739,7 @@ export default function AdminView({
                       onToggle={handleToggle}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
+                      myCsmCommissions={csmCommissions.filter(c => c.csm_id === g.uid)}
                     />
                   ))}
                 </div>
@@ -1728,6 +1766,7 @@ export default function AdminView({
                       onToggle={handleToggle}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
+                      myCsmCommissions={csmCommissions.filter(c => c.csm_id === g.uid)}
                     />
                   ))}
                 </div>
