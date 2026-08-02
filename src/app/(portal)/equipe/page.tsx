@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { Trophy, Calendar } from 'lucide-react'
+import Link from 'next/link'
+import { Trophy, ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { nowQC }             from '@/lib/dates'
@@ -11,7 +12,11 @@ const MOIS_FR = [
   'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
 ]
 
-export default async function EquipePage() {
+export default async function EquipePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string; month?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -21,13 +26,31 @@ export default async function EquipePage() {
   const myRoles = (me?.roles ?? []) as string[]
   const isAdmin = myRoles.some(r => ['admin', 'csm'].includes(r))
 
-  const db          = createAdminClient()
-  const { year, month, day: dayOfMonth } = nowQC()
-  const daysInMonth = new Date(year, month, 0).getDate()
-  const daysLeft    = daysInMonth - dayOfMonth
+  const db  = createAdminClient()
+  const now = nowQC()
+
+  // Resolve selected month from search params (default = current month)
+  const params   = await searchParams
+  const selYear  = params.year  ? Number(params.year)  : now.year
+  const selMonth = params.month ? Number(params.month) : now.month
+
+  const isCurrentMonth = selYear === now.year && selMonth === now.month
+  const isFutureMonth  = selYear > now.year || (selYear === now.year && selMonth > now.month)
+
+  // Navigation hrefs
+  const prevM = selMonth === 1  ? { year: selYear - 1, month: 12 } : { year: selYear, month: selMonth - 1 }
+  const nextM = selMonth === 12 ? { year: selYear + 1, month: 1  } : { year: selYear, month: selMonth + 1 }
+  const prevHref = `/equipe?year=${prevM.year}&month=${prevM.month}`
+  const nextHref = `/equipe?year=${nextM.year}&month=${nextM.month}`
+
+  // Month progress (only meaningful for the current month)
+  const daysInMonth = new Date(selYear, selMonth, 0).getDate()
+  const dayOfMonth  = isCurrentMonth ? now.day : daysInMonth
+  const daysLeft    = isCurrentMonth ? daysInMonth - now.day : 0
   const monthPct    = Math.round((dayOfMonth / daysInMonth) * 100)
-  const dateMin     = `${year}-${String(month).padStart(2, '0')}-01`
-  const dateMax     = new Date(year, month, 1).toISOString().split('T')[0]
+
+  const dateMin = `${selYear}-${String(selMonth).padStart(2, '0')}-01`
+  const dateMax = new Date(selYear, selMonth, 1).toISOString().split('T')[0]
 
   const [
     { data: profiles },
@@ -41,8 +64,8 @@ export default async function EquipePage() {
       .order('full_name'),
     db.from('user_goals')
       .select('user_id, target_cash, target_closes, target_rdv, target_calls')
-      .eq('year', year)
-      .eq('month', month),
+      .eq('year', selYear)
+      .eq('month', selMonth),
     db.from('setter_entries')
       .select('user_id, attempts')
       .gte('entry_date', dateMin)
@@ -55,7 +78,6 @@ export default async function EquipePage() {
 
   const goalMap = new Map((goals ?? []).map(g => [g.user_id, g]))
 
-  // Only count real new deals (exclude recurring payments and financement)
   function isRealDeal(e: { close_type: string | null; notes: string | null }) {
     return e.close_type !== 'recurring' &&
       e.close_type !== 'financement' &&
@@ -90,27 +112,15 @@ export default async function EquipePage() {
       const g      = goalMap.get(p.id)
       const cash   = closerCashAgg.get(p.id)   ?? 0
       const closes = closerClosesAgg.get(p.id) ?? 0
-      const projectedCash =
-        cash > 0 && dayOfMonth > 0
-          ? Math.round(cash + (cash / dayOfMonth) * daysLeft)
-          : null
+      const projectedCash = isCurrentMonth && cash > 0 && dayOfMonth > 0
+        ? Math.round(cash + (cash / dayOfMonth) * daysLeft)
+        : null
       return {
-        userId:        p.id,
-        nom:           p.full_name ?? 'Inconnu',
-        role:          'closer' as const,
-        rank:          0,
-        targetCash:    g?.target_cash   ?? 0,
-        targetCloses:  g?.target_closes ?? 0,
-        targetRdv:     0,
-        targetCalls:   0,
-        actualCash:    cash,
-        actualCloses:  closes,
-        actualRdv:     0,
-        actualCalls:   0,
-        projectedCash,
-        year,
-        month,
-        isAdmin,
+        userId: p.id, nom: p.full_name ?? 'Inconnu', role: 'closer' as const, rank: 0,
+        targetCash: g?.target_cash ?? 0, targetCloses: g?.target_closes ?? 0,
+        targetRdv: 0, targetCalls: 0,
+        actualCash: cash, actualCloses: closes, actualRdv: 0, actualCalls: 0,
+        projectedCash, year: selYear, month: selMonth, isAdmin,
       }
     })
     .sort((a, b) => b.actualCash - a.actualCash)
@@ -123,27 +133,15 @@ export default async function EquipePage() {
       const sCash = setterCashAgg.get(p.id)  ?? 0
       const deals = setterDealsAgg.get(p.id) ?? 0
       const calls = setterCallsAgg.get(p.id) ?? 0
-      const projectedCash =
-        sCash > 0 && dayOfMonth > 0
-          ? Math.round(sCash + (sCash / dayOfMonth) * daysLeft)
-          : null
+      const projectedCash = isCurrentMonth && sCash > 0 && dayOfMonth > 0
+        ? Math.round(sCash + (sCash / dayOfMonth) * daysLeft)
+        : null
       return {
-        userId:        p.id,
-        nom:           p.full_name ?? 'Inconnu',
-        role:          'setter' as const,
-        rank:          0,
-        targetCash:    g?.target_cash  ?? 0,
-        targetCloses:  0,
-        targetRdv:     g?.target_rdv   ?? 0,
-        targetCalls:   g?.target_calls ?? 0,
-        actualCash:    sCash,
-        actualCloses:  0,
-        actualRdv:     deals,
-        actualCalls:   calls,
-        projectedCash,
-        year,
-        month,
-        isAdmin,
+        userId: p.id, nom: p.full_name ?? 'Inconnu', role: 'setter' as const, rank: 0,
+        targetCash: g?.target_cash ?? 0, targetCloses: 0,
+        targetRdv: g?.target_rdv ?? 0, targetCalls: g?.target_calls ?? 0,
+        actualCash: sCash, actualCloses: 0, actualRdv: deals, actualCalls: calls,
+        projectedCash, year: selYear, month: selMonth, isAdmin,
       }
     })
     .sort((a, b) => b.actualCash - a.actualCash)
@@ -160,27 +158,59 @@ export default async function EquipePage() {
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold text-gray-900">Équipe</h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            Classement & objectifs du mois — {MOIS_FR[month - 1]} {year}
+            Classement & objectifs du mois
           </p>
         </div>
-        <div className="shrink-0 text-right">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 justify-end mb-2">
-            <Calendar size={11} />
-            <span>{daysLeft} jour{daysLeft !== 1 ? 's' : ''} restant{daysLeft !== 1 ? 's' : ''}</span>
-          </div>
-          <div className="w-32">
-            <div className="flex justify-between text-xs text-gray-400 mb-1">
-              <span>Jour {dayOfMonth}</span>
-              <span>{monthPct} %</span>
-            </div>
-            <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-violet-400 transition-all duration-500"
-                style={{ width: `${monthPct}%` }}
-              />
-            </div>
-          </div>
+
+        {/* Month navigation */}
+        <div className="flex items-center gap-1 shrink-0">
+          <Link
+            href={prevHref}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+          >
+            <ChevronLeft size={16} />
+          </Link>
+          <span className="text-sm font-semibold text-gray-700 w-36 text-center">
+            {MOIS_FR[selMonth - 1]} {selYear}
+          </span>
+          <Link
+            href={isFutureMonth ? '#' : nextHref}
+            aria-disabled={isCurrentMonth}
+            className={isCurrentMonth
+              ? 'p-1.5 rounded-lg text-gray-200 cursor-not-allowed'
+              : 'p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors'
+            }
+          >
+            <ChevronRight size={16} />
+          </Link>
         </div>
+
+        {/* Month progress (current month only) */}
+        {isCurrentMonth && (
+          <div className="shrink-0 text-right">
+            <p className="text-xs text-gray-400 mb-1">
+              Jour {dayOfMonth} · {daysLeft}j restant{daysLeft !== 1 ? 's' : ''}
+            </p>
+            <div className="w-28">
+              <div className="flex justify-end text-xs text-gray-400 mb-1">
+                <span>{monthPct} %</span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-violet-400 transition-all duration-500"
+                  style={{ width: `${monthPct}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+        {!isCurrentMonth && (
+          <div className="shrink-0">
+            <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 font-medium">
+              Mois terminé
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Closers */}
