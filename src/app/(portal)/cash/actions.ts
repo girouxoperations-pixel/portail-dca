@@ -132,12 +132,18 @@ export async function supprimerCash(id: string) {
   // Delete linked paye entry
   await db.from('paye_entries').delete().eq('cash_entry_id', id)
 
+  // Delete linked CSM client and community follow-up (auto-created on deal entry)
+  await db.from('csm_clients').delete().eq('cash_entry_id', id)
+  await db.from('cm_followups').delete().eq('cash_entry_id', id)
+
   const { error } = await db.from('cash_entries').delete().eq('id', id)
   if (error) throw new Error(error.message)
 
   revalidatePath('/cash')
   revalidatePath('/payes')
   revalidatePath('/recurrents')
+  revalidatePath('/csm')
+  revalidatePath('/cm')
 }
 
 // ── Weekly performance (Webi / VSL) ──────────────────────────────

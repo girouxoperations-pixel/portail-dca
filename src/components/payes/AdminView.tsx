@@ -1645,16 +1645,9 @@ export default function AdminView({
               onChange={e => setPeriodeSelect(e.target.value)}
               className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-violet-500"
             >
-              {periodesAvecEntrees.map(p => (
+              {periodesCourant.map(p => (
                 <option key={p.label} value={p.label}>{p.label}</option>
               ))}
-              {/* fallback si aucune entrée pour les autres périodes */}
-              {periodesCourant
-                .filter(p => !periodesAvecEntrees.some(q => q.label === p.label))
-                .map(p => (
-                  <option key={p.label} value={p.label}>{p.label}</option>
-                ))
-              }
             </select>
           </div>
 

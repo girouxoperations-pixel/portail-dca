@@ -72,7 +72,7 @@ export function genPeriodes(now = new Date(), count = 10): PeriodeItem[] {
   const current = periodFor(now.toISOString().split('T')[0])
   const list: PeriodeItem[] = []
 
-  for (let i = current.idx + 1; i >= current.idx - (count - 2); i--) {
+  for (let i = current.idx + 5; i >= current.idx - (count - 2); i--) {
     const start = new Date(anchor)
     start.setDate(start.getDate() + i * 14)
     const end = new Date(start)
