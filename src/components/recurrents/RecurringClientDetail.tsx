@@ -62,7 +62,7 @@ function OccurrenceRow({ occ, isAdmin, methode }: { occ: Occurrence; isAdmin: bo
   const [pending, startTransition]    = useTransition()
   const [datePending, startDateTrans] = useTransition()
   const [showModal, setShowModal]     = useState(false)
-  const [csmFollowup, setCsmFollowup] = useState(false)
+  const [csmFollowup, setCsmFollowup] = useState(methode === 'virement')
 
   const today   = new Date(); today.setHours(0, 0, 0, 0)
   const dueDate = new Date(occ.date_attendue + 'T00:00:00')
@@ -205,15 +205,18 @@ function OccurrenceRow({ occ, isAdmin, methode }: { occ: Occurrence; isAdmin: bo
               </button>
             )}
             </div>
-            {methode === 'carte' && (
-              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            {(methode === 'carte' || methode === 'virement') && (
+              <label className={cn('flex items-center gap-1.5 select-none', methode === 'virement' ? 'cursor-default' : 'cursor-pointer')}>
                 <input
                   type="checkbox"
                   checked={csmFollowup}
-                  onChange={e => setCsmFollowup(e.target.checked)}
-                  className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                  onChange={e => methode !== 'virement' && setCsmFollowup(e.target.checked)}
+                  disabled={methode === 'virement'}
+                  className="rounded border-gray-300 text-violet-600 focus:ring-violet-500 disabled:opacity-60"
                 />
-                <span className="text-[10px] text-gray-400">Suivi email requis (2%)</span>
+                <span className="text-[10px] text-gray-400">
+                  {methode === 'virement' ? '2% virement (auto)' : 'Suivi email requis (2%)'}
+                </span>
               </label>
             )}
           </div>
