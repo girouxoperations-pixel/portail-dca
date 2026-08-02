@@ -176,6 +176,14 @@ export async function setMethodePaiement(dealId: string, methode: string | null)
   revalidatePath(`/recurrents/${dealId}`)
 }
 
+export async function setCsmId(dealId: string, csmId: string | null) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+  await db.from('recurring_deals').update({ csm_id: csmId }).eq('id', dealId)
+  revalidatePath('/recurrents')
+  revalidatePath(`/recurrents/${dealId}`)
+}
+
 export async function modifierDateOccurrence(occurrenceId: string, newDate: string) {
   await requireRole(['admin', 'csm'])
   const db = createAdminClient()
@@ -215,13 +223,13 @@ export async function modifierDateOccurrence(occurrenceId: string, newDate: stri
   if (occ) revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
 }
 
-export async function marquerRecu(occurrenceId: string, montantRecu: number, csmFollowup = false, methodePaiement?: string | null) {
+export async function marquerRecu(occurrenceId: string, montantRecu: number, csmFollowup = false, methodePaiement?: string | null, csmIdOverride?: string | null) {
   const { userId } = await requireRole(['admin', 'csm'])
   const db = createAdminClient()
 
   const { data: occ, error: occErr } = await db
     .from('recurring_occurrences')
-    .select('*, recurring_deals(id, client_name, closer_id, setter_id, methode_paiement)')
+    .select('*, recurring_deals(id, client_name, closer_id, setter_id, methode_paiement, csm_id)')
     .eq('id', occurrenceId)
     .single()
 
@@ -234,6 +242,7 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number, csm
     closer_id:        string | null
     setter_id:        string | null
     methode_paiement: string | null
+    csm_id:           string | null
   }
 
   // If caller provides a payment method and the deal doesn't have one, persist it
@@ -332,16 +341,27 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number, csm
     }
   }
 
+  // If a CSM override is provided and the deal has no csm_id yet, persist it
+  const resolvedCsmId = csmIdOverride ?? deal.csm_id
+  if (csmIdOverride && !deal.csm_id) {
+    await db.from('recurring_deals').update({ csm_id: csmIdOverride }).eq('id', dealRaw.id)
+  }
+
   // Commission CSM 2% sur les virements
   if (deal.methode_paiement === 'virement') {
-    const { data: csmClient } = await db.from('csm_clients')
-      .select('id, csm_id')
-      .ilike('name', deal.client_name)
-      .maybeSingle()
-    if (csmClient?.csm_id) {
+    // Prefer csm_id directly on the deal; fall back to csm_clients name lookup
+    let csmId = resolvedCsmId
+    let clientId: string | null = null
+    if (!csmId) {
+      const { data: csmClient } = await db.from('csm_clients')
+        .select('id, csm_id').ilike('name', deal.client_name).maybeSingle()
+      csmId    = csmClient?.csm_id ?? null
+      clientId = csmClient?.id ?? null
+    }
+    if (csmId) {
       const commission2pct = Math.round(montantRecu * 0.02 * 100) / 100
       await db.from('csm_commissions').insert({
-        csm_id: csmClient.csm_id, client_id: csmClient.id,
+        csm_id: csmId, client_id: clientId,
         client_name: deal.client_name, type: 'virement_2pct',
         amount: commission2pct, month, year,
         description: `Virement 2% — ${deal.client_name} (${montantRecu}$)`,
@@ -352,14 +372,18 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number, csm
 
   // Commission CSM 2% sur les cartes avec suivi email
   if (csmFollowup && deal.methode_paiement === 'carte') {
-    const { data: csmClient } = await db.from('csm_clients')
-      .select('id, csm_id')
-      .ilike('name', deal.client_name)
-      .maybeSingle()
-    if (csmClient?.csm_id) {
+    let csmId = resolvedCsmId
+    let clientId: string | null = null
+    if (!csmId) {
+      const { data: csmClient } = await db.from('csm_clients')
+        .select('id, csm_id').ilike('name', deal.client_name).maybeSingle()
+      csmId    = csmClient?.csm_id ?? null
+      clientId = csmClient?.id ?? null
+    }
+    if (csmId) {
       const commission2pct = Math.round(montantRecu * 0.02 * 100) / 100
       await db.from('csm_commissions').insert({
-        csm_id: csmClient.csm_id, client_id: csmClient.id,
+        csm_id: csmId, client_id: clientId,
         client_name: deal.client_name, type: 'carte_2pct',
         amount: commission2pct, month, year,
         description: `Carte suivi 2% — ${deal.client_name} (${montantRecu}$)`,

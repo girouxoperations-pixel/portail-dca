@@ -16,7 +16,7 @@ import PageHeader      from '@/components/layout/PageHeader'
 import {
   creerRecurringDeal, marquerRecu, marquerRecuAvecSoldes, annulerRecu,
   desactiverDeal, reactiverDeal, encaisserProchainVersement,
-  modifierRecurringDeal, setMethodePaiement, modifierDateOccurrence,
+  modifierRecurringDeal, setMethodePaiement, setCsmId, modifierDateOccurrence,
   annulerDealAvecRaison, supprimerOccurrence,
 } from '@/app/(portal)/recurrents/actions'
 
@@ -26,6 +26,7 @@ interface Profile {
   id:        string
   full_name: string | null
   role:      string
+  roles?:    string[] | null
 }
 
 interface Occurrence {
@@ -47,6 +48,7 @@ interface Deal {
   client_name:           string
   closer_id:             string | null
   setter_id:             string | null
+  csm_id:                string | null
   montant_mensuel:       number
   date_debut:            string
   versements_total:      number | null
@@ -261,6 +263,7 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   const [pending, startTransition]      = useTransition()
   const [datePending, startDateTrans]   = useTransition()
   const [methodeOverride, setMethodeOverride] = useState<string>(deal.methode_paiement ?? '')
+  const [csmIdOverride,   setCsmIdOverride]   = useState<string>(deal.csm_id ?? '')
 
   const isPartial   = showDiff && !occ.recu && Number(amount) > 0 && Number(amount) < occ.montant_attendu
   const soldeTotal  = soldeLines.reduce((s, l) => s + (Number(l.montant) || 0), 0)
@@ -334,9 +337,10 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   }[urgency]
 
   const methodeEffective = methodeOverride || deal.methode_paiement || null
+  const csmEffective     = csmIdOverride || deal.csm_id || null
 
   function handleMarquerExact() {
-    startTransition(async () => { await marquerRecu(occ.id, occ.montant_attendu, false, methodeEffective) })
+    startTransition(async () => { await marquerRecu(occ.id, occ.montant_attendu, false, methodeEffective, csmEffective) })
   }
 
   function handleMarquerDiff() {
@@ -347,7 +351,7 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
         const lignes = soldeLines.filter(l => l.date && Number(l.montant) > 0)
         await marquerRecuAvecSoldes(occ.id, val, lignes.map(l => ({ montant: Number(l.montant), date: l.date })))
       } else {
-        await marquerRecu(occ.id, val, false, methodeEffective)
+        await marquerRecu(occ.id, val, false, methodeEffective, csmEffective)
       }
     })
   }
@@ -494,6 +498,18 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
                       <option value="">— Méthode ? —</option>
                       <option value="virement">🏦 Virement</option>
                       <option value="carte">💳 Carte</option>
+                    </select>
+                  )}
+                  {(methodeEffective === 'virement') && !deal.csm_id && (
+                    <select
+                      value={csmIdOverride}
+                      onChange={e => setCsmIdOverride(e.target.value)}
+                      className="text-[11px] border border-violet-300 rounded px-1.5 py-0.5 bg-violet-50 text-violet-800 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                    >
+                      <option value="">— CSM 2% ? —</option>
+                      {profiles.filter(p => p.roles?.includes('csm') || p.role === 'csm').map(p => (
+                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                      ))}
                     </select>
                   )}
                   <button

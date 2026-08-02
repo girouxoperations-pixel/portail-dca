@@ -25,7 +25,7 @@ export default async function RecurrentsPage({
     db.from('recurring_deals')
       .select('*, recurring_occurrences(*)')
       .order('client_name', { ascending: true }),
-    db.from('profiles').select('id, full_name, role'),
+    db.from('profiles').select('id, full_name, role, roles'),
   ])
 
   const dealsNorm = (deals ?? []).map(d => ({
