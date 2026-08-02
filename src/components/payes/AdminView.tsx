@@ -59,7 +59,7 @@ interface Props {
   allProfiles:      Profil[]
   teamMembers:      Profil[]
   isAdmin:          boolean
-  periodesCourant:  { label: string; month: number; year: number }[]
+  periodesCourant:  { label: string; month: number; year: number; start: string; end: string }[]
   periodeDefaut:    string
   csmCommissions:   CsmCommission[]
   csmProfiles:      { id: string; full_name: string | null }[]
@@ -1363,8 +1363,13 @@ export default function AdminView({
   )
 
   const periodeActuelle = useMemo(
-    () => periodesCourant.find(p => p.label === periodeDefaut) ?? { label: periodeDefaut, month: 0, year: 0 },
+    () => periodesCourant.find(p => p.label === periodeDefaut) ?? { label: periodeDefaut, month: 0, year: 0, start: '', end: '' },
     [periodesCourant, periodeDefaut],
+  )
+
+  const selectedPeriode = useMemo(
+    () => periodesCourant.find(p => p.label === periodeSelect) ?? null,
+    [periodesCourant, periodeSelect],
   )
 
   // Périodes qui ont au moins une entrée
@@ -1372,7 +1377,7 @@ export default function AdminView({
     const labels = new Set(entrees.map(e => e.period_label))
     const found = periodesCourant.filter(p => labels.has(p.label))
     if (!found.some(p => p.label === periodeDefaut)) {
-      found.unshift({ label: periodeDefaut, month: 0, year: 0 })
+      found.unshift({ label: periodeDefaut, month: 0, year: 0, start: '', end: '' })
     }
     return found
   }, [entrees, periodesCourant, periodeDefaut])
@@ -1732,7 +1737,11 @@ export default function AdminView({
                       onToggle={handleToggle}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
-                      myCsmCommissions={csmCommissions.filter(c => c.csm_id === g.uid)}
+                      myCsmCommissions={csmCommissions.filter(c =>
+                        c.csm_id === g.uid &&
+                        (!selectedPeriode?.start || c.created_at >= selectedPeriode.start) &&
+                        (!selectedPeriode?.end   || c.created_at <= selectedPeriode.end + 'T23:59:59')
+                      )}
                     />
                   ))}
                 </div>
@@ -1759,7 +1768,11 @@ export default function AdminView({
                       onToggle={handleToggle}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
-                      myCsmCommissions={csmCommissions.filter(c => c.csm_id === g.uid)}
+                      myCsmCommissions={csmCommissions.filter(c =>
+                        c.csm_id === g.uid &&
+                        (!selectedPeriode?.start || c.created_at >= selectedPeriode.start) &&
+                        (!selectedPeriode?.end   || c.created_at <= selectedPeriode.end + 'T23:59:59')
+                      )}
                     />
                   ))}
                 </div>
