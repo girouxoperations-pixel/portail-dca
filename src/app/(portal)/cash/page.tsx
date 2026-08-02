@@ -29,7 +29,7 @@ export default async function CashPage() {
       .select('id, full_name, role')
       .in('role', ['closer', 'setter']),
     db.from('recurring_occurrences')
-      .select('cash_entry_id')
+      .select('id, cash_entry_id')
       .not('cash_entry_id', 'is', null),
     db.from('weekly_perf')
       .select('*')
@@ -48,6 +48,10 @@ export default async function CashPage() {
   const recurringCashIds = (recOccs ?? [])
     .map(o => o.cash_entry_id as string)
     .filter(Boolean)
+  const recurringOccMap: Record<string, string> = {}
+  for (const o of (recOccs ?? [])) {
+    if (o.cash_entry_id) recurringOccMap[o.cash_entry_id] = o.id
+  }
 
   return (
     <CashView
@@ -58,6 +62,7 @@ export default async function CashPage() {
       csmMembers={csmMembers ?? []}
       isAdmin={role === 'admin'}
       recurringCashIds={recurringCashIds}
+      recurringOccMap={recurringOccMap}
       perfs={perfs ?? []}
       csmClients={csmClients ?? []}
     />

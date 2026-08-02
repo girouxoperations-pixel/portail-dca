@@ -4,7 +4,7 @@ import React, { useState, useTransition, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown,
   Zap, Clock, ChevronDown, ChevronRight, RefreshCw, BarChart3,
-  Monitor, Film, Globe, Upload, Search, X,
+  Monitor, Film, Globe, Upload, Search, X, Undo2,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { modifierCash, supprimerCash } from '@/app/(portal)/cash/actions'
+import { annulerRecu } from '@/app/(portal)/recurrents/actions'
 import { creerCashCollect } from '@/app/(portal)/cashcollect/actions'
 import WeeklyPerfSection, { type WeeklyPerf, type SourcedDeal } from '@/components/cash/WeeklyPerfSection'
 import ImportModal from '@/components/cash/ImportModal'
@@ -60,6 +61,7 @@ interface Props {
   csmMembers:       Profil[]
   isAdmin:          boolean
   recurringCashIds: string[]
+  recurringOccMap:  Record<string, string>
   perfs:            WeeklyPerf[]
   csmClients:       CsmStat[]
 }
@@ -699,9 +701,12 @@ function ModalNouveauDeal({
 
 // ── Month section ─────────────────────────────────────────────────
 
-function EntryRow({ e, profileMap, recurringIds, isAdmin, onEdit, onDelete, pending }: {
+function EntryRow({ e, profileMap, recurringIds, occurrenceId, isAdmin, onEdit, onDelete, onAnnulerRecu, pending }: {
   e: CashEntry; profileMap: Map<string, string>; recurringIds: Set<string>
-  isAdmin: boolean; onEdit: (e: CashEntry) => void; onDelete: (id: string) => void; pending: boolean
+  occurrenceId?: string
+  isAdmin: boolean; onEdit: (e: CashEntry) => void; onDelete: (id: string) => void
+  onAnnulerRecu: (occId: string) => void
+  pending: boolean
 }) {
   const type = getSourceType(e, recurringIds)
   const isRefunded = !!e.is_refunded
@@ -730,6 +735,17 @@ function EntryRow({ e, profileMap, recurringIds, isAdmin, onEdit, onDelete, pend
       <td className="px-4 py-3 text-xs text-gray-500">{e.methode ?? '—'}</td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-1.5">
+          {occurrenceId && isAdmin && (
+            <button
+              onClick={() => {
+                if (!confirm('Annuler ce paiement reçu ? Les entrées Cash et Paie seront supprimées.')) return
+                onAnnulerRecu(occurrenceId)
+              }}
+              disabled={pending} title="Annuler reçu"
+              className="p-1.5 text-gray-300 hover:text-orange-500 hover:bg-orange-50 rounded transition-colors disabled:opacity-40">
+              <Undo2 size={13} />
+            </button>
+          )}
           <button onClick={() => onEdit(e)} disabled={pending} title="Modifier"
             className="p-1.5 text-gray-300 hover:text-violet-600 hover:bg-violet-50 rounded transition-colors disabled:opacity-40">
             <Pencil size={13} />
@@ -765,18 +781,20 @@ const TABLE_HEAD = (
 )
 
 function MonthSection({
-  monthKey, entries, profileMap, recurringIds, isAdmin,
-  onEdit, onDelete, pending, defaultOpen,
+  monthKey, entries, profileMap, recurringIds, recurringOccMap, isAdmin,
+  onEdit, onDelete, onAnnulerRecu, pending, defaultOpen,
 }: {
-  monthKey:    string
-  entries:     CashEntry[]
-  profileMap:  Map<string, string>
-  recurringIds: Set<string>
-  isAdmin:     boolean
-  onEdit:      (e: CashEntry) => void
-  onDelete:    (id: string) => void
-  pending:     boolean
-  defaultOpen: boolean
+  monthKey:        string
+  entries:         CashEntry[]
+  profileMap:      Map<string, string>
+  recurringIds:    Set<string>
+  recurringOccMap: Record<string, string>
+  isAdmin:         boolean
+  onEdit:          (e: CashEntry) => void
+  onDelete:        (id: string) => void
+  onAnnulerRecu:   (occId: string) => void
+  pending:         boolean
+  defaultOpen:     boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
 
@@ -798,7 +816,7 @@ function MonthSection({
   const recsCollected   = recs.reduce((s, e) => s + (e.collected ?? 0), 0)
   const recsMontant     = recs.reduce((s, e) => s + (e.montant_courant ?? 0), 0)
 
-  const rowProps = { profileMap, recurringIds, isAdmin, onEdit, onDelete, pending }
+  const rowProps = { profileMap, recurringIds, isAdmin, onEdit, onDelete, onAnnulerRecu, pending }
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -852,7 +870,7 @@ function MonthSection({
                       </div>
                     </td>
                   </tr>
-                  {deals.map(e => <EntryRow key={e.id} e={e} {...rowProps} />)}
+                  {deals.map(e => <EntryRow key={e.id} e={e} {...rowProps} occurrenceId={recurringOccMap[e.id]} />)}
                   <tr className="border-t border-green-100 bg-green-50/40 text-xs font-semibold text-gray-600">
                     <td colSpan={6} className="px-4 py-2 text-gray-400">Sous-total deals</td>
                     <td className="px-4 py-2 text-right tabular-nums">{dollar(dealsMontant)}</td>
@@ -876,7 +894,7 @@ function MonthSection({
                       </div>
                     </td>
                   </tr>
-                  {recs.map(e => <EntryRow key={e.id} e={e} {...rowProps} />)}
+                  {recs.map(e => <EntryRow key={e.id} e={e} {...rowProps} occurrenceId={recurringOccMap[e.id]} />)}
                   <tr className="border-t border-blue-100 bg-blue-50/40 text-xs font-semibold text-gray-600">
                     <td colSpan={6} className="px-4 py-2 text-gray-400">Sous-total récurrents</td>
                     <td className="px-4 py-2 text-right tabular-nums">{dollar(recsMontant)}</td>
@@ -905,7 +923,7 @@ function MonthSection({
               <table className="w-full text-sm">
                 {TABLE_HEAD}
                 <tbody className="divide-y divide-gray-50">
-                  {entries.map(e => <EntryRow key={e.id} e={e} {...rowProps} />)}
+                  {entries.map(e => <EntryRow key={e.id} e={e} {...rowProps} occurrenceId={recurringOccMap[e.id]} />)}
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700 text-xs">
@@ -1011,7 +1029,7 @@ function StatsBlock({
 // ── Composant principal ───────────────────────────────────────────
 
 export default function CashView({
-  entrees, closers, setters, allProfiles, csmMembers, isAdmin, recurringCashIds, perfs, csmClients,
+  entrees, closers, setters, allProfiles, csmMembers, isAdmin, recurringCashIds, recurringOccMap, perfs, csmClients,
 }: Props) {
   const today     = new Date().toISOString().slice(0, 10)
   const yearNow   = new Date().getFullYear()
@@ -1192,6 +1210,10 @@ export default function CashView({
   function handleDelete(id: string) {
     if (!confirm('Supprimer cette entrée cash ?')) return
     startTransition(async () => { await supprimerCash(id) })
+  }
+
+  function handleAnnulerRecu(occId: string) {
+    startTransition(async () => { await annulerRecu(occId) })
   }
 
   // ── Deals par jour de semaine × mois ─────────────────────────
@@ -1452,9 +1474,11 @@ export default function CashView({
                 entries={entries}
                 profileMap={profileMap}
                 recurringIds={recurringIds}
+                recurringOccMap={recurringOccMap}
                 isAdmin={isAdmin}
                 onEdit={setModalEntry}
                 onDelete={handleDelete}
+                onAnnulerRecu={handleAnnulerRecu}
                 pending={pending}
                 defaultOpen={idx === 0}
               />
