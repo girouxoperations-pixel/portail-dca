@@ -9,8 +9,9 @@ export default async function ClientsPage() {
   if (!user) redirect('/login')
 
   const { data: profil } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
-  if (!profil || profil.role !== 'admin') redirect('/dashboard')
+    .from('profiles').select('role, roles').eq('id', user.id).single()
+  const userRoles = (profil?.roles ?? []) as string[]
+  if (!profil || !userRoles.some(r => ['admin', 'csm'].includes(r))) redirect('/dashboard')
 
   const db = createAdminClient()
   const currentYear = new Date().getFullYear()

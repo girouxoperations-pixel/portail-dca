@@ -418,12 +418,14 @@ export default function AdminView({
   membres,
   currentUserId,
   isAdmin,
+  isOwner = false,
   orgChartData,
   plMonths,
 }: {
   membres:       Membre[]
   currentUserId: string
   isAdmin:       boolean
+  isOwner?:      boolean
   orgChartData:  OrgNode
   plMonths:      PLMonthRecord[]
 }) {
@@ -467,8 +469,10 @@ export default function AdminView({
 
   const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: 'membres',      label: 'Membres',      icon: Users      },
-    { key: 'organigramme', label: 'Organigramme', icon: Network    },
-    { key: 'pl',           label: 'P&L',          icon: TrendingUp },
+    ...(isOwner ? [
+      { key: 'organigramme' as Tab, label: 'Organigramme', icon: Network    },
+      { key: 'pl'           as Tab, label: 'P&L',          icon: TrendingUp },
+    ] : []),
   ]
 
   return (

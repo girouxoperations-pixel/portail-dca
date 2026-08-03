@@ -20,6 +20,7 @@ export default async function AdminPage() {
   const role      = profil.role as string
   const userRoles = (profil.roles ?? []) as string[]
   if (!userRoles.some(r => ['admin', 'csm'].includes(r))) redirect('/dashboard')
+  const isOwner   = userRoles.includes('owner')
 
   const db = createAdminClient()
 
@@ -39,7 +40,8 @@ export default async function AdminPage() {
     <AdminView
       membres={membres ?? []}
       currentUserId={user.id}
-      isAdmin={role === 'admin'}
+      isAdmin={role === 'admin' || userRoles.includes('csm')}
+      isOwner={isOwner}
       orgChartData={orgChart?.data ?? DEFAULT_TREE}
       plMonths={plMonths ?? []}
     />

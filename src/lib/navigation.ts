@@ -62,10 +62,12 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Alveo',       href: '/alveo',        icon: CreditCard      },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake },
     { label: 'Clientes CSM', href: '/csm',         icon: BookUser        },
+    { label: 'Clients',     href: '/clients',      icon: Archive         },
     { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },
     { label: 'Analyseur',   href: '/analyseur',    icon: Mic             },
     { label: 'Feedback',    href: '/feedback',     icon: MessageSquare   },
     { label: 'Documents',   href: '/documents',    icon: FolderOpen      },
+    { label: 'Admin',       href: '/admin',        icon: ShieldCheck     },
   ],
   cm: [
     { label: 'Communauté',  href: '/cm',          icon: MessagesSquare  },

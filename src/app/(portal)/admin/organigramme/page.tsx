@@ -17,8 +17,9 @@ export default async function OrganigrammePage() {
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
-  if (!profile || profile.role !== 'admin') redirect('/dashboard')
+    .from('profiles').select('role, roles').eq('id', user.id).single()
+  const userRoles = (profile?.roles ?? []) as string[]
+  if (!profile || !userRoles.includes('owner')) redirect('/dashboard')
 
   const db = createAdminClient()
   const { data: chart } = await db
