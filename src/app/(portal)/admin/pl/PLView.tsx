@@ -76,8 +76,8 @@ function compute(d: PLData) {
   const sTps        = (d.tpsTvq || 0) * (d.samPercent  || 0.40)
   const rNetPayOut  = rBrut - (d.rosaDepensePerso || 0)
   const sNetPayOut  = sBrut - (d.samDepensePerso  || 0)
-  const rNet        = rNetPayOut - rTps - (d.impotRosa || 0)
-  const sNet        = sNetPayOut - sTps - (d.impotSam  || 0)
+  const rNet        = rNetPayOut - (d.impotRosa || 0)
+  const sNet        = sNetPayOut - (d.impotSam  || 0)
   return { depHT, depTTC, paye, charges, netAuto, net, pctNet,
            rBrut, sBrut, rTps, sTps, rNetPayOut, sNetPayOut, rNet, sNet }
 }
