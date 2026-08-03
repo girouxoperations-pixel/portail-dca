@@ -1135,17 +1135,22 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
     return rows.sort((a, b) => a.occ.date_attendue.localeCompare(b.occ.date_attendue))
   }, [filteredDeals])
 
-  // Occurrences cette semaine (7 jours à partir d'aujourd'hui, non reçues)
+  // Occurrences cette semaine (lundi au dimanche de la semaine courante)
   const occsSemaine = useMemo(() => {
-    const todayStr   = new Date().toISOString().split('T')[0]
-    const weekEndDate = new Date(now)
-    weekEndDate.setDate(now.getDate() + 7)
-    const weekEndStr = weekEndDate.toISOString().split('T')[0]
+    const today = new Date()
+    const dow = today.getDay() // 0=dim, 1=lun, ..., 6=sam
+    const daysFromMonday = dow === 0 ? 6 : dow - 1
+    const weekStart = new Date(today)
+    weekStart.setDate(today.getDate() - daysFromMonday)
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekStart.getDate() + 6)
+    const weekStartStr = weekStart.toISOString().split('T')[0]
+    const weekEndStr   = weekEnd.toISOString().split('T')[0]
     const rows: { occ: Occurrence; deal: Deal }[] = []
     for (const d of filteredDeals) {
       if (!d.actif) continue
       for (const occ of d.recurring_occurrences) {
-        if (!occ.recu && occ.date_attendue >= todayStr && occ.date_attendue <= weekEndStr)
+        if (occ.date_attendue >= weekStartStr && occ.date_attendue <= weekEndStr)
           rows.push({ occ, deal: d })
       }
     }
@@ -1343,7 +1348,7 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
         <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-amber-100 flex items-center justify-between">
             <h3 className="text-sm font-bold text-amber-800">
-              À encaisser cette semaine — {occsSemaine.length} versement{occsSemaine.length !== 1 ? 's' : ''}
+              Cette semaine — {occsSemaine.length} versement{occsSemaine.length !== 1 ? 's' : ''}
             </h3>
             <span className="text-sm font-bold tabular-nums text-amber-700">
               {dollar(occsSemaine.reduce((s, r) => s + r.occ.montant_attendu, 0))}
