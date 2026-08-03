@@ -101,30 +101,46 @@ export async function toggleMilestone(
   const { error } = await db.from('csm_clients').update({ [field]: value }).eq('id', clientId)
   if (error) throw error
 
-  // Auto-commission on first-time milestone trigger
-  if (value && client?.csm_id) {
-    if (field === 'cert_setter_done' && !client.cert_setter_done) {
-      await insertCommission(db, {
-        csmId: client.csm_id, clientId, clientName: client.name,
-        type: 'cert_setter', amount: 50,
-        description: `Certification setter — ${client.name}`,
-      })
-    }
-    if (field === 'cert_closer_done' && !client.cert_closer_done) {
-      await insertCommission(db, {
-        csmId: client.csm_id, clientId, clientName: client.name,
-        type: 'cert_closer', amount: 150,
-        description: `Certification closer — ${client.name}`,
-      })
-    }
-    // Placement: only once per client (neither opportunity was set before)
-    if ((field === 'opportunity_setter' || field === 'opportunity_closer')
-      && !client.opportunity_setter && !client.opportunity_closer) {
-      await insertCommission(db, {
-        csmId: client.csm_id, clientId, clientName: client.name,
-        type: 'placement', amount: 100,
-        description: `Placement — ${client.name}`,
-      })
+  if (client?.csm_id) {
+    if (value) {
+      // Auto-commission on first-time milestone trigger
+      if (field === 'cert_setter_done' && !client.cert_setter_done) {
+        await insertCommission(db, {
+          csmId: client.csm_id, clientId, clientName: client.name,
+          type: 'cert_setter', amount: 50,
+          description: `Certification setter — ${client.name}`,
+        })
+      }
+      if (field === 'cert_closer_done' && !client.cert_closer_done) {
+        await insertCommission(db, {
+          csmId: client.csm_id, clientId, clientName: client.name,
+          type: 'cert_closer', amount: 150,
+          description: `Certification closer — ${client.name}`,
+        })
+      }
+      // Placement: only once per client (neither opportunity was set before)
+      if ((field === 'opportunity_setter' || field === 'opportunity_closer')
+        && !client.opportunity_setter && !client.opportunity_closer) {
+        await insertCommission(db, {
+          csmId: client.csm_id, clientId, clientName: client.name,
+          type: 'placement', amount: 100,
+          description: `Placement — ${client.name}`,
+        })
+      }
+    } else {
+      // Uncheck removes the associated commission
+      if (field === 'cert_setter_done') {
+        await db.from('csm_commissions')
+          .delete()
+          .eq('client_id', clientId)
+          .eq('type', 'cert_setter')
+      }
+      if (field === 'cert_closer_done') {
+        await db.from('csm_commissions')
+          .delete()
+          .eq('client_id', clientId)
+          .eq('type', 'cert_closer')
+      }
     }
   }
 

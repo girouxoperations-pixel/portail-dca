@@ -21,7 +21,7 @@ export default async function CashPage() {
 
   const db = createAdminClient()
 
-  const [{ data: entrees }, { data: allProfiles }, { data: recOccs }, { data: perfs }, { data: csmClients }, { data: csmMembers }] = await Promise.all([
+  const [{ data: entrees }, { data: allProfiles }, { data: recOccs }, { data: perfs }, { data: csmClients }, { data: csmMembers }, { data: closerEntries }] = await Promise.all([
     db.from('cash_entries')
       .select('*')
       .order('entry_date', { ascending: false }),
@@ -41,6 +41,8 @@ export default async function CashPage() {
     db.from('profiles')
       .select('id, full_name, role')
       .contains('roles', ['csm']),
+    db.from('closer_entries')
+      .select('entry_date, pitch_calls, closes'),
   ])
 
   const closers = (allProfiles ?? []).filter(p => p.role === 'closer')
@@ -64,6 +66,7 @@ export default async function CashPage() {
       recurringCashIds={recurringCashIds}
       recurringOccMap={recurringOccMap}
       perfs={perfs ?? []}
+      closerEntries={closerEntries ?? []}
       csmClients={csmClients ?? []}
     />
   )

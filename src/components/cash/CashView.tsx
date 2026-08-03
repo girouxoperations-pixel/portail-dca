@@ -64,6 +64,7 @@ interface Props {
   recurringOccMap:  Record<string, string>
   perfs:            WeeklyPerf[]
   csmClients:       CsmStat[]
+  closerEntries:    { entry_date: string; pitch_calls: number; closes: number }[]
 }
 
 type SourceType = 'deal' | 'recurrent'
@@ -1029,7 +1030,7 @@ function StatsBlock({
 // ── Composant principal ───────────────────────────────────────────
 
 export default function CashView({
-  entrees, closers, setters, allProfiles, csmMembers, isAdmin, recurringCashIds, recurringOccMap, perfs, csmClients,
+  entrees, closers, setters, allProfiles, csmMembers, isAdmin, recurringCashIds, recurringOccMap, perfs, csmClients, closerEntries,
 }: Props) {
   const today     = new Date().toISOString().slice(0, 10)
   const yearNow   = new Date().getFullYear()
@@ -1281,10 +1282,25 @@ export default function CashView({
       map.set(key, cur)
     }
 
+    // Build closing rate map from closer_entries (pitches + closes per ISO week)
+    const perfByWeek = new Map<string, { pitches: number; closes: number }>()
+    for (const e of closerEntries) {
+      const { isoYear, week } = isoWeekInfo(e.entry_date)
+      const key = `${isoYear}-${String(week).padStart(2, '0')}`
+      const cur = perfByWeek.get(key) ?? { pitches: 0, closes: 0 }
+      cur.pitches += e.pitch_calls ?? 0
+      cur.closes  += e.closes      ?? 0
+      perfByWeek.set(key, cur)
+    }
+
     return Array.from(map.entries())
       .sort(([a], [b]) => b.localeCompare(a))
-      .map(([, v]) => v)
-  }, [filtrees, recurringIds])
+      .map(([key, v]) => {
+        const perf = perfByWeek.get(key)
+        const closingRate = perf && perf.pitches > 0 ? perf.closes / perf.pitches : null
+        return { ...v, closingRate, perfClosed: perf?.closes ?? null, perfShowed: perf?.pitches ?? null }
+      })
+  }, [filtrees, recurringIds, closerEntries])
 
   const tabCls = (t: typeof tab) => cn(
     'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
@@ -1761,6 +1777,7 @@ export default function CashView({
                         <th className="px-5 py-3 text-right">Revenue deals</th>
                         <th className="px-5 py-3 text-right text-violet-500">Cash deals</th>
                         <th className="px-5 py-3 text-right text-gray-400">Cash moy./deal</th>
+                        <th className="px-5 py-3 text-right text-emerald-500">% Closing</th>
                         <th className="px-5 py-3 text-right text-blue-500">Cash récurrents</th>
                         <th className="px-5 py-3 text-right font-bold text-gray-500">Cash total</th>
                       </tr>
@@ -1784,6 +1801,11 @@ export default function CashView({
                           <td className="px-5 py-3 text-right tabular-nums text-gray-500">
                             {w.nDeals > 0 ? dollar(Math.round(w.cashDeal / w.nDeals)) : <span className="text-gray-200">—</span>}
                           </td>
+                          <td className="px-5 py-3 text-right tabular-nums font-semibold text-emerald-600">
+                            {w.closingRate !== null
+                              ? <span title={`${w.perfClosed} closes / ${w.perfShowed} pitches`}>{(w.closingRate * 100).toFixed(1)} %</span>
+                              : <span className="text-gray-200">—</span>}
+                          </td>
                           <td className="px-5 py-3 text-right tabular-nums font-semibold text-blue-600">
                             {w.cashRec > 0 ? dollar(w.cashRec) : <span className="text-gray-200">—</span>}
                           </td>
@@ -1800,6 +1822,12 @@ export default function CashView({
                         <td className="px-5 py-3 text-right tabular-nums text-gray-600">{dollar(totW.revenueDeal)}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-violet-700">{dollar(totW.cashDeal)}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-gray-600">{totW.nDeals > 0 ? dollar(Math.round(totW.cashDeal / totW.nDeals)) : '—'}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-emerald-600">
+                          {(() => {
+                            const tot = weeklyStats.reduce((s, w) => ({ showed: s.showed + (w.perfShowed ?? 0), closed: s.closed + (w.perfClosed ?? 0) }), { showed: 0, closed: 0 })
+                            return tot.showed > 0 ? `${((tot.closed / tot.showed) * 100).toFixed(1)} %` : '—'
+                          })()}
+                        </td>
                         <td className="px-5 py-3 text-right tabular-nums text-blue-600">{dollar(totW.cashRec)}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-gray-900">{dollar(totW.cashDeal + totW.cashRec)}</td>
                       </tr>

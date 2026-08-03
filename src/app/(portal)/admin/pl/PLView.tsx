@@ -18,6 +18,8 @@ export type PLData = {
   tpsTvq:             number
   impotRosa:          number
   impotSam:           number
+  rosaDepensePerso:   number
+  samDepensePerso:    number
   rosaPercent:        number
   samPercent:         number
   notes:              string
@@ -40,7 +42,7 @@ const MOIS = [
 
 function fmt(n: number) {
   return new Intl.NumberFormat('fr-CA', {
-    style: 'currency', currency: 'CAD', maximumFractionDigits: 0,
+    style: 'currency', currency: 'CAD', minimumFractionDigits: 2, maximumFractionDigits: 2,
   }).format(n)
 }
 
@@ -56,7 +58,7 @@ const EMPTY_DATA = (): PLData => ({
     { id: uid(), label: 'Frais TD',  ht: 0, ttc: 0 },
   ],
   payeEquipe: [],
-  tpsTvq: 0, impotRosa: 0, impotSam: 0,
+  tpsTvq: 0, impotRosa: 0, impotSam: 0, rosaDepensePerso: 0, samDepensePerso: 0,
   rosaPercent: 0.60, samPercent: 0.40, notes: '',
 })
 
@@ -68,10 +70,16 @@ function compute(d: PLData) {
   const netAuto = (d.cashCollect || 0) - charges
   const net     = d.netProfitOverride !== undefined ? d.netProfitOverride : netAuto
   const pctNet  = (d.cashCollect || 0) > 0 ? net / d.cashCollect : 0
-  const rBrut   = net * (d.rosaPercent || 0.60)
-  const sBrut   = net * (d.samPercent  || 0.40)
-  return { depHT, depTTC, paye, charges, netAuto, net, pctNet, rBrut, sBrut,
-           rNet: rBrut - (d.impotRosa || 0), sNet: sBrut - (d.impotSam || 0) }
+  const rBrut       = net * (d.rosaPercent || 0.60)
+  const sBrut       = net * (d.samPercent  || 0.40)
+  const rTps        = (d.tpsTvq || 0) * (d.rosaPercent || 0.60)
+  const sTps        = (d.tpsTvq || 0) * (d.samPercent  || 0.40)
+  const rNetPayOut  = rBrut - (d.rosaDepensePerso || 0)
+  const sNetPayOut  = sBrut - (d.samDepensePerso  || 0)
+  const rNet        = rNetPayOut - rTps - (d.impotRosa || 0)
+  const sNet        = sNetPayOut - sTps - (d.impotSam  || 0)
+  return { depHT, depTTC, paye, charges, netAuto, net, pctNet,
+           rBrut, sBrut, rTps, sTps, rNetPayOut, sNetPayOut, rNet, sNet }
 }
 
 // ── Shared input ──────────────────────────────────────────────────────
@@ -82,6 +90,7 @@ function Num({
   return (
     <input
       type="number"
+      step="0.01"
       value={value || ''}
       onChange={e => onChange(parseFloat(e.target.value) || 0)}
       placeholder={placeholder}
@@ -333,12 +342,12 @@ function MonthDetail({ data, onChange }: {
                       placeholder="Catégorie" className={cellLabel} />
                   </td>
                   <td className="px-2 py-0.5">
-                    <input type="number" value={d.ht || ''}
+                    <input type="number" step="0.01" value={d.ht || ''}
                       onChange={e => updDep(d.id, 'ht', parseFloat(e.target.value) || 0)}
                       placeholder="0" className={cellNum} />
                   </td>
                   <td className="px-2 py-0.5">
-                    <input type="number" value={d.ttc || ''}
+                    <input type="number" step="0.01" value={d.ttc || ''}
                       onChange={e => updDep(d.id, 'ttc', parseFloat(e.target.value) || 0)}
                       placeholder="0" className={cn(cellNum, 'text-gray-400')} />
                   </td>
@@ -484,9 +493,10 @@ function MonthDetail({ data, onChange }: {
                 <div className="flex items-center gap-1.5">
                   <input
                     type="number"
-                    value={Math.round((data.rosaPercent || 0.60) * 100)}
+                    step="0.1"
+                    value={parseFloat(((data.rosaPercent || 0.60) * 100).toFixed(4))}
                     onChange={e => onChange({ rosaPercent: (parseFloat(e.target.value) || 0) / 100 })}
-                    className="w-10 bg-gray-50 border border-gray-200 rounded-lg px-1 py-0.5 text-xs text-gray-800 text-center focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400"
+                    className="w-14 bg-gray-50 border border-gray-200 rounded-lg px-1 py-0.5 text-xs text-gray-800 text-center focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400"
                   />
                   <span className="text-xs text-gray-400">%</span>
                 </div>
@@ -497,11 +507,23 @@ function MonthDetail({ data, onChange }: {
                   <span className="tabular-nums text-gray-700 font-medium">{fmt(c.rBrut)}</span>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Dépenses perso</span>
+                  <Num value={data.rosaDepensePerso} onChange={v => onChange({ rosaDepensePerso: v })} className="w-28 text-xs py-0.5" />
+                </div>
+                <div className="flex justify-between text-gray-600 font-medium pt-1 border-t border-gray-100">
+                  <span>Net pay out</span>
+                  <span className="tabular-nums">{fmt(c.rNetPayOut)}</span>
+                </div>
+                <div className="flex justify-between text-gray-500">
+                  <span>TPS / TVQ</span>
+                  <span className="tabular-nums text-red-400">− {fmt(c.rTps)}</span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-gray-500">Impôt</span>
                   <Num value={data.impotRosa} onChange={v => onChange({ impotRosa: v })} className="w-28 text-xs py-0.5" />
                 </div>
                 <div className="flex justify-between font-semibold text-sm pt-1.5 border-t border-gray-100">
-                  <span className="text-gray-700">Net</span>
+                  <span className="text-gray-700">Net Rosalie</span>
                   <span className="text-green-600 tabular-nums">{fmt(c.rNet)}</span>
                 </div>
               </div>
@@ -514,9 +536,10 @@ function MonthDetail({ data, onChange }: {
                 <div className="flex items-center gap-1.5">
                   <input
                     type="number"
-                    value={Math.round((data.samPercent || 0.40) * 100)}
+                    step="0.1"
+                    value={parseFloat(((data.samPercent || 0.40) * 100).toFixed(4))}
                     onChange={e => onChange({ samPercent: (parseFloat(e.target.value) || 0) / 100 })}
-                    className="w-10 bg-gray-50 border border-gray-200 rounded-lg px-1 py-0.5 text-xs text-gray-800 text-center focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400"
+                    className="w-14 bg-gray-50 border border-gray-200 rounded-lg px-1 py-0.5 text-xs text-gray-800 text-center focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400"
                   />
                   <span className="text-xs text-gray-400">%</span>
                 </div>
@@ -527,11 +550,23 @@ function MonthDetail({ data, onChange }: {
                   <span className="tabular-nums text-gray-700 font-medium">{fmt(c.sBrut)}</span>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Dépenses perso</span>
+                  <Num value={data.samDepensePerso} onChange={v => onChange({ samDepensePerso: v })} className="w-28 text-xs py-0.5" />
+                </div>
+                <div className="flex justify-between text-gray-600 font-medium pt-1 border-t border-gray-100">
+                  <span>Net pay out</span>
+                  <span className="tabular-nums">{fmt(c.sNetPayOut)}</span>
+                </div>
+                <div className="flex justify-between text-gray-500">
+                  <span>TPS / TVQ</span>
+                  <span className="tabular-nums text-red-400">− {fmt(c.sTps)}</span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-gray-500">Impôt</span>
                   <Num value={data.impotSam} onChange={v => onChange({ impotSam: v })} className="w-28 text-xs py-0.5" />
                 </div>
                 <div className="flex justify-between font-semibold text-sm pt-1.5 border-t border-gray-100">
-                  <span className="text-gray-700">Net</span>
+                  <span className="text-gray-700">Net Samuel</span>
                   <span className="text-green-600 tabular-nums">{fmt(c.sNet)}</span>
                 </div>
               </div>
