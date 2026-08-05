@@ -45,7 +45,10 @@ const FILTER_OPTS: { key: 'tous' | CmStatus; label: string }[] = [
 ]
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('fr-CA', { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('fr-CA', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    timeZone: 'America/Toronto',
+  })
 }
 function fmtShort(d: string | null) {
   if (!d) return ''
