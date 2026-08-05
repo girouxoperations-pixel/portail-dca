@@ -191,6 +191,20 @@ function EditableMCell({ clientId, num, date, missed, cancelled }: {
 
 // ── Text touchpoint cell ──────────────────────────────────────────────
 
+function TextDoneButton({ clientId, field }: { clientId: string; field: 'j7'|'j24'|'j49'|'j63'|'j77'|'j90' }) {
+  const [pending, start] = useTransition()
+  return (
+    <button
+      onClick={() => start(async () => toggleText(clientId, field, true))}
+      disabled={pending}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
+    >
+      <CheckCircle2 size={12} />
+      Fait
+    </button>
+  )
+}
+
 function TextCell({ clientId, field, done, dueDate, actualDate, today: todayStr, info, cancelled }: {
   clientId:   string
   field:      'j7' | 'j24' | 'j49' | 'j63' | 'j77' | 'j90'
@@ -814,10 +828,10 @@ export default function CsmClientList({
     })
   }
 
-  // Overdue text check (reused for filter and KPI)
-  function hasOverdueText(c: CsmClient): boolean {
+  // Texts due today or overdue (for filter and KPI)
+  function hasTextDue(c: CsmClient): boolean {
+    if (c.status === 'refund' || c.status === 'dropped') return false
     const due = computeDueDates(c.enrollment_date, c.onboarding_date)
-    const dayN = daysBetween(c.enrollment_date, todayStr)
     return [
       { done: c.text_j7_done,  due: due.j7  },
       { done: c.text_j24_done, due: due.j24 },
@@ -825,7 +839,7 @@ export default function CsmClientList({
       { done: c.text_j63_done, due: due.j63 },
       { done: c.text_j77_done, due: due.j77 },
       { done: c.text_j90_done, due: due.j90 },
-    ].some(ch => !ch.done && ch.due < todayStr && dayN >= 7)
+    ].some(ch => !ch.done && ch.due <= todayStr)
   }
 
   const filtered = useMemo(() => {
@@ -837,7 +851,7 @@ export default function CsmClientList({
       if (statusFilter === 'cert_setter'    && !c.cert_setter_done)        return false
       if (statusFilter === 'cert_closer'    && !c.cert_closer_done)        return false
       if (statusFilter === 'j90_auto'       && dayN < 90)                  return false
-      if (statusFilter === 'overdue_texts'  && !hasOverdueText(c))         return false
+      if (statusFilter === 'overdue_texts'  && !hasTextDue(c))             return false
       if (statusFilter === 'meetings_today' &&
           c.onboarding_date !== todayStr &&
           c.m2_date !== todayStr &&
@@ -854,10 +868,35 @@ export default function CsmClientList({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, search, statusFilter, csmFilter, todayStr])
 
+  // Flat list of texts due today or overdue (for the "Textes à faire" view)
+  const textsDueList = useMemo(() => {
+    const LABELS: Record<string, string> = { j7: 'J+7', j24: 'J+24', j49: 'J+49', j63: 'J+63', j77: 'J+77', j90: 'J+90' }
+    const rows: { client: CsmClient; field: 'j7'|'j24'|'j49'|'j63'|'j77'|'j90'; label: string; dueDate: string }[] = []
+    for (const c of clients) {
+      if (c.status === 'refund' || c.status === 'dropped') continue
+      if (csmFilter !== 'tous' && c.csm_id !== csmFilter) continue
+      const due = computeDueDates(c.enrollment_date, c.onboarding_date)
+      const checks = [
+        { field: 'j7'  as const, done: c.text_j7_done,  dueDate: due.j7  },
+        { field: 'j24' as const, done: c.text_j24_done, dueDate: due.j24 },
+        { field: 'j49' as const, done: c.text_j49_done, dueDate: due.j49 },
+        { field: 'j63' as const, done: c.text_j63_done, dueDate: due.j63 },
+        { field: 'j77' as const, done: c.text_j77_done, dueDate: due.j77 },
+        { field: 'j90' as const, done: c.text_j90_done, dueDate: due.j90 },
+      ]
+      for (const ch of checks) {
+        if (!ch.done && ch.dueDate <= todayStr)
+          rows.push({ client: c, field: ch.field, label: LABELS[ch.field], dueDate: ch.dueDate })
+      }
+    }
+    return rows.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.client.name.localeCompare(b.client.name))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients, csmFilter, todayStr])
+
   // KPIs
   const active      = clients.filter(c => c.status === 'active').length
   const certCloser  = clients.filter(c => c.cert_closer_done).length
-  const overdue     = clients.filter(hasOverdueText).length
+  const overdue     = textsDueList.length
   const refundCount = clients.filter(c => c.status === 'refund').length
 
   const m2NoShowCount   = clients.filter(c => c.m2_missed).length
@@ -944,11 +983,12 @@ export default function CsmClientList({
         >
           <div className="flex items-center gap-2 mb-1">
             <AlertCircle size={14} className={overdue > 0 ? 'text-amber-500' : 'text-gray-300'} />
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Textes en retard</p>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Textes à faire</p>
           </div>
           <p className={cn('text-2xl font-bold tabular-nums', overdue > 0 ? 'text-amber-600' : 'text-gray-300')}>
             {overdue > 0 ? overdue : '—'}
           </p>
+          {overdue > 0 && <p className="text-[10px] text-amber-400 mt-0.5">textos à envoyer</p>}
         </div>
         <div className={cn(
           'rounded-xl border shadow-sm p-4 cursor-pointer transition-all',
@@ -1114,46 +1154,50 @@ export default function CsmClientList({
         {filtered.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">Aucune cliente trouvée</p>
         ) : statusFilter === 'overdue_texts' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50">
-                  <th className="px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-40">Cliente</th>
-                  <th className="px-2 py-2.5 text-center text-gray-300">J.</th>
-                  <th className="px-2 py-2.5 text-center">J+7</th>
-                  <th className="px-2 py-2.5 text-center">J+24</th>
-                  <th className="px-2 py-2.5 text-center">J+49</th>
-                  <th className="px-2 py-2.5 text-center">J+63</th>
-                  <th className="px-2 py-2.5 text-center">J+77</th>
-                  <th className="px-2 py-2.5 text-center">J+90</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map(c => {
-                  const due  = computeDueDates(c.enrollment_date, c.onboarding_date)
-                  const dayN = daysBetween(c.enrollment_date, todayStr)
-                  return (
-                    <tr key={c.id} className="hover:bg-violet-50/20 transition-colors">
-                      <td className="px-3 py-2 sticky left-0 bg-white z-10 border-r border-gray-50">
-                        <Link href={`/csm/${c.id}`} className="hover:underline">
-                          <span className="font-semibold text-sm text-gray-900">{c.name}</span>
-                        </Link>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(c.enrollment_date)}</p>
-                      </td>
-                      <td className="px-2 py-2 text-center">
-                        <span className="text-[10px] font-bold text-gray-400">J+{dayN}</span>
-                      </td>
-                      <TextCell clientId={c.id} field="j7"  done={c.text_j7_done}  dueDate={due.j7}  actualDate={c.text_j7_date}  today={todayStr} />
-                      <TextCell clientId={c.id} field="j24" done={c.text_j24_done} dueDate={due.j24} actualDate={c.text_j24_date} today={todayStr} />
-                      <TextCell clientId={c.id} field="j49" done={c.text_j49_done} dueDate={due.j49} actualDate={c.text_j49_date} today={todayStr} />
-                      <TextCell clientId={c.id} field="j63" done={c.text_j63_done} dueDate={due.j63} actualDate={c.text_j63_date} today={todayStr} />
-                      <TextCell clientId={c.id} field="j77" done={c.text_j77_done} dueDate={due.j77} actualDate={c.text_j77_date} today={todayStr} />
-                      <TextCell clientId={c.id} field="j90" done={c.text_j90_done} dueDate={due.j90} actualDate={c.text_j90_date} today={todayStr} />
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div>
+            <div className="px-4 py-3 border-b border-amber-100 bg-amber-50/60 flex items-center justify-between">
+              <span className="text-xs font-semibold text-amber-700">Textes à envoyer aujourd&apos;hui</span>
+              <span className="text-xs text-amber-500">{textsDueList.length} texto{textsDueList.length !== 1 ? 's' : ''}</span>
+            </div>
+            {textsDueList.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-12">Aucun texto à faire — tout est à jour ✓</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50">
+                    <th className="px-4 py-2.5 text-left">Cliente</th>
+                    <th className="px-4 py-2.5 text-center">Texto</th>
+                    <th className="px-4 py-2.5 text-center">Dû le</th>
+                    <th className="px-4 py-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {textsDueList.map(({ client: c, field, label, dueDate }) => {
+                    const isToday = dueDate === todayStr
+                    return (
+                      <tr key={`${c.id}-${field}`} className="hover:bg-amber-50/30 transition-colors">
+                        <td className="px-4 py-3">
+                          <Link href={`/csm/${c.id}`} className="hover:underline font-semibold text-gray-900">{c.name}</Link>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(c.enrollment_date)}</p>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{label}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={cn('text-xs font-medium tabular-nums', isToday ? 'text-amber-600' : 'text-red-500')}>
+                            {formatDate(dueDate)}
+                            {!isToday && <span className="ml-1 text-[10px]">(retard)</span>}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <TextDoneButton clientId={c.id} field={field} />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
