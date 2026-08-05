@@ -1153,52 +1153,6 @@ export default function CsmClientList({
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         {filtered.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">Aucune cliente trouvée</p>
-        ) : statusFilter === 'overdue_texts' ? (
-          <div>
-            <div className="px-4 py-3 border-b border-amber-100 bg-amber-50/60 flex items-center justify-between">
-              <span className="text-xs font-semibold text-amber-700">Textes à envoyer aujourd&apos;hui</span>
-              <span className="text-xs text-amber-500">{textsDueList.length} texto{textsDueList.length !== 1 ? 's' : ''}</span>
-            </div>
-            {textsDueList.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-12">Aucun texto à faire — tout est à jour ✓</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50">
-                    <th className="px-4 py-2.5 text-left">Cliente</th>
-                    <th className="px-4 py-2.5 text-center">Texto</th>
-                    <th className="px-4 py-2.5 text-center">Dû le</th>
-                    <th className="px-4 py-2.5 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {textsDueList.map(({ client: c, field, label, dueDate }) => {
-                    const isToday = dueDate === todayStr
-                    return (
-                      <tr key={`${c.id}-${field}`} className="hover:bg-amber-50/30 transition-colors">
-                        <td className="px-4 py-3">
-                          <Link href={`/csm/${c.id}`} className="hover:underline font-semibold text-gray-900">{c.name}</Link>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(c.enrollment_date)}</p>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{label}</span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={cn('text-xs font-medium tabular-nums', isToday ? 'text-amber-600' : 'text-red-500')}>
-                            {formatDate(dueDate)}
-                            {!isToday && <span className="ml-1 text-[10px]">(retard)</span>}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <TextDoneButton clientId={c.id} field={field} />
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
