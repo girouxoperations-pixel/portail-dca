@@ -113,6 +113,94 @@ export async function modifierCash(id: string, formData: FormData) {
   revalidatePath('/payes')
 }
 
+export async function marquerRemboursementDepuisCash(cashEntryId: string, montantAvantTaxe: number) {
+  await requireRole(['admin', 'csm'])
+  const db = createAdminClient()
+
+  const { data: entry } = await db
+    .from('cash_entries')
+    .select('id, client_name, closed_by, set_by, month, year, entry_date')
+    .eq('id', cashEntryId)
+    .single()
+  if (!entry) throw new Error('Entrée introuvable')
+
+  const dateStr: string = entry.entry_date
+  const month = entry.month ?? parseYearMonth(dateStr).month
+  const year  = entry.year  ?? parseYearMonth(dateStr).year
+  const { year: ty, month: tm, day: td } = nowQC()
+  const pl = periodLabel(`${ty}-${String(tm).padStart(2,'0')}-${String(td).padStart(2,'0')}`)
+
+  // Zero original paye entries
+  await db.from('paye_entries')
+    .update({
+      montant:           0,
+      commission:        0,
+      commission_setter: 0,
+      statut:            'Remboursé',
+      notes:             `[REMBOURSÉ le ${dateStr}] — ${entry.client_name ?? ''}`,
+    })
+    .eq('cash_entry_id', cashEntryId)
+
+  // Mark cash entry as refunded
+  await db.from('cash_entries')
+    .update({ collected: 0, close_type: 'refund', is_refunded: true, notes: `[REMBOURSÉ le ${dateStr}]` })
+    .eq('id', cashEntryId)
+
+  // Insert negative paye entry (closer 10%, setter 5%)
+  if (entry.closed_by || entry.set_by) {
+    const commCloser = Math.round(montantAvantTaxe * TAUX_CLOSER * 100) / 100
+    const commSetter = Math.round(montantAvantTaxe * TAUX_SETTER * 100) / 100
+    await db.from('paye_entries').insert({
+      period_label:      pl,
+      month,
+      year,
+      client_name:       entry.client_name ?? '',
+      closer_id:         entry.closed_by,
+      setter_id:         entry.set_by,
+      montant:           -montantAvantTaxe,
+      commission:        entry.closed_by ? -commCloser : 0,
+      commission_setter: entry.set_by    ? -commSetter : 0,
+      statut:            'En attente',
+      notes:             'Remboursement',
+    })
+  }
+
+  // Propagate to CSM clients (by cash_entry_id first, then by name as fallback)
+  await db.from('csm_clients').update({ status: 'refund' }).eq('cash_entry_id', cashEntryId)
+  if (entry.client_name) {
+    await db.from('csm_clients').update({ status: 'refund' }).ilike('name', entry.client_name.trim())
+  }
+
+  // Propagate to CM followups
+  await db.from('cm_followups').update({ status: 'remboursee' }).eq('cash_entry_id', cashEntryId)
+  if (entry.client_name) {
+    await db.from('cm_followups').update({ status: 'remboursee' }).ilike('client_name', entry.client_name.trim())
+  }
+
+  // Cancel active recurring deals
+  if (entry.client_name) {
+    const { data: activeDeals } = await db
+      .from('recurring_deals')
+      .select('id')
+      .eq('client_name', entry.client_name)
+      .eq('actif', true)
+    if (activeDeals && activeDeals.length > 0) {
+      await db.from('recurring_deals')
+        .update({ actif: false, annule_le: new Date().toISOString(), raison_annulation: `Remboursement — ${dateStr}` })
+        .in('id', activeDeals.map(d => d.id))
+    }
+  }
+
+  revalidatePath('/cash')
+  revalidatePath('/payes')
+  revalidatePath('/recurrents')
+  revalidatePath('/clients')
+  revalidatePath('/cm')
+  revalidatePath('/csm')
+  revalidatePath('/cashcollect')
+  revalidatePath('/dashboard')
+}
+
 export async function supprimerCash(id: string) {
   await requireRole(['admin'])
   const db = createAdminClient()

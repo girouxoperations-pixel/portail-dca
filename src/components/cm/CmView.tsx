@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo, useRef } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { Plus, Trash2, X, Search, MessageSquare, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
 import {
   ajouterCmFollowup, toggleCmMessage, setCmStatus, updateCmNotes, supprimerCmFollowup,
@@ -25,6 +25,7 @@ type CmFollowup = {
   created_at:     string
   cash_entry_id:  string | null
   csm_client_id:  string | null
+  cash_entries:   { entry_date: string } | { entry_date: string }[] | null
 }
 
 // ── Constantes ────────────────────────────────────────────────────────
@@ -44,8 +45,13 @@ const FILTER_OPTS: { key: 'tous' | CmStatus; label: string }[] = [
   { key: 'remboursee',    label: 'Remboursées'  },
 ]
 
+function closeDate(f: { created_at: string; cash_entries: { entry_date: string } | { entry_date: string }[] | null }): string {
+  const ce = Array.isArray(f.cash_entries) ? f.cash_entries[0] : f.cash_entries
+  return ce?.entry_date ?? f.created_at
+}
+
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('fr-CA', {
+  return new Date(iso + (iso.length === 10 ? 'T00:00' : '')).toLocaleDateString('fr-CA', {
     day: '2-digit', month: 'short', year: 'numeric',
     timeZone: 'America/Toronto',
   })
@@ -163,7 +169,7 @@ function CarteMobile({ followup, isPrivileged }: { followup: CmFollowup; isPrivi
         <div>
           <p className="font-semibold text-sm text-white leading-tight">{s.local.client_name}</p>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            <span className="text-[11px] text-gray-500">{fmtDate(s.local.created_at)}</span>
+            <span className="text-[11px] text-gray-500">{fmtDate(closeDate(s.local))}</span>
             <SourceBadges f={s.local} />
           </div>
         </div>
@@ -221,7 +227,7 @@ function LigneDesktop({ followup, isPrivileged }: { followup: CmFollowup; isPriv
       <td className="px-4 py-3">
         <div className="font-medium text-sm text-white">{s.local.client_name}</div>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-          <span className="text-[11px] text-gray-500">{fmtDate(s.local.created_at)}</span>
+          <span className="text-[11px] text-gray-500">{fmtDate(closeDate(s.local))}</span>
           <SourceBadges f={s.local} />
         </div>
       </td>
@@ -325,14 +331,6 @@ export default function CmView({
   const [search,    setSearch]   = useState('')
   const [filtre,    setFiltre]   = useState<'tous' | CmStatus>('tous')
 
-  // Stable insertion-order index — new IDs append, existing IDs never move
-  const stableOrder = useRef<Map<string, number>>(new Map())
-  followups.forEach(f => {
-    if (!stableOrder.current.has(f.id)) {
-      stableOrder.current.set(f.id, stableOrder.current.size)
-    }
-  })
-
   const filtered = useMemo(() => {
     let list = followups
     if (filtre !== 'tous') list = list.filter(f => f.status === filtre)
@@ -340,11 +338,8 @@ export default function CmView({
       const q = search.toLowerCase()
       list = list.filter(f => f.client_name.toLowerCase().includes(q))
     }
-    return [...list].sort((a, b) => {
-      const ia = stableOrder.current.get(a.id) ?? Infinity
-      const ib = stableOrder.current.get(b.id) ?? Infinity
-      return ia - ib
-    })
+    // Sort by close date descending (most recent first); fall back to created_at
+    return [...list].sort((a, b) => closeDate(b).localeCompare(closeDate(a)))
   }, [followups, filtre, search])
 
   const kpis = useMemo(() => ({

@@ -6,22 +6,24 @@ import Link from 'next/link'
 import {
   Search, Users, CheckCircle2, AlertCircle, Clock,
   Shield, X, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Upload, Plus, Pencil,
+  ListTodo, Circle, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ExportCsvButton from '@/components/ui/ExportCsvButton'
-import type { CsmClient } from './types'
+import type { CsmClient, CsmTask } from './types'
 import { computeDueDates, today, formatDate } from './types'
 import {
   updateMeeting, updateMissed, toggleText, toggleMilestone, updateStatus,
-  marquerRemboursement, updateOnboardingDate, updateEmailAvis, creerCsmClientManuel,
+  marquerRemboursementAvecMontant, updateOnboardingDate, updateEmailAvis, creerCsmClientManuel,
   updateCsmId, updatePaymentType, supprimerCsmClient,
+  creerTache, toggleTache, supprimerTache,
 } from './actions'
 import { definirObjectifCsm } from '@/app/(portal)/payes/actions'
 
 type StatusFilter =
   | 'tous' | 'active' | 'm2_missed' | 'm3_missed'
   | 'cert_setter' | 'cert_closer' | 'eval_failed' | 'paused' | 'dropped' | 'refund'
-  | 'j90_auto' | 'overdue_texts' | 'meetings_today'
+  | 'j90_auto' | 'overdue_texts' | 'meetings_today' | 'tasks'
 
 const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }> = {
   active:      { label: 'Active',       cls: 'bg-green-100 text-green-700'  },
@@ -321,14 +323,16 @@ function EmailCell({ clientId, avis }: { clientId: string; avis: EmailAvis | nul
 // ── Inline status + cert badge ────────────────────────────────────────
 
 function StatusCell({
-  clientId, status, certSetterDone, certCloserDone, dayN, isAdmin,
+  clientId, clientName, status, certSetterDone, certCloserDone, dayN, isAdmin, onRefundClick,
 }: {
   clientId:       string
+  clientName:     string
   status:         CsmClient['status']
   certSetterDone: boolean
   certCloserDone: boolean
   dayN:           number
   isAdmin:        boolean
+  onRefundClick:  (clientId: string, clientName: string) => void
 }) {
   const [open, setOpen]   = useState(false)
   const [pending, startT] = useTransition()
@@ -362,8 +366,8 @@ function StatusCell({
 
   function handleStatus(key: CsmClient['status']) {
     if (key === 'refund') {
-      if (!confirm('Marquer comme remboursée ?\n\nCela va supprimer la deal de la cash collect et annuler la commission associée.')) return
-      startT(async () => { await marquerRemboursement(clientId); setOpen(false) })
+      setOpen(false)
+      onRefundClick(clientId, clientName)
     } else {
       startT(async () => { await updateStatus(clientId, key); setOpen(false) })
     }
@@ -555,7 +559,7 @@ function PaymentTypeCell({ clientId, paymentType, fullyPaid }: {
 // ── Main component ────────────────────────────────────────────────────
 
 interface Profil { id: string; full_name: string | null }
-interface DashCommission { csm_id: string; type: string; amount: number; created_at: string; month: number | null; year: number | null }
+interface DashCommission { csm_id: string; type: string; amount: number; created_at: string; month: number | null; year: number | null; client_name: string | null }
 interface CsmGoal { user_id: string; year: number; month: number; target_cert_setter: number; target_placement: number; target_cert_closer: number; target_upsell: number }
 interface VirementStatEntry { csm_id: string; month: number; year: number; attendu: number; recu_montant: number }
 
@@ -567,10 +571,142 @@ interface Props {
   csmGoals:         CsmGoal[]
   virementStats:    VirementStatEntry[]
   availableClients: { name: string; entryDate: string }[]
+  tasks:            CsmTask[]
   currentYear:      number
   currentMonth:     number
   currentUserId:    string
   isAdmin:          boolean
+}
+
+// ── Tasks panel ────────────────────────────────────────────────────────
+
+function TasksPanel({
+  tasks, clientMap, csmFilter, clientCsmMap, todayStr,
+  onToggle, onDelete, onAdd,
+}: {
+  tasks:         CsmTask[]
+  clientMap:     Map<string, string>
+  csmFilter:     string
+  clientCsmMap:  Map<string, string>
+  todayStr:      string
+  onToggle:      (id: string, done: boolean) => void
+  onDelete:      (id: string) => void
+  onAdd:         (clientId?: string, clientName?: string) => void
+}) {
+  const [showDone, setShowDone] = useState(false)
+
+  const visible = tasks.filter(t =>
+    csmFilter === 'tous' || clientCsmMap.get(t.csm_client_id) === csmFilter
+  )
+
+  const overdue  = visible.filter(t => !t.done && t.due_date <  todayStr)
+  const dueToday = visible.filter(t => !t.done && t.due_date === todayStr)
+  const upcoming = visible.filter(t => !t.done && t.due_date >  todayStr)
+  const done     = visible.filter(t => t.done)
+
+  function TaskRow({ task }: { task: CsmTask }) {
+    const clientName = clientMap.get(task.csm_client_id) ?? '?'
+    return (
+      <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50/60 transition-colors group">
+        <button
+          onClick={() => onToggle(task.id, !task.done)}
+          className={cn('shrink-0 transition-colors', task.done ? 'text-green-500' : 'text-gray-300 hover:text-violet-500')}
+        >
+          {task.done
+            ? <CheckCircle2 size={16} />
+            : <Circle size={16} />
+          }
+        </button>
+        <div className="flex-1 min-w-0">
+          <span className={cn('text-sm', task.done && 'line-through text-gray-400')}>{task.title}</span>
+          <button
+            onClick={() => onAdd(task.csm_client_id, clientName)}
+            className="ml-2 text-[11px] text-violet-500 hover:text-violet-700 font-medium"
+          >
+            {clientName}
+          </button>
+        </div>
+        <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">{formatDate(task.due_date)}</span>
+        <button
+          onClick={() => onDelete(task.id)}
+          className="shrink-0 text-gray-200 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+    )
+  }
+
+  function Section({ label, items, cls }: { label: string; items: CsmTask[]; cls: string }) {
+    if (items.length === 0) return null
+    return (
+      <div className={cn('bg-white rounded-xl border shadow-sm overflow-hidden', cls)}>
+        <div className="px-4 py-3 border-b flex items-center gap-2">
+          <span className="text-sm font-semibold">{label}</span>
+          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{items.length}</span>
+        </div>
+        <div className="divide-y divide-gray-50">
+          {items.map(t => <TaskRow key={t.id} task={t} />)}
+        </div>
+      </div>
+    )
+  }
+
+  const isEmpty = overdue.length + dueToday.length + upcoming.length + done.length === 0
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => onAdd()}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+        >
+          <Plus size={12} /> Nouvelle tâche
+        </button>
+      </div>
+
+      {isEmpty && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-12 text-center text-sm text-gray-400">
+          Aucune tâche pour le moment
+        </div>
+      )}
+
+      <Section
+        label="⚠ En retard"
+        items={overdue}
+        cls="border-red-100"
+      />
+      <Section
+        label="📅 Aujourd'hui"
+        items={dueToday}
+        cls="border-orange-100"
+      />
+      <Section
+        label="🔜 À venir"
+        items={upcoming}
+        cls="border-gray-100"
+      />
+
+      {done.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowDone(v => !v)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors mb-2"
+          >
+            <ChevronDown size={12} className={cn('transition-transform', showDone && 'rotate-180')} />
+            {showDone ? 'Masquer' : 'Voir'} les tâches complétées ({done.length})
+          </button>
+          {showDone && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="divide-y divide-gray-50">
+                {done.map(t => <TaskRow key={t.id} task={t} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 const MOIS_FR_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
@@ -596,6 +732,7 @@ function CsmDashboard({
   const [selYear, setSelYear]         = useState(currentYear)
   const [selMonth, setSelMonth]       = useState(currentMonth)
   const [editGoalFor, setEditGoalFor] = useState<string | null>(null)
+  const [expanded, setExpanded]       = useState<{ csmId: string; type: string } | null>(null)
   const [gSetter, setGSetter]         = useState(0)
   const [gPlacement, setGPlacement]   = useState(0)
   const [gCloser, setGCloser]         = useState(0)
@@ -641,6 +778,16 @@ function CsmDashboard({
     return commissions.filter(c =>
       c.csm_id === csmId && c.type === type && c.month === selMonth && c.year === selYear
     ).length
+  }
+
+  function clientNamesFor(csmId: string, type: string): string[] {
+    return commissions
+      .filter(c => c.csm_id === csmId && c.type === type && c.month === selMonth && c.year === selYear)
+      .map(c => c.client_name ?? '?')
+  }
+
+  function toggleExpanded(csmId: string, type: string) {
+    setExpanded(e => e?.csmId === csmId && e.type === type ? null : { csmId, type })
   }
 
   function virementFor(csmId: string) {
@@ -724,12 +871,23 @@ function CsmDashboard({
               </div>
               <div className="grid grid-cols-4 gap-2">
                 {rows.map(row => {
-                  const count = countFor(csm.id, row.type)
-                  const pct   = row.goal > 0 ? Math.min(100, Math.round((count / row.goal) * 100)) : 0
-                  const barCl = pct >= 100 ? 'bg-green-500' : pct >= 60 ? 'bg-violet-500' : pct >= 30 ? 'bg-amber-400' : 'bg-red-400'
+                  const count   = countFor(csm.id, row.type)
+                  const pct     = row.goal > 0 ? Math.min(100, Math.round((count / row.goal) * 100)) : 0
+                  const barCl   = pct >= 100 ? 'bg-green-500' : pct >= 60 ? 'bg-violet-500' : pct >= 30 ? 'bg-amber-400' : 'bg-red-400'
+                  const isOpen  = expanded?.csmId === csm.id && expanded.type === row.type
+                  const names   = isOpen ? clientNamesFor(csm.id, row.type) : []
                   return (
-                    <div key={row.type} className={cn('rounded-xl p-3', row.bg)}>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">{row.label}</p>
+                    <div
+                      key={row.type}
+                      className={cn('rounded-xl p-3 transition-all', row.bg, count > 0 && 'cursor-pointer hover:brightness-95')}
+                      onClick={() => count > 0 && toggleExpanded(csm.id, row.type)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{row.label}</p>
+                        {count > 0 && (
+                          <ChevronDown size={11} className={cn('text-gray-400 transition-transform', isOpen && 'rotate-180')} />
+                        )}
+                      </div>
                       <div className="flex items-baseline gap-1.5 mb-1">
                         <span className={cn('text-2xl font-bold tabular-nums', row.color)}>{count}</span>
                         {row.goal > 0 && <span className="text-xs text-gray-400">/ {row.goal}</span>}
@@ -737,6 +895,13 @@ function CsmDashboard({
                       {row.goal > 0 && (
                         <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
                           <div className={cn('h-full rounded-full transition-all', barCl)} style={{ width: `${pct}%` }} />
+                        </div>
+                      )}
+                      {isOpen && names.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-white/40 space-y-0.5">
+                          {names.map((name, i) => (
+                            <p key={i} className="text-[11px] text-gray-700 font-medium leading-tight">• {name}</p>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -800,8 +965,8 @@ function CsmDashboard({
 
 export default function CsmClientList({
   clients, fullyPaidNames, csmMembers,
-  dashCommissions, csmGoals, virementStats, availableClients, currentYear, currentMonth,
-  currentUserId, isAdmin,
+  dashCommissions, csmGoals, virementStats, availableClients, tasks,
+  currentYear, currentMonth, currentUserId, isAdmin,
 }: Props) {
   const fullyPaidSet = useMemo(() => new Set(fullyPaidNames), [fullyPaidNames])
   const [search, setSearch]             = useState('')
@@ -812,8 +977,35 @@ export default function CsmClientList({
   const [selectedExisting, setSelectedExisting] = useState<{ name: string; entryDate: string } | null>(null)
   const [ajoutPending, startAjoutTrans] = useTransition()
 
+  const [refundTarget, setRefundTarget] = useState<{ clientId: string; clientName: string } | null>(null)
+  const [refundMontant, setRefundMontant] = useState('')
+  const [refundPending, startRefundTrans] = useTransition()
+
+  const [taskAddModal, setTaskAddModal] = useState<{ clientId?: string; clientName?: string } | null>(null)
+  const [taskTitle, setTaskTitle] = useState('')
+  const [taskDate, setTaskDate] = useState('')
+  const [taskClientId, setTaskClientId] = useState('')
+  const [taskPending, startTaskTrans] = useTransition()
+
   function openAjout() { setAjoutMode('choice'); setExistingSearch(''); setSelectedExisting(null) }
   function closeAjout() { setAjoutMode(null); setExistingSearch(''); setSelectedExisting(null) }
+
+  function openRefundModal(clientId: string, clientName: string) {
+    setRefundTarget({ clientId, clientName })
+    setRefundMontant('')
+  }
+  function closeRefundModal() { setRefundTarget(null); setRefundMontant('') }
+
+  function handleRefundConfirm(e: React.FormEvent) {
+    e.preventDefault()
+    if (!refundTarget) return
+    const montant = parseFloat(refundMontant.replace(',', '.'))
+    if (!montant || montant <= 0) return
+    startRefundTrans(async () => {
+      await marquerRemboursementAvecMontant(refundTarget.clientId, montant)
+      closeRefundModal()
+    })
+  }
   const todayStr = today()
 
   const csmMap = useMemo(() => new Map(csmMembers.map(m => [m.id, m.full_name ?? 'CSM'])), [csmMembers])
@@ -833,6 +1025,47 @@ export default function CsmClientList({
       closeAjout()
     })
   }
+
+  function openTaskModal(clientId?: string, clientName?: string) {
+    setTaskAddModal({ clientId, clientName })
+    setTaskTitle('')
+    setTaskDate(todayStr)
+    setTaskClientId(clientId ?? '')
+  }
+
+  function handleTaskSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const cid = taskAddModal?.clientId ?? taskClientId
+    if (!cid || !taskTitle.trim() || !taskDate) return
+    startTaskTrans(async () => {
+      await creerTache(cid, taskTitle, taskDate)
+      setTaskAddModal(null)
+    })
+  }
+
+  const tasksByClient = useMemo(() => {
+    const map = new Map<string, CsmTask[]>()
+    for (const t of tasks) {
+      if (!map.has(t.csm_client_id)) map.set(t.csm_client_id, [])
+      map.get(t.csm_client_id)!.push(t)
+    }
+    return map
+  }, [tasks])
+
+  const clientCsmMap = useMemo(
+    () => new Map(clients.map(c => [c.id, c.csm_id ?? ''])),
+    [clients],
+  )
+
+  const clientNameMap = useMemo(
+    () => new Map(clients.map(c => [c.id, c.name])),
+    [clients],
+  )
+
+  const tasksDueCount = useMemo(
+    () => tasks.filter(t => !t.done && t.due_date <= todayStr).length,
+    [tasks, todayStr],
+  )
 
   // Texts due today or overdue (for filter and KPI)
   function hasTextDue(c: CsmClient): boolean {
@@ -863,6 +1096,8 @@ export default function CsmClientList({
           c.m2_date !== todayStr &&
           c.m3_date !== todayStr &&
           c.m4_date !== todayStr)                                           return false
+      // Tasks panel has its own view — show nothing in the table
+      if (statusFilter === 'tasks') return false
       // Refund + eval_failed only show in their dedicated tab — hide from 'tous'
       if (statusFilter === 'tous' && (c.status === 'refund' || c.status === 'eval_failed')) return false
       const simpleStatusFilters = ['active', 'paused', 'eval_failed', 'dropped', 'refund']
@@ -928,6 +1163,7 @@ export default function CsmClientList({
     { key: 'j90_auto',       label: `+90 jours${j90Count > 0 ? ` (${j90Count})` : ''}`                                  },
     { key: 'meetings_today', label: `Meeting du jour${meetingsToday > 0 ? ` (${meetingsToday})` : ''}`                  },
     { key: 'refund',         label: `Remboursé${refundCount > 0 ? ` (${refundCount})` : ''}`                             },
+    { key: 'tasks',          label: `Tâches${tasksDueCount > 0 ? ` (${tasksDueCount})` : ''}`                            },
   ]
 
   const csvData = filtered.map(c => ({
@@ -964,7 +1200,7 @@ export default function CsmClientList({
       />
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
           <div className="flex items-center gap-2 mb-1">
             <Users size={14} className="text-violet-500" />
@@ -1014,6 +1250,23 @@ export default function CsmClientList({
             <p className="text-[10px] text-violet-400 mt-0.5">ONB · M2 · M3 · M4</p>
           )}
         </div>
+        <div
+          className={cn(
+            'rounded-xl border shadow-sm p-4 cursor-pointer transition-all',
+            tasksDueCount > 0 ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' : 'bg-white border-gray-100',
+            statusFilter === 'tasks' && 'ring-2 ring-blue-400',
+          )}
+          onClick={() => setStatusFilter(sf => sf === 'tasks' ? 'tous' : 'tasks')}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <ListTodo size={14} className={tasksDueCount > 0 ? 'text-blue-500' : 'text-gray-300'} />
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Tâches</p>
+          </div>
+          <p className={cn('text-2xl font-bold tabular-nums', tasksDueCount > 0 ? 'text-blue-600' : 'text-gray-300')}>
+            {tasksDueCount > 0 ? tasksDueCount : '—'}
+          </p>
+          {tasksDueCount > 0 && <p className="text-[10px] text-blue-400 mt-0.5">à faire aujourd&apos;hui ou en retard</p>}
+        </div>
       </div>
 
       {/* Filters */}
@@ -1062,6 +1315,12 @@ export default function CsmClientList({
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-gray-400">{filtered.length} cliente{filtered.length !== 1 ? 's' : ''}</span>
+          <button
+            onClick={() => openTaskModal()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+          >
+            <ListTodo size={12} /> Tâche
+          </button>
           <button
             onClick={openAjout}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
@@ -1252,6 +1511,70 @@ export default function CsmClientList({
         )}
       </div>
 
+      {/* Modal remboursement */}
+      {refundTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900">Confirmer le remboursement</h2>
+              <button onClick={closeRefundModal} className="text-gray-300 hover:text-gray-500"><X size={16} /></button>
+            </div>
+            <form onSubmit={handleRefundConfirm} className="p-6 space-y-4">
+              <p className="text-sm text-gray-700">
+                Cliente : <span className="font-semibold">{refundTarget.clientName}</span>
+              </p>
+              <p className="text-xs text-gray-500">
+                La commission du closer (10 %) et de la setter (5 %) seront déduites automatiquement de leur paye.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-gray-600">Montant remboursé avant taxe ($)</label>
+                <input
+                  autoFocus
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={refundMontant}
+                  onChange={e => setRefundMontant(e.target.value)}
+                  placeholder="ex. 3000"
+                  required
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400"
+                />
+              </div>
+              {refundMontant && parseFloat(refundMontant) > 0 && (
+                <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs text-red-700 space-y-1">
+                  <p>Déduction closer : <span className="font-semibold">−{(parseFloat(refundMontant) * 0.10).toFixed(2)} $</span></p>
+                  <p>Déduction setter : <span className="font-semibold">−{(parseFloat(refundMontant) * 0.05).toFixed(2)} $</span></p>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={closeRefundModal} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
+                <button
+                  type="submit"
+                  disabled={refundPending || !refundMontant || parseFloat(refundMontant) <= 0}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+                >
+                  {refundPending ? 'En cours…' : 'Confirmer le remboursement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Tasks panel or table */}
+      {statusFilter === 'tasks' ? (
+        <TasksPanel
+          tasks={tasks}
+          clientMap={clientNameMap}
+          csmFilter={csmFilter}
+          clientCsmMap={clientCsmMap}
+          todayStr={todayStr}
+          onToggle={(id, done) => startTaskTrans(async () => { await toggleTache(id, done) })}
+          onDelete={(id) => { if (confirm('Supprimer cette tâche ?')) startTaskTrans(async () => { await supprimerTache(id) }) }}
+          onAdd={openTaskModal}
+        />
+      ) : (<>
+
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" /> Aujourd&apos;hui</span>
@@ -1324,10 +1647,42 @@ export default function CsmClientList({
                     >
                       {/* Name */}
                       <td className="px-3 py-2 sticky left-0 bg-white z-10 border-r border-gray-50">
-                        <Link href={`/csm/${c.id}`} className="hover:underline">
-                          <span className={cn('font-semibold text-sm', nameCls)}>{c.name}</span>
-                        </Link>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(c.enrollment_date)}</p>
+                        <div className="flex items-center gap-1.5">
+                          <Link href={`/csm/${c.id}`} className="hover:underline min-w-0">
+                            <span className={cn('font-semibold text-sm', nameCls)}>{c.name}</span>
+                          </Link>
+                          {(() => {
+                            const clientTasks = tasksByClient.get(c.id) ?? []
+                            const pending = clientTasks.filter(t => !t.done)
+                            if (pending.length === 0) return null
+                            const urgent = pending.filter(t => t.due_date <= todayStr)
+                            return (
+                              <button
+                                onClick={() => openTaskModal(c.id, c.name)}
+                                className={cn(
+                                  'shrink-0 flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold transition-colors',
+                                  urgent.length > 0
+                                    ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
+                                    : 'bg-blue-50 text-blue-500 hover:bg-blue-100',
+                                )}
+                                title={`${pending.length} tâche${pending.length > 1 ? 's' : ''} en attente`}
+                              >
+                                <ListTodo size={9} />
+                                {pending.length}
+                              </button>
+                            )
+                          })()}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-[10px] text-gray-400">{formatDate(c.enrollment_date)}</p>
+                          <button
+                            onClick={() => openTaskModal(c.id, c.name)}
+                            title="Ajouter une tâche"
+                            className="p-0.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                          >
+                            <ListTodo size={11} />
+                          </button>
+                        </div>
                       </td>
 
                       {/* Day */}
@@ -1377,11 +1732,13 @@ export default function CsmClientList({
                       {/* Status + cert inline */}
                       <StatusCell
                         clientId={c.id}
+                        clientName={c.name}
                         status={c.status}
                         certSetterDone={c.cert_setter_done}
                         certCloserDone={c.cert_closer_done}
                         dayN={dayN}
                         isAdmin={isAdmin}
+                        onRefundClick={openRefundModal}
                       />
 
                       {/* Payment */}
@@ -1403,6 +1760,76 @@ export default function CsmClientList({
           </div>
         )}
       </div>
+
+      </>)}
+
+      {/* Modal ajout tâche */}
+      {taskAddModal !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <ListTodo size={15} className="text-blue-500" /> Nouvelle tâche
+              </h2>
+              <button onClick={() => setTaskAddModal(null)} className="text-gray-300 hover:text-gray-500"><X size={16} /></button>
+            </div>
+            <form onSubmit={handleTaskSubmit} className="p-6 space-y-4">
+              {taskAddModal.clientId ? (
+                <div className="px-3 py-2 bg-blue-50 rounded-lg text-sm font-semibold text-blue-800">
+                  {taskAddModal.clientName}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-gray-600">Cliente *</label>
+                  <select
+                    required
+                    value={taskClientId}
+                    onChange={e => setTaskClientId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  >
+                    <option value="">— Choisir une cliente —</option>
+                    {clients.filter(c => c.status === 'active').map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-gray-600">Tâche *</label>
+                <input
+                  autoFocus
+                  required
+                  value={taskTitle}
+                  onChange={e => setTaskTitle(e.target.value)}
+                  placeholder="Ex. Envoyer le contrat, Appel de suivi…"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-gray-600">Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={taskDate}
+                  onChange={e => setTaskDate(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setTaskAddModal(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
+                <button
+                  type="submit"
+                  disabled={taskPending}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+                >
+                  {taskPending ? 'Ajout…' : 'Ajouter la tâche'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

@@ -1394,8 +1394,8 @@ export default function AdminView({
     for (const e of filtrees) {
       // Prefer actual collected from cash_entries join, fallback to derivation
       const actualCollected     = e.cash_entries?.collected ?? null
-      const collectedFromCloser = actualCollected ?? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
-      const collectedFromSetter = actualCollected ?? (e.commission_setter > 0 ? Math.round(e.commission_setter / 0.05) : e.montant)
+      const collectedFromCloser = actualCollected ?? (Math.abs(e.commission) > 0 ? Math.round(Math.abs(e.commission) / 0.10) : Math.abs(e.montant))
+      const collectedFromSetter = actualCollected ?? (Math.abs(e.commission_setter) > 0 ? Math.round(Math.abs(e.commission_setter) / 0.05) : Math.abs(e.montant))
 
       const addToGroup = (uid: string, role: 'closer' | 'setter', maComm: number, entryCollected: number) => {
         if (!map.has(uid)) {

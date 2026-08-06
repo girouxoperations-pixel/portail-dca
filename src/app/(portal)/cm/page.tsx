@@ -21,7 +21,7 @@ export default async function CmPage() {
 
   const query = db
     .from('cm_followups')
-    .select('*, profiles!cm_id(full_name)')
+    .select('*, profiles!cm_id(full_name), cash_entries(entry_date)')
     .order('created_at', { ascending: false })
 
   // CM users see only their own followups

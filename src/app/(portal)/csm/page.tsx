@@ -29,12 +29,13 @@ export default async function CsmPage() {
     { data: csmGoals },
     { data: virementDeals },
     { data: cashEntries },
+    { data: csmTasks },
   ] = await Promise.all([
     db.from('csm_clients').select('*').order('enrollment_date', { ascending: false }),
     db.from('recurring_deals').select('client_name, versements_total, recurring_occurrences(recu)'),
     db.from('profiles').select('id, full_name').contains('roles', ['csm']),
     db.from('csm_commissions')
-      .select('csm_id, type, amount, created_at, month, year')
+      .select('csm_id, type, amount, created_at, month, year, client_name')
       .in('type', ['cert_setter', 'placement', 'cert_closer', 'upsell', 'carte_2pct'])
       .order('created_at', { ascending: false }),
     db.from('user_goals')
@@ -46,6 +47,9 @@ export default async function CsmPage() {
     db.from('cash_entries')
       .select('client_name, entry_date')
       .order('entry_date', { ascending: false }),
+    db.from('csm_tasks')
+      .select('id, csm_client_id, title, due_date, done, done_at, created_at')
+      .order('due_date', { ascending: true }),
   ])
 
   // Build per-CSM virement stats (attendu / collecté) per month
@@ -103,6 +107,7 @@ export default async function CsmPage() {
       csmGoals={csmGoals ?? []}
       virementStats={virementStats}
       availableClients={availableClients}
+      tasks={csmTasks ?? []}
       currentYear={year}
       currentMonth={month}
       currentUserId={user.id}

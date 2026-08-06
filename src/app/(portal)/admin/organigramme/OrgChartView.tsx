@@ -1,499 +1,320 @@
 'use client'
 
-import { useState, useCallback, useTransition } from 'react'
-import { Plus, Trash2, ChevronLeft, ChevronRight, X, Check, Move, ArrowRight } from 'lucide-react'
+import { useCallback, useRef, useState, useTransition } from 'react'
+import {
+  ReactFlow,
+  ReactFlowProvider,
+  Background,
+  Controls,
+  Panel,
+  Handle,
+  Position,
+  MarkerType,
+  addEdge,
+  useNodesState,
+  useEdgesState,
+  useReactFlow,
+  type Node,
+  type Edge,
+  type Connection,
+  type NodeProps,
+} from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
+import { Check, Plus, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { saveOrgChart } from './actions'
 
-// ── Types ─────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────
 
-export interface OrgNode {
-  id:       string
-  name:     string
-  title:    string
-  color:    string
-  children: OrgNode[]
-}
+type NodeData = { name: string; title: string; color: string }
+type OrgNode  = Node<NodeData>
 
-// ── Palette ───────────────────────────────────────────────────────────
+// Old tree format (migration)
+interface OldNode { id: string; name: string; title: string; color: string; children: OldNode[] }
+interface FlowData { nodes: OrgNode[]; edges: Edge[] }
+
+// ── Colors ─────────────────────────────────────────────────────────────
 
 const COLORS = [
-  { value: '#7c3aed', label: 'Violet' },
-  { value: '#2563eb', label: 'Bleu'   },
-  { value: '#059669', label: 'Vert'   },
-  { value: '#d97706', label: 'Orange' },
-  { value: '#db2777', label: 'Rose'   },
-  { value: '#dc2626', label: 'Rouge'  },
-  { value: '#0891b2', label: 'Cyan'   },
-  { value: '#4b5563', label: 'Gris'   },
+  '#7c3aed', '#2563eb', '#059669', '#d97706',
+  '#db2777', '#dc2626', '#0891b2', '#4b5563',
 ]
 
-// ── Tree operations ───────────────────────────────────────────────────
+// ── Migration from old nested tree ─────────────────────────────────────
+
+function treeToFlow(node: OldNode): FlowData {
+  const nodes: OrgNode[] = []
+  const edges: Edge[]    = []
+
+  function walk(n: OldNode, x: number, y: number, spread: number) {
+    nodes.push({ id: n.id, type: 'orgNode', data: { name: n.name, title: n.title, color: n.color }, position: { x, y } })
+    const count = n.children.length
+    if (!count) return
+    const totalW = (count - 1) * spread
+    n.children.forEach((child, i) => {
+      edges.push({
+        id: `${n.id}→${child.id}`,
+        source: n.id, sourceHandle: 'bottom',
+        target: child.id, targetHandle: 'top',
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
+        style: { stroke: '#9ca3af' },
+      })
+      walk(child, x - totalW / 2 + i * spread, y + 160, Math.max(spread * 0.7, 200))
+    })
+  }
+
+  walk(node, 0, 0, 240)
+  return { nodes, edges }
+}
+
+function parseData(raw: unknown): FlowData {
+  if (raw && typeof raw === 'object' && 'children' in raw) return treeToFlow(raw as OldNode)
+  const fd = raw as FlowData
+  if (fd?.nodes && fd?.edges) return fd
+  return {
+    nodes: [{ id: 'root', type: 'orgNode', data: { name: 'She Closes', title: 'Direction', color: '#7c3aed' }, position: { x: 0, y: 0 } }],
+    edges: [],
+  }
+}
 
 function genId() { return Math.random().toString(36).slice(2, 10) }
 
-function findNodeById(tree: OrgNode, id: string): OrgNode | null {
-  if (tree.id === id) return tree
-  for (const c of tree.children) {
-    const f = findNodeById(c, id)
-    if (f) return f
-  }
-  return null
+// ── Custom node card ───────────────────────────────────────────────────
+
+const handleStyle: React.CSSProperties = {
+  width:        14,
+  height:       14,
+  background:   '#7c3aed',
+  border:       '2px solid white',
+  borderRadius: '50%',
+  opacity:      1,
+  cursor:       'crosshair',
+  boxShadow:    '0 0 0 2px #ddd6fe',
 }
 
-function findParent(tree: OrgNode, id: string): OrgNode | null {
-  if (tree.children.some(c => c.id === id)) return tree
-  for (const c of tree.children) {
-    const found = findParent(c, id)
-    if (found) return found
-  }
-  return null
-}
-
-function updateNode(tree: OrgNode, id: string, patch: Partial<OrgNode>): OrgNode {
-  if (tree.id === id) return { ...tree, ...patch }
-  return { ...tree, children: tree.children.map(c => updateNode(c, id, patch)) }
-}
-
-function deleteNode(tree: OrgNode, id: string): OrgNode {
-  return {
-    ...tree,
-    children: tree.children.filter(c => c.id !== id).map(c => deleteNode(c, id)),
-  }
-}
-
-function addChild(tree: OrgNode, parentId: string, child: OrgNode): OrgNode {
-  if (tree.id === parentId) return { ...tree, children: [...tree.children, child] }
-  return { ...tree, children: tree.children.map(c => addChild(c, parentId, child)) }
-}
-
-function moveSibling(tree: OrgNode, id: string, dir: 'left' | 'right'): OrgNode {
-  const idx = tree.children.findIndex(c => c.id === id)
-  if (idx !== -1) {
-    const next = dir === 'left' ? idx - 1 : idx + 1
-    if (next >= 0 && next < tree.children.length) {
-      const arr = [...tree.children]
-      ;[arr[idx], arr[next]] = [arr[next], arr[idx]]
-      return { ...tree, children: arr }
-    }
-  }
-  return { ...tree, children: tree.children.map(c => moveSibling(c, id, dir)) }
-}
-
-function reparent(tree: OrgNode, nodeId: string, newParentId: string): OrgNode {
-  if (nodeId === newParentId) return tree
-  const node = findNodeById(tree, nodeId)
-  if (!node) return tree
-  if (findNodeById(node, newParentId)) return tree   // can't move into own descendant
-  return addChild(deleteNode(tree, nodeId), newParentId, node)
-}
-
-// ── Node card ─────────────────────────────────────────────────────────
-
-interface NodeCardProps {
-  node:        OrgNode
-  isRoot:      boolean
-  selectedId:  string | null
-  moveMode:    boolean
-  movingNode:  OrgNode | null   // the node currently being moved
-  onSelect:    (id: string) => void
-  onPlaceHere: (targetId: string) => void
-}
-
-function NodeCard({ node, isRoot, selectedId, moveMode, movingNode, onSelect, onPlaceHere }: NodeCardProps) {
-  const isSelected  = selectedId === node.id
-  const isMoving    = movingNode?.id === node.id
-
-  // In move mode: is this a valid target?
-  const isValidTarget = moveMode && movingNode &&
-    !isMoving &&
-    !findNodeById(movingNode, node.id)  // not a descendant of the moving node
-
+function OrgNodeCard({ data, selected }: NodeProps) {
+  const d = data as NodeData
   return (
-    <li className="org-li">
-      <div className="relative">
-        {/* Main card */}
-        <div
-          onClick={() => {
-            if (moveMode) return
-            onSelect(node.id)
-          }}
-          className={cn(
-            'org-card relative cursor-pointer select-none transition-all duration-150',
-            'bg-white rounded-xl border-2 shadow-sm',
-            'flex flex-col items-center gap-1 px-5 py-3 min-w-[140px] max-w-[180px]',
-            // Normal mode
-            !moveMode && isSelected  && 'border-violet-500 shadow-violet-200 shadow-md scale-[1.03]',
-            !moveMode && !isSelected && 'border-gray-100 hover:border-gray-300 hover:shadow-md',
-            // Move mode — the node being moved
-            isMoving && 'border-orange-400 border-dashed opacity-60 cursor-default scale-95',
-            // Move mode — dimmed invalid targets
-            moveMode && !isMoving && !isValidTarget && 'opacity-30 cursor-default',
-            // Move mode — valid target (styled by the overlay button instead)
-            moveMode && isValidTarget && 'cursor-default',
-          )}
-          style={{ borderLeftColor: isMoving ? '#fb923c' : node.color, borderLeftWidth: 4 }}
-        >
-          {isMoving && (
-            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
-              En déplacement
-            </span>
-          )}
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-            style={{ backgroundColor: node.color }}
-          >
-            {node.name.charAt(0).toUpperCase()}
-          </div>
-          <p className="text-[13px] font-bold text-gray-900 text-center leading-tight">{node.name}</p>
-          {node.title && (
-            <p className="text-[10px] text-gray-400 text-center leading-tight">{node.title}</p>
-          )}
-        </div>
-
-        {/* "Placer ici" overlay — only in move mode on valid targets */}
-        {isValidTarget && (
-          <button
-            onClick={() => onPlaceHere(node.id)}
-            className="absolute inset-0 rounded-xl border-2 border-emerald-400 bg-emerald-50/90 flex flex-col items-center justify-center gap-1 transition-all hover:bg-emerald-100 hover:shadow-lg hover:shadow-emerald-100 hover:scale-[1.04] z-10"
-          >
-            <ArrowRight size={16} className="text-emerald-600" />
-            <span className="text-[10px] font-bold text-emerald-700">Placer ici</span>
-          </button>
-        )}
-      </div>
-
-      {node.children.length > 0 && (
-        <ol className="org-ol">
-          {node.children.map(child => (
-            <NodeCard
-              key={child.id}
-              node={child}
-              isRoot={false}
-              selectedId={selectedId}
-              moveMode={moveMode}
-              movingNode={movingNode}
-              onSelect={onSelect}
-              onPlaceHere={onPlaceHere}
-            />
-          ))}
-        </ol>
+    <div
+      className={cn(
+        'bg-white rounded-xl border-2 shadow-sm px-5 py-3 min-w-[140px] max-w-[180px] flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing select-none',
+        selected ? 'border-violet-500 shadow-violet-200 shadow-md' : 'border-gray-100 hover:border-gray-300 hover:shadow-md',
       )}
-    </li>
+      style={{ borderLeftColor: d.color, borderLeftWidth: 4 }}
+    >
+      <Handle type="source" position={Position.Top}    id="top"    style={handleStyle} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
+      <Handle type="source" position={Position.Left}   id="left"   style={handleStyle} />
+      <Handle type="source" position={Position.Right}  id="right"  style={handleStyle} />
+      <div
+        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+        style={{ backgroundColor: d.color }}
+      >
+        {d.name.charAt(0).toUpperCase()}
+      </div>
+      <p className="text-[13px] font-bold text-gray-900 text-center leading-tight">{d.name}</p>
+      {d.title && <p className="text-[10px] text-gray-400 text-center leading-tight">{d.title}</p>}
+    </div>
   )
 }
 
-// ── Edit panel ────────────────────────────────────────────────────────
+const nodeTypes = { orgNode: OrgNodeCard }
 
-interface EditPanelProps {
-  node:        OrgNode
-  isRoot:      boolean
-  sibIdx:      number
-  siblings:    number
-  onUpdate:    (id: string, patch: Partial<OrgNode>) => void
-  onDelete:    (id: string) => void
-  onAddChild:  (parentId: string) => void
-  onMove:      (id: string, dir: 'left' | 'right') => void
-  onStartMove: (id: string) => void
-  onClose:     () => void
-}
+// ── Edit panel ─────────────────────────────────────────────────────────
 
-function EditPanel({ node, isRoot, sibIdx, siblings, onUpdate, onDelete, onAddChild, onMove, onStartMove, onClose }: EditPanelProps) {
-  const [name,  setName]  = useState(node.name)
-  const [title, setTitle] = useState(node.title)
-  const [color, setColor] = useState(node.color)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
-  function handleSave() {
-    onUpdate(node.id, { name: name.trim() || node.name, title: title.trim(), color })
-    onClose()
-  }
+function EditPanel({
+  node, onUpdate, onDelete, onClose,
+}: {
+  node:     OrgNode
+  onUpdate: (id: string, patch: Partial<NodeData>) => void
+  onDelete: (id: string) => void
+  onClose:  () => void
+}) {
+  const [name,  setName]  = useState(node.data.name)
+  const [title, setTitle] = useState(node.data.title)
+  const [color, setColor] = useState(node.data.color)
+  const [confirmDel, setConfirmDel] = useState(false)
 
   return (
     <div className="w-64 bg-white border border-gray-100 rounded-2xl shadow-xl flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <p className="text-sm font-semibold text-gray-900">Modifier</p>
-        <button onClick={onClose} className="text-gray-300 hover:text-gray-500 transition-colors">
-          <X size={14} />
-        </button>
+        <p className="text-sm font-semibold text-gray-900">Modifier le nœud</p>
+        <button onClick={onClose} className="text-gray-300 hover:text-gray-500 transition-colors"><X size={14} /></button>
       </div>
 
       <div className="p-4 space-y-3 flex-1">
         <div>
           <label className="text-xs font-medium text-gray-500 mb-1 block">Nom</label>
-          <input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="Nom ou département"
-            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
-          />
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom ou département"
+            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
         </div>
-
         <div>
           <label className="text-xs font-medium text-gray-500 mb-1 block">Titre / Rôle</label>
-          <input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="ex: CEO, Closer, CSM…"
-            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
-          />
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="ex: CEO, Closer, CSM…"
+            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
         </div>
-
         <div>
           <label className="text-xs font-medium text-gray-500 mb-2 block">Couleur</label>
           <div className="flex flex-wrap gap-1.5">
             {COLORS.map(c => (
-              <button
-                key={c.value}
-                onClick={() => setColor(c.value)}
-                title={c.label}
-                className={cn(
-                  'w-6 h-6 rounded-full transition-all',
-                  color === c.value ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : 'hover:scale-105',
-                )}
-                style={{ backgroundColor: c.value }}
-              />
+              <button key={c} onClick={() => setColor(c)} title={c}
+                className={cn('w-6 h-6 rounded-full transition-all', color === c ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : 'hover:scale-105')}
+                style={{ backgroundColor: c }} />
             ))}
           </div>
         </div>
-
-        {!isRoot && siblings > 1 && (
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Ordre parmi les frères</label>
-            <div className="flex gap-2">
-              <button
-                disabled={sibIdx === 0}
-                onClick={() => onMove(node.id, 'left')}
-                className="flex-1 flex items-center justify-center gap-1 py-1 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft size={12} /> Gauche
-              </button>
-              <button
-                disabled={sibIdx === siblings - 1}
-                onClick={() => onMove(node.id, 'right')}
-                className="flex-1 flex items-center justify-center gap-1 py-1 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                Droite <ChevronRight size={12} />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="p-4 pt-0 space-y-2">
         <button
-          onClick={handleSave}
+          onClick={() => { onUpdate(node.id, { name: name.trim() || node.data.name, title: title.trim(), color }); onClose() }}
           className="w-full py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors"
         >
           <Check size={13} /> Appliquer
         </button>
-        <button
-          onClick={() => onAddChild(node.id)}
-          className="w-full py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors border border-gray-200"
-        >
-          <Plus size={13} /> Ajouter un sous-nœud
-        </button>
-        {!isRoot && (
-          <>
-            <button
-              onClick={() => onStartMove(node.id)}
-              className="w-full py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors border border-blue-200"
-            >
-              <Move size={13} /> Déplacer dans l'arbre
+        {confirmDel ? (
+          <div className="flex gap-2">
+            <button onClick={() => onDelete(node.id)}
+              className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors">
+              Confirmer
             </button>
-            {confirmDelete ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onDelete(node.id)}
-                  className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors"
-                >
-                  Confirmer
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="px-3 py-1.5 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="w-full py-1.5 border border-red-100 text-red-500 hover:bg-red-50 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
-              >
-                <Trash2 size={12} /> Supprimer
-              </button>
-            )}
-          </>
+            <button onClick={() => setConfirmDel(false)}
+              className="px-3 py-1.5 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors">
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmDel(true)}
+            className="w-full py-1.5 border border-red-100 text-red-500 hover:bg-red-50 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors">
+            <Trash2 size={12} /> Supprimer
+          </button>
         )}
       </div>
     </div>
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────
+// ── Inner canvas (needs ReactFlowProvider context) ─────────────────────
 
-export default function OrgChartView({ initialData }: { initialData: OrgNode }) {
-  const [tree,       setTree]       = useState<OrgNode>(initialData)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [movingId,   setMovingId]   = useState<string | null>(null)   // node being relocated
-  const [saved,      setSaved]      = useState(false)
-  const [pending,    startT]        = useTransition()
+function OrgChartInner({ initialData }: { initialData: unknown }) {
+  const { nodes: initNodes, edges: initEdges } = parseData(initialData)
+  const [nodes, setNodes, onNodesChange] = useNodesState<OrgNode>(initNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initEdges)
+  const [selectedId, setSelectedId]      = useState<string | null>(null)
+  const [saved,   setSaved]   = useState(false)
+  const [pending, startT]     = useTransition()
+  const { screenToFlowPosition } = useReactFlow()
+  const wrapperRef = useRef<HTMLDivElement>(null)
 
-  const selectedNode  = selectedId ? findNodeById(tree, selectedId) : null
-  const movingNode    = movingId   ? findNodeById(tree, movingId)   : null
-  const moveMode      = !!movingId
-  const parentNode    = selectedId ? findParent(tree, selectedId)   : null
-  const sibIdx        = parentNode ? parentNode.children.findIndex(c => c.id === selectedId) : 0
-  const siblingsCount = parentNode ? parentNode.children.length : 0
+  const selectedNode = nodes.find(n => n.id === selectedId) ?? null
 
-  const handleUpdate = useCallback((id: string, patch: Partial<OrgNode>) => {
-    setTree(t => updateNode(t, id, patch))
-  }, [])
+  const onConnect = useCallback((connection: Connection) => {
+    setEdges(eds => addEdge({
+      ...connection,
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
+      style: { stroke: '#9ca3af' },
+    }, eds))
+  }, [setEdges])
+
+  const handleAddNode = useCallback(() => {
+    const id = genId()
+    let position = { x: 0, y: 100 }
+    if (wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect()
+      position = screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+    }
+    setNodes(ns => [...ns, { id, type: 'orgNode', data: { name: 'Nouveau', title: '', color: '#7c3aed' }, position }])
+    setSelectedId(id)
+  }, [setNodes, screenToFlowPosition])
+
+  const handleUpdate = useCallback((id: string, patch: Partial<NodeData>) => {
+    setNodes(ns => ns.map(n => n.id === id ? { ...n, data: { ...n.data, ...patch } } : n))
+  }, [setNodes])
 
   const handleDelete = useCallback((id: string) => {
-    setTree(t => deleteNode(t, id))
+    setNodes(ns => ns.filter(n => n.id !== id))
+    setEdges(es => es.filter(e => e.source !== id && e.target !== id))
     setSelectedId(null)
-  }, [])
-
-  const handleAddChild = useCallback((parentId: string) => {
-    const child: OrgNode = { id: genId(), name: 'Nouveau', title: '', color: '#7c3aed', children: [] }
-    setTree(t => addChild(t, parentId, child))
-    setSelectedId(child.id)
-    setMovingId(null)
-  }, [])
-
-  const handleMoveSibling = useCallback((id: string, dir: 'left' | 'right') => {
-    setTree(t => moveSibling(t, id, dir))
-  }, [])
-
-  const handleStartMove = useCallback((id: string) => {
-    setMovingId(id)
-    setSelectedId(null)
-  }, [])
-
-  const handlePlaceHere = useCallback((targetId: string) => {
-    if (!movingId) return
-    setTree(t => reparent(t, movingId, targetId))
-    setMovingId(null)
-    setSelectedId(null)
-  }, [movingId])
-
-  const handleCancelMove = useCallback(() => {
-    setMovingId(null)
-  }, [])
+  }, [setNodes, setEdges])
 
   function handleSave() {
     startT(async () => {
-      await saveOrgChart(tree)
+      await saveOrgChart({ nodes, edges })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     })
   }
 
   return (
-    <>
-      {/* Tree CSS */}
-      <style>{`
-        .org-root { list-style:none; margin:0; padding:0; display:flex; justify-content:center; }
-        .org-ol   { list-style:none; margin:0; padding:0; display:flex; justify-content:center; padding-top:28px; position:relative; }
-        .org-ol::before { content:''; position:absolute; top:0; left:50%; width:0; height:28px; border-left:2px solid #d1d5db; transform:translateX(-50%); }
-        .org-li   { list-style:none; float:left; text-align:center; position:relative; padding:28px 12px 0 12px; display:flex; flex-direction:column; align-items:center; }
-        .org-li::before,.org-li::after { content:''; position:absolute; top:0; right:50%; border-top:2px solid #d1d5db; width:50%; height:28px; }
-        .org-li::after { right:auto; left:50%; border-left:2px solid #d1d5db; border-top:2px solid #d1d5db; }
-        .org-li:only-child::before,.org-li:only-child::after { display:none; }
-        .org-li:first-child::before,.org-li:last-child::after { border:0 none; }
-        .org-li:last-child::before { border-right:2px solid #d1d5db; border-radius:0 5px 0 0; }
-        .org-li:first-child::after { border-radius:5px 0 0 0; }
-      `}</style>
-
-      {/* Toolbar */}
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-gray-400">
-          Cliquer sur un nœud pour le modifier · Utiliser "Déplacer" pour le repositionner
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => handleAddChild('root')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
-          >
-            <Plus size={12} /> Ajouter un nœud
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={pending}
-            className={cn(
-              'flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition-all',
-              saved    ? 'bg-green-600 text-white'
-                       : 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm',
-              pending && 'opacity-60 cursor-not-allowed',
-            )}
-          >
-            {saved ? <><Check size={12} /> Sauvegardé</> : pending ? 'Sauvegarde…' : 'Sauvegarder'}
-          </button>
-        </div>
+    <div className="flex gap-4 h-[640px]">
+      <div ref={wrapperRef} className="flex-1 rounded-xl border border-gray-100 overflow-hidden bg-gray-50">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={(_, node) => setSelectedId(prev => prev === node.id ? null : node.id)}
+          onPaneClick={() => setSelectedId(null)}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.3 }}
+          deleteKeyCode="Delete"
+          defaultEdgeOptions={{
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
+            style: { stroke: '#9ca3af' },
+          }}
+        >
+          <Background color="#e5e7eb" gap={24} />
+          <Controls />
+          <Panel position="top-left">
+            <p className="text-[11px] text-gray-400 bg-white/80 px-2 py-1 rounded-md">
+              Glisser un bloc pour le déplacer · Cliquer-glisser depuis un point violet <span className="inline-block w-2.5 h-2.5 rounded-full bg-violet-600 align-middle mx-0.5" /> pour tracer une flèche · Suppr pour effacer
+            </p>
+          </Panel>
+          <Panel position="top-right" className="flex gap-2">
+            <button
+              onClick={handleAddNode}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors shadow-sm"
+            >
+              <Plus size={12} /> Ajouter un nœud
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={pending}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition-all shadow-sm',
+                saved    ? 'bg-green-600 text-white'
+                         : 'bg-violet-600 hover:bg-violet-700 text-white',
+                pending && 'opacity-60 cursor-not-allowed',
+              )}
+            >
+              {saved ? <><Check size={12} /> Sauvegardé</> : pending ? 'Sauvegarde…' : 'Sauvegarder'}
+            </button>
+          </Panel>
+        </ReactFlow>
       </div>
 
-      {/* Move mode banner */}
-      {moveMode && movingNode && (
-        <div className="mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Move size={14} className="text-blue-500 shrink-0" />
-            <p className="text-sm text-blue-700">
-              Choisissez où placer <strong>{movingNode.name}</strong> — cliquez sur un nœud vert
-            </p>
-          </div>
-          <button
-            onClick={handleCancelMove}
-            className="text-xs text-blue-500 hover:text-blue-700 font-medium transition-colors ml-4 shrink-0"
-          >
-            Annuler
-          </button>
+      {selectedNode && (
+        <div className="shrink-0">
+          <EditPanel
+            node={selectedNode}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+            onClose={() => setSelectedId(null)}
+          />
         </div>
       )}
+    </div>
+  )
+}
 
-      {/* Canvas + edit panel */}
-      <div className="flex gap-4 h-[520px]">
-        <div className="flex-1 bg-gray-50 rounded-xl border border-gray-100 overflow-auto p-8">
-          <div className="min-w-max mx-auto">
-            <ol className="org-root">
-              <NodeCard
-                node={tree}
-                isRoot
-                selectedId={selectedId}
-                moveMode={moveMode}
-                movingNode={movingNode}
-                onSelect={id => setSelectedId(prev => prev === id ? null : id)}
-                onPlaceHere={handlePlaceHere}
-              />
-            </ol>
-          </div>
+// ── Export (wrapped in provider) ───────────────────────────────────────
 
-          {tree.children.length === 0 && !moveMode && (
-            <p className="text-center text-sm text-gray-400 mt-12">
-              Clique sur <strong>+ Ajouter un nœud</strong> pour créer le premier niveau.
-            </p>
-          )}
-        </div>
-
-        {/* Edit panel — hidden in move mode */}
-        {selectedNode && !moveMode && (
-          <div className="shrink-0">
-            <EditPanel
-              node={selectedNode}
-              isRoot={selectedNode.id === 'root'}
-              sibIdx={sibIdx}
-              siblings={siblingsCount}
-              onUpdate={handleUpdate}
-              onDelete={handleDelete}
-              onAddChild={handleAddChild}
-              onMove={handleMoveSibling}
-              onStartMove={handleStartMove}
-              onClose={() => setSelectedId(null)}
-            />
-          </div>
-        )}
-      </div>
-    </>
+export default function OrgChartView({ initialData }: { initialData: unknown }) {
+  return (
+    <ReactFlowProvider>
+      <OrgChartInner initialData={initialData} />
+    </ReactFlowProvider>
   )
 }

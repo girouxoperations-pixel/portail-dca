@@ -4,14 +4,14 @@ import React, { useState, useTransition, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown,
   Zap, Clock, ChevronDown, ChevronRight, RefreshCw, BarChart3,
-  Monitor, Film, Globe, Upload, Search, X, Undo2,
+  Monitor, Film, Globe, Upload, Search, X, Undo2, RotateCcw,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from 'recharts'
 import { cn } from '@/lib/utils'
-import { modifierCash, supprimerCash } from '@/app/(portal)/cash/actions'
+import { modifierCash, supprimerCash, marquerRemboursementDepuisCash } from '@/app/(portal)/cash/actions'
 import { annulerRecu } from '@/app/(portal)/recurrents/actions'
 import { creerCashCollect } from '@/app/(portal)/cashcollect/actions'
 import WeeklyPerfSection, { type WeeklyPerf, type SourcedDeal } from '@/components/cash/WeeklyPerfSection'
@@ -702,26 +702,49 @@ function ModalNouveauDeal({
 
 // ── Month section ─────────────────────────────────────────────────
 
-function EntryRow({ e, profileMap, recurringIds, occurrenceId, isAdmin, onEdit, onDelete, onAnnulerRecu, pending }: {
+function EntryRow({ e, profileMap, recurringIds, occurrenceId, isAdmin, onEdit, onDelete, onAnnulerRecu, onRefund, pending }: {
   e: CashEntry; profileMap: Map<string, string>; recurringIds: Set<string>
   occurrenceId?: string
   isAdmin: boolean; onEdit: (e: CashEntry) => void; onDelete: (id: string) => void
   onAnnulerRecu: (occId: string) => void
+  onRefund: (e: CashEntry) => void
   pending: boolean
 }) {
   const type = getSourceType(e, recurringIds)
   const isRefunded = !!e.is_refunded
+
+  if (isRefunded) {
+    return (
+      <tr className="bg-red-50 border-l-4 border-red-400">
+        <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{formatDate(e.entry_date)}</td>
+        <td className="px-4 py-3 font-medium text-gray-600 max-w-[160px] truncate">{e.client_name ?? '—'}</td>
+        <td colSpan={6} className="px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-bold text-red-600 uppercase tracking-widest">Remboursement</span>
+            <span className="text-gray-400 line-through text-xs tabular-nums">{dollar(e.montant_courant)}</span>
+          </div>
+        </td>
+        <td className="px-4 py-3 text-right tabular-nums">
+          <span className="text-sm font-bold text-red-600">0,00 $</span>
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center justify-end gap-1.5">
+            {isAdmin && (
+              <button onClick={() => onDelete(e.id)} disabled={pending} title="Supprimer"
+                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40">
+                <Trash2 size={13} />
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    )
+  }
+
   return (
-    <tr className={cn('hover:bg-gray-50/50 transition-colors', isRefunded && 'opacity-60')}>
+    <tr className="hover:bg-gray-50/50 transition-colors">
       <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">{formatDate(e.entry_date)}</td>
-      <td className="px-4 py-3 font-medium text-gray-800 max-w-[160px]">
-        <div className="flex items-center gap-1.5 truncate">
-          <span className="truncate">{e.client_name ?? '—'}</span>
-          {isRefunded && (
-            <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-500 uppercase tracking-wide">Remboursée</span>
-          )}
-        </div>
-      </td>
+      <td className="px-4 py-3 font-medium text-gray-800 max-w-[160px] truncate">{e.client_name ?? '—'}</td>
       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}</td>
       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.set_by ? (profileMap.get(e.set_by) ?? '—') : '—'}</td>
       <td className="px-4 py-3"><TypeBadge type={type} closeType={e.close_type} /></td>
@@ -745,6 +768,12 @@ function EntryRow({ e, profileMap, recurringIds, occurrenceId, isAdmin, onEdit, 
               disabled={pending} title="Annuler reçu"
               className="p-1.5 text-gray-300 hover:text-orange-500 hover:bg-orange-50 rounded transition-colors disabled:opacity-40">
               <Undo2 size={13} />
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={() => onRefund(e)} disabled={pending} title="Rembourser"
+              className="p-1.5 text-gray-300 hover:text-orange-500 hover:bg-orange-50 rounded transition-colors disabled:opacity-40">
+              <RotateCcw size={13} />
             </button>
           )}
           <button onClick={() => onEdit(e)} disabled={pending} title="Modifier"
@@ -783,7 +812,7 @@ const TABLE_HEAD = (
 
 function MonthSection({
   monthKey, entries, profileMap, recurringIds, recurringOccMap, isAdmin,
-  onEdit, onDelete, onAnnulerRecu, pending, defaultOpen,
+  onEdit, onDelete, onAnnulerRecu, onRefund, pending, defaultOpen,
 }: {
   monthKey:        string
   entries:         CashEntry[]
@@ -794,6 +823,7 @@ function MonthSection({
   onEdit:          (e: CashEntry) => void
   onDelete:        (id: string) => void
   onAnnulerRecu:   (occId: string) => void
+  onRefund:        (e: CashEntry) => void
   pending:         boolean
   defaultOpen:     boolean
 }) {
@@ -807,17 +837,17 @@ function MonthSection({
   const hasBoth = deals.length > 0 && recs.length > 0
 
   const totaux = {
-    montant:    entries.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
-    collected:  entries.reduce((s, e) => s + (e.collected       ?? 0), 0),
-    aCollecter: entries.reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
+    montant:    entries.filter(e => !e.is_refunded).reduce((s, e) => s + (e.montant_courant ?? 0), 0),
+    collected:  entries.filter(e => !e.is_refunded).reduce((s, e) => s + (e.collected       ?? 0), 0),
+    aCollecter: entries.filter(e => !e.is_refunded).reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
   }
-  const dealsCollected  = deals.reduce((s, e) => s + (e.collected ?? 0), 0)
-  const dealsMontant    = deals.reduce((s, e) => s + (e.montant_courant ?? 0), 0)
-  const dealsACollecter = deals.reduce((s, e) => s + (e.a_collecter ?? 0), 0)
-  const recsCollected   = recs.reduce((s, e) => s + (e.collected ?? 0), 0)
-  const recsMontant     = recs.reduce((s, e) => s + (e.montant_courant ?? 0), 0)
+  const dealsCollected  = deals.filter(e => !e.is_refunded).reduce((s, e) => s + (e.collected ?? 0), 0)
+  const dealsMontant    = deals.filter(e => !e.is_refunded).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
+  const dealsACollecter = deals.filter(e => !e.is_refunded).reduce((s, e) => s + (e.a_collecter ?? 0), 0)
+  const recsCollected   = recs.filter(e => !e.is_refunded).reduce((s, e) => s + (e.collected ?? 0), 0)
+  const recsMontant     = recs.filter(e => !e.is_refunded).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
 
-  const rowProps = { profileMap, recurringIds, isAdmin, onEdit, onDelete, onAnnulerRecu, pending }
+  const rowProps = { profileMap, recurringIds, isAdmin, onEdit, onDelete, onAnnulerRecu, onRefund, pending }
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1048,6 +1078,23 @@ export default function CashView({
   const [showImport, setShowImport]       = useState(false)
   const [pending, startTransition]    = useTransition()
 
+  const [refundTarget, setRefundTarget]   = useState<CashEntry | null>(null)
+  const [refundMontant, setRefundMontant] = useState('')
+  const [refundPending, startRefundTrans] = useTransition()
+
+  function handleRefundOpen(e: CashEntry) { setRefundTarget(e); setRefundMontant('') }
+  function handleRefundClose() { setRefundTarget(null); setRefundMontant('') }
+  function handleRefundConfirm(ev: React.FormEvent) {
+    ev.preventDefault()
+    if (!refundTarget) return
+    const montant = parseFloat(refundMontant.replace(',', '.'))
+    if (!montant || montant <= 0) return
+    startRefundTrans(async () => {
+      await marquerRemboursementDepuisCash(refundTarget.id, montant)
+      handleRefundClose()
+    })
+  }
+
   const recurringIds = useMemo(() => new Set(recurringCashIds), [recurringCashIds])
 
   const profileMap = useMemo(
@@ -1087,9 +1134,9 @@ export default function CashView({
 
   // ── KPIs on filtered data ─────────────────────────────────────
   const totaux = useMemo(() => ({
-    montant:    filtrees.reduce((s, e) => s + (e.montant_courant ?? 0), 0),
-    collected:  filtrees.reduce((s, e) => s + (e.collected       ?? 0), 0),
-    aCollecter: filtrees.reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
+    montant:    filtrees.filter(e => !e.is_refunded).reduce((s, e) => s + (e.montant_courant ?? 0), 0),
+    collected:  filtrees.filter(e => !e.is_refunded).reduce((s, e) => s + (e.collected       ?? 0), 0),
+    aCollecter: filtrees.filter(e => !e.is_refunded).reduce((s, e) => s + (e.a_collecter     ?? 0), 0),
   }), [filtrees])
 
   const nDealsTotal = useMemo(
@@ -1495,6 +1542,7 @@ export default function CashView({
                 onEdit={setModalEntry}
                 onDelete={handleDelete}
                 onAnnulerRecu={handleAnnulerRecu}
+                onRefund={handleRefundOpen}
                 pending={pending}
                 defaultOpen={idx === 0}
               />
@@ -2074,6 +2122,56 @@ export default function CashView({
 
       {/* Modal import */}
       {showImport && <ImportModal onClose={() => setShowImport(false)} />}
+
+      {/* Modal remboursement */}
+      {refundTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900">Confirmer le remboursement</h2>
+              <button onClick={handleRefundClose} className="text-gray-300 hover:text-gray-500"><X size={16} /></button>
+            </div>
+            <form onSubmit={handleRefundConfirm} className="p-6 space-y-4">
+              <p className="text-sm text-gray-700">
+                Cliente : <span className="font-semibold">{refundTarget.client_name ?? '—'}</span>
+              </p>
+              <p className="text-xs text-gray-500">
+                La commission du closer (10 %) et de la setter (5 %) seront déduites automatiquement de leur paye.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-gray-600">Montant remboursé avant taxe ($)</label>
+                <input
+                  autoFocus
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={refundMontant}
+                  onChange={e => setRefundMontant(e.target.value)}
+                  placeholder={`ex. ${refundTarget.montant_courant}`}
+                  required
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+              </div>
+              {refundMontant && parseFloat(refundMontant) > 0 && (
+                <div className="bg-orange-50 border border-orange-100 rounded-lg px-3 py-2 text-xs text-orange-700 space-y-1">
+                  <p>Déduction closer : <span className="font-semibold">−{(parseFloat(refundMontant) * 0.10).toFixed(2)} $</span></p>
+                  <p>Déduction setter : <span className="font-semibold">−{(parseFloat(refundMontant) * 0.05).toFixed(2)} $</span></p>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={handleRefundClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
+                <button
+                  type="submit"
+                  disabled={refundPending || !refundMontant || parseFloat(refundMontant) <= 0}
+                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+                >
+                  {refundPending ? 'En cours…' : 'Confirmer le remboursement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   )

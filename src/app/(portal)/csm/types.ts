@@ -1,3 +1,13 @@
+export interface CsmTask {
+  id:            string
+  csm_client_id: string
+  title:         string
+  due_date:      string
+  done:          boolean
+  done_at:       string | null
+  created_at:    string
+}
+
 export interface CsmClient {
   id:                  string
   name:                string
@@ -97,7 +107,7 @@ export function textMilestoneColor(
 }
 
 export function today(): string {
-  return new Date().toISOString().split('T')[0]
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
 }
 
 export function formatDate(d: string | null): string {

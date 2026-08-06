@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { todayQC }           from '@/lib/dates'
+import { periodLabel }       from '@/lib/payroll'
 
 // ── Commission helpers ────────────────────────────────────────────────
 
@@ -206,8 +207,8 @@ export async function updateStatus(clientId: string, status: string) {
   revalidatePath(`/csm/${clientId}`)
 }
 
-// ── Remboursement : marque refund + annule récurrents associés ──────────
-export async function marquerRemboursement(clientId: string) {
+// ── Remboursement avec montant : crée les entrées paye négatives + propage ──
+export async function marquerRemboursementAvecMontant(clientId: string, montantAvantTaxe: number) {
   await verifyAdminOrCsm()
   const db = createAdminClient()
 
@@ -216,39 +217,72 @@ export async function marquerRemboursement(clientId: string) {
     .select('cash_entry_id, name')
     .eq('id', clientId)
     .single()
+  if (!client) throw new Error('Client introuvable')
 
-  const { error } = await db
-    .from('csm_clients')
-    .update({ status: 'refund' })
-    .eq('id', clientId)
-  if (error) throw error
+  const dateStr   = todayQC()
+  const [year, month] = dateStr.split('-').map(Number)
+  const pLabel    = periodLabel(dateStr)
 
-  const today = new Date().toISOString().split('T')[0]
+  let closerId: string | null = null
+  let setterId: string | null = null
 
-  if (client?.cash_entry_id) {
-    // Marquer comme refund — on garde montant_courant pour affichage dans l'onglet Remboursements
-    await db.from('cash_entries')
-      .update({
-        collected: 0,
-        close_type: 'refund',
-        notes: `[REMBOURSÉ le ${today}]`,
-      })
-      .eq('id', client.cash_entry_id)
+  if (client.cash_entry_id) {
+    const { data: payeEntry } = await db
+      .from('paye_entries')
+      .select('closer_id, setter_id')
+      .eq('cash_entry_id', client.cash_entry_id)
+      .maybeSingle()
 
-    // Mettre à zéro les commissions et marquer comme Remboursé (garde la trace)
+    closerId = payeEntry?.closer_id ?? null
+    setterId = payeEntry?.setter_id ?? null
+
     await db.from('paye_entries')
       .update({
-        montant: 0,
-        commission: 0,
+        montant:           0,
+        commission:        0,
         commission_setter: 0,
-        statut: 'Remboursé',
-        notes: `[REMBOURSÉ le ${today}] — ${client.name ?? ''}`,
+        statut:            'Remboursé',
+        notes:             `[REMBOURSÉ le ${dateStr}] — ${client.name ?? ''}`,
       })
       .eq('cash_entry_id', client.cash_entry_id)
+
+    await db.from('cash_entries')
+      .update({
+        collected:   0,
+        close_type:  'refund',
+        is_refunded: true,
+        notes:       `[REMBOURSÉ le ${dateStr}]`,
+      })
+      .eq('id', client.cash_entry_id)
   }
 
-  // Auto-annuler tous les récurrents actifs associés à ce client
-  if (client?.name) {
+  // Insert negative paye entries (closer 10%, setter 5%)
+  if (closerId || setterId) {
+    const commCloser = Math.round(montantAvantTaxe * 0.10 * 100) / 100
+    const commSetter = Math.round(montantAvantTaxe * 0.05 * 100) / 100
+    await db.from('paye_entries').insert({
+      period_label:      pLabel,
+      month,
+      year,
+      client_name:       client.name ?? '',
+      closer_id:         closerId,
+      setter_id:         setterId,
+      montant:           -montantAvantTaxe,
+      commission:        closerId ? -commCloser : 0,
+      commission_setter: setterId ? -commSetter : 0,
+      statut:            'En attente',
+      notes:             'Remboursement',
+    })
+  }
+
+  await db.from('csm_clients').update({ status: 'refund' }).eq('id', clientId)
+
+  await db.from('cm_followups').update({ status: 'remboursee' }).eq('csm_client_id', clientId)
+  if (client.name) {
+    await db.from('cm_followups').update({ status: 'remboursee' }).ilike('client_name', client.name.trim())
+  }
+
+  if (client.name) {
     const { data: activeDeals } = await db
       .from('recurring_deals')
       .select('id')
@@ -260,7 +294,7 @@ export async function marquerRemboursement(clientId: string) {
         .update({
           actif:             false,
           annule_le:         new Date().toISOString(),
-          raison_annulation: `Remboursement — ${today}`,
+          raison_annulation: `Remboursement — ${dateStr}`,
         })
         .in('id', activeDeals.map(d => d.id))
     }
@@ -268,11 +302,12 @@ export async function marquerRemboursement(clientId: string) {
 
   revalidatePath('/csm')
   revalidatePath(`/csm/${clientId}`)
-  revalidatePath('/cashcollect')
-  revalidatePath('/dashboard')
   revalidatePath('/payes')
   revalidatePath('/recurrents')
   revalidatePath('/clients')
+  revalidatePath('/cm')
+  revalidatePath('/cashcollect')
+  revalidatePath('/dashboard')
 }
 
 // ── Onboarding date ─────────────────────────────────────────────────
@@ -337,6 +372,41 @@ export async function updateCsmId(clientId: string, csmId: string | null) {
   await verifyAdminOrCsm()
   const db = createAdminClient()
   const { error } = await db.from('csm_clients').update({ csm_id: csmId || null }).eq('id', clientId)
+  if (error) throw error
+  revalidatePath('/csm')
+}
+
+// ── Tâches CSM ──────────────────────────────────────────────────────
+export async function creerTache(clientId: string, title: string, dueDate: string) {
+  await verifyAdminOrCsm()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_tasks').insert({
+    csm_client_id: clientId,
+    title:         title.trim(),
+    due_date:      dueDate,
+    created_by:    user?.id ?? null,
+  })
+  if (error) throw error
+  revalidatePath('/csm')
+}
+
+export async function toggleTache(taskId: string, done: boolean) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_tasks').update({
+    done,
+    done_at: done ? new Date().toISOString() : null,
+  }).eq('id', taskId)
+  if (error) throw error
+  revalidatePath('/csm')
+}
+
+export async function supprimerTache(taskId: string) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_tasks').delete().eq('id', taskId)
   if (error) throw error
   revalidatePath('/csm')
 }

@@ -572,9 +572,12 @@ export default async function DashboardPage({
   const db = createAdminClient()
 
   const todayStr    = todayQC()
-  const weekEndDate = new Date(now)
-  weekEndDate.setDate(now.getDate() + 7)
-  const weekEndStr  = weekEndDate.toISOString().split('T')[0]
+  // End of current week = Sunday (day 0); if today is already Sunday, use today
+  const weekEndDate = dateQC()
+  const dowToday    = weekEndDate.getDay() // 0=Sun … 6=Sat
+  const daysToSun   = dowToday === 0 ? 0 : 7 - dowToday
+  weekEndDate.setDate(weekEndDate.getDate() + daysToSun)
+  const weekEndStr  = `${weekEndDate.getFullYear()}-${String(weekEndDate.getMonth() + 1).padStart(2, '0')}-${String(weekEndDate.getDate()).padStart(2, '0')}`
 
   const [
     { data: allMonthlyStats },
