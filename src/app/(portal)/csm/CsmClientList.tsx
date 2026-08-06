@@ -566,6 +566,7 @@ interface Props {
   dashCommissions:  DashCommission[]
   csmGoals:         CsmGoal[]
   virementStats:    VirementStatEntry[]
+  availableClients: { name: string; entryDate: string }[]
   currentYear:      number
   currentMonth:     number
   currentUserId:    string
@@ -799,15 +800,20 @@ function CsmDashboard({
 
 export default function CsmClientList({
   clients, fullyPaidNames, csmMembers,
-  dashCommissions, csmGoals, virementStats, currentYear, currentMonth,
+  dashCommissions, csmGoals, virementStats, availableClients, currentYear, currentMonth,
   currentUserId, isAdmin,
 }: Props) {
   const fullyPaidSet = useMemo(() => new Set(fullyPaidNames), [fullyPaidNames])
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [csmFilter, setCsmFilter]       = useState<string>('tous')
-  const [ajoutOpen, setAjoutOpen]       = useState(false)
+  const [ajoutMode, setAjoutMode]       = useState<'choice' | 'existing' | 'fresh' | null>(null)
+  const [existingSearch, setExistingSearch] = useState('')
+  const [selectedExisting, setSelectedExisting] = useState<{ name: string; entryDate: string } | null>(null)
   const [ajoutPending, startAjoutTrans] = useTransition()
+
+  function openAjout() { setAjoutMode('choice'); setExistingSearch(''); setSelectedExisting(null) }
+  function closeAjout() { setAjoutMode(null); setExistingSearch(''); setSelectedExisting(null) }
   const todayStr = today()
 
   const csmMap = useMemo(() => new Map(csmMembers.map(m => [m.id, m.full_name ?? 'CSM'])), [csmMembers])
@@ -824,7 +830,7 @@ export default function CsmClientList({
         email:           (fd.get('email') as string) || null,
         csm_id:          (fd.get('csm_id') as string) || null,
       })
-      setAjoutOpen(false)
+      closeAjout()
     })
   }
 
@@ -1057,7 +1063,7 @@ export default function CsmClientList({
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-gray-400">{filtered.length} cliente{filtered.length !== 1 ? 's' : ''}</span>
           <button
-            onClick={() => setAjoutOpen(true)}
+            onClick={openAjout}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
           >
             <Plus size={12} /> Ajouter
@@ -1071,70 +1077,176 @@ export default function CsmClientList({
           <ExportCsvButton filename="csm-clients" data={csvData} />
         </div>
 
-        {/* Modal ajout client manuel */}
-        {ajoutOpen && (
+        {/* Modal ajout cliente */}
+        {ajoutMode !== null && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-900">Ajouter un client manuellement</h2>
-                <button onClick={() => setAjoutOpen(false)} className="text-gray-300 hover:text-gray-500"><X size={16} /></button>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  {ajoutMode === 'choice'   ? 'Ajouter une cliente' :
+                   ajoutMode === 'existing' ? 'Cliente existante' :
+                                             'Nouveau dossier'}
+                </h2>
+                <button onClick={closeAjout} className="text-gray-300 hover:text-gray-500"><X size={16} /></button>
               </div>
-              <form onSubmit={handleAjoutManuel} className="p-6 space-y-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-gray-600">Nom de la cliente *</label>
-                  <input name="name" required placeholder="Fiesta Neila Kamugisha"
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-gray-600">Date d&apos;inscription *</label>
-                    <input name="enrollment_date" type="date" required defaultValue={todayStr}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-gray-600">Type de paiement</label>
-                    <select name="payment_type"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
-                      <option value="pif">PIF</option>
-                      <option value="financement">Financement</option>
-                      <option value="2-vers">2 versements</option>
-                      <option value="3-vers">3 versements</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-gray-600">Téléphone</label>
-                    <input name="phone" type="tel" placeholder="+1 (514) 000-0000"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-gray-600">Email</label>
-                    <input name="email" type="email" placeholder="cliente@exemple.com"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
-                  </div>
-                </div>
-                {csmMembers.length > 0 && (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-gray-600">CSM responsable</label>
-                    <select name="csm_id"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
-                      <option value="">— Non assignée —</option>
-                      {csmMembers.map(m => (
-                        <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setAjoutOpen(false)}
-                    className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
-                  <button type="submit" disabled={ajoutPending}
-                    className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
-                    {ajoutPending ? 'Ajout…' : 'Ajouter'}
+
+              {/* Étape 1 : choix du mode */}
+              {ajoutMode === 'choice' && (
+                <div className="p-6 grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setAjoutMode('existing')}
+                    className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-gray-200 hover:border-violet-400 hover:bg-violet-50 transition-all"
+                  >
+                    <Users size={24} className="text-violet-500" />
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-gray-900">Cliente existante</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Déjà dans la base de données</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setAjoutMode('fresh')}
+                    className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-gray-200 hover:border-violet-400 hover:bg-violet-50 transition-all"
+                  >
+                    <Plus size={24} className="text-violet-500" />
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-gray-900">Nouveau dossier</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Saisie manuelle complète</p>
+                    </div>
                   </button>
                 </div>
-              </form>
+              )}
+
+              {/* Étape 2a : cliente existante */}
+              {ajoutMode === 'existing' && (
+                <div className="p-6 space-y-4">
+                  {!selectedExisting ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={existingSearch}
+                        onChange={e => setExistingSearch(e.target.value)}
+                        placeholder="Rechercher une cliente…"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
+                      <div className="max-h-60 overflow-y-auto divide-y divide-gray-50 border border-gray-100 rounded-lg">
+                        {availableClients
+                          .filter(c => !existingSearch || c.name.toLowerCase().includes(existingSearch.toLowerCase()))
+                          .slice(0, 50)
+                          .map(c => (
+                            <button
+                              key={c.name}
+                              onClick={() => setSelectedExisting(c)}
+                              className="w-full text-left px-3 py-2.5 hover:bg-violet-50 transition-colors"
+                            >
+                              <span className="text-sm font-medium text-gray-900">{c.name}</span>
+                              <span className="ml-2 text-[11px] text-gray-400">{formatDate(c.entryDate)}</span>
+                            </button>
+                          ))}
+                        {availableClients.filter(c => !existingSearch || c.name.toLowerCase().includes(existingSearch.toLowerCase())).length === 0 && (
+                          <p className="px-3 py-6 text-sm text-gray-400 text-center">Aucune cliente trouvée</p>
+                        )}
+                      </div>
+                      <button onClick={() => setAjoutMode('choice')} className="text-xs text-gray-400 hover:text-gray-600">← Retour</button>
+                    </>
+                  ) : (
+                    <form onSubmit={handleAjoutManuel} className="space-y-4">
+                      <div className="px-3 py-2.5 bg-violet-50 rounded-lg flex items-center justify-between">
+                        <span className="text-sm font-semibold text-violet-800">{selectedExisting.name}</span>
+                        <button type="button" onClick={() => setSelectedExisting(null)} className="text-violet-400 hover:text-violet-600"><X size={14} /></button>
+                      </div>
+                      <input type="hidden" name="name" value={selectedExisting.name} />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-medium text-gray-600">Date d&apos;inscription *</label>
+                          <input name="enrollment_date" type="date" required defaultValue={selectedExisting.entryDate}
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-medium text-gray-600">Type de paiement</label>
+                          <select name="payment_type" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
+                            <option value="pif">PIF</option>
+                            <option value="financement">Financement</option>
+                            <option value="2-vers">2 versements</option>
+                            <option value="3-vers">3 versements</option>
+                          </select>
+                        </div>
+                      </div>
+                      {csmMembers.length > 0 && (
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-medium text-gray-600">CSM responsable</label>
+                          <select name="csm_id" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
+                            <option value="">— Non assignée —</option>
+                            {csmMembers.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button type="button" onClick={closeAjout} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
+                        <button type="submit" disabled={ajoutPending} className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+                          {ajoutPending ? 'Ajout…' : 'Ajouter'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {/* Étape 2b : nouveau dossier */}
+              {ajoutMode === 'fresh' && (
+                <form onSubmit={handleAjoutManuel} className="p-6 space-y-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">Nom de la cliente *</label>
+                    <input name="name" required placeholder="Prénom Nom"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-gray-600">Date d&apos;inscription *</label>
+                      <input name="enrollment_date" type="date" required defaultValue={todayStr}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-gray-600">Type de paiement</label>
+                      <select name="payment_type" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
+                        <option value="pif">PIF</option>
+                        <option value="financement">Financement</option>
+                        <option value="2-vers">2 versements</option>
+                        <option value="3-vers">3 versements</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-gray-600">Téléphone</label>
+                      <input name="phone" type="tel" placeholder="+1 (514) 000-0000"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-gray-600">Email</label>
+                      <input name="email" type="email" placeholder="cliente@exemple.com"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    </div>
+                  </div>
+                  {csmMembers.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-gray-600">CSM responsable</label>
+                      <select name="csm_id" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
+                        <option value="">— Non assignée —</option>
+                        {csmMembers.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-2">
+                    <button type="button" onClick={() => setAjoutMode('choice')} className="text-xs text-gray-400 hover:text-gray-600">← Retour</button>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={closeAjout} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
+                      <button type="submit" disabled={ajoutPending} className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+                        {ajoutPending ? 'Ajout…' : 'Ajouter'}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}

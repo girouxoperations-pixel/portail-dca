@@ -28,6 +28,7 @@ export default async function CsmPage() {
     { data: dashCommissions },
     { data: csmGoals },
     { data: virementDeals },
+    { data: cashEntries },
   ] = await Promise.all([
     db.from('csm_clients').select('*').order('enrollment_date', { ascending: false }),
     db.from('recurring_deals').select('client_name, versements_total, recurring_occurrences(recu)'),
@@ -42,6 +43,9 @@ export default async function CsmPage() {
     db.from('recurring_deals')
       .select('id, client_name, recurring_occurrences(mois, annee, montant_attendu, montant_recu, recu)')
       .eq('methode_paiement', 'virement'),
+    db.from('cash_entries')
+      .select('client_name, entry_date')
+      .order('entry_date', { ascending: false }),
   ])
 
   // Build per-CSM virement stats (attendu / collecté) per month
@@ -66,6 +70,19 @@ export default async function CsmPage() {
   }
   const virementStats = Array.from(virementMap.values())
 
+  // Clients from cash_entries not yet in csm_clients
+  const csmNames = new Set((clients ?? []).map(c => c.name.toLowerCase().trim()))
+  const seen = new Set<string>()
+  const availableClients: { name: string; entryDate: string }[] = []
+  for (const e of cashEntries ?? []) {
+    if (!e.client_name) continue
+    const key = e.client_name.toLowerCase().trim()
+    if (csmNames.has(key) || seen.has(key)) continue
+    seen.add(key)
+    availableClients.push({ name: e.client_name, entryDate: e.entry_date })
+  }
+  availableClients.sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+
   // Build set of client names that have fully paid all their installments
   const fullyPaidNames: string[] = (dealData ?? [])
     .filter(d => {
@@ -85,6 +102,7 @@ export default async function CsmPage() {
       dashCommissions={dashCommissions ?? []}
       csmGoals={csmGoals ?? []}
       virementStats={virementStats}
+      availableClients={availableClients}
       currentYear={year}
       currentMonth={month}
       currentUserId={user.id}
