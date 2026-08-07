@@ -27,6 +27,7 @@ type Deal = {
   id:                string
   client_name:       string
   deal_date:         string | null
+  cash_entry_date:   string | null
   montant:           number
   collected:         number
   methode:           string
@@ -51,13 +52,17 @@ const dollar = (n: number) =>
 
 function parseMonthLabel(dateStr: string | null): string {
   if (!dateStr) return 'Sans date'
-  const d = new Date(dateStr)
+  const [y, m] = dateStr.split('-').map(Number)
+  const d = new Date(y, m - 1, 1)
   return d.toLocaleDateString('fr-CA', { year: 'numeric', month: 'long' })
 }
 
+const MOIS_COURT = ['jan.','fév.','mar.','avr.','mai','juin','juil.','août','sep.','oct.','nov.','déc.']
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' })
+  const [, m, d] = dateStr.split('-').map(Number)
+  return `${d} ${MOIS_COURT[m - 1]}`
 }
 
 const EMPTY_FORM = {
@@ -301,7 +306,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
       ].join(' ')}>
         {/* Date */}
         <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
-          {formatDate(deal.deal_date)}
+          {formatDate(deal.cash_entry_date ?? deal.deal_date)}
         </td>
 
         {/* Client */}
@@ -498,21 +503,30 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   }, [deals])
 
   const filtered = useMemo(() => {
-    return deals.filter(d => {
-      if (filterStatut !== 'tous' && d.statut !== filterStatut) return false
-      if (filterPerson !== 'tous') {
-        if (d.setter_name !== filterPerson && d.closer_name !== filterPerson) return false
-      }
-      return true
-    })
+    return deals
+      .filter(d => {
+        if (filterStatut !== 'tous' && d.statut !== filterStatut) return false
+        if (filterPerson !== 'tous') {
+          if (d.setter_name !== filterPerson && d.closer_name !== filterPerson) return false
+        }
+        return true
+      })
+      .sort((a, b) => {
+        const da = a.cash_entry_date ?? a.deal_date ?? ''
+        const db2 = b.cash_entry_date ?? b.deal_date ?? ''
+        return db2.localeCompare(da)
+      })
   }, [deals, filterStatut, filterPerson])
 
   const grouped = useMemo(() => {
     const map = new Map<string, Deal[]>()
     for (const d of filtered) {
-      const key = d.deal_date
-        ? new Date(d.deal_date).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long' })
-        : 'Sans date'
+      const effectiveDate = d.cash_entry_date ?? d.deal_date
+      let key = 'Sans date'
+      if (effectiveDate) {
+        const [y, m] = effectiveDate.split('-').map(Number)
+        key = new Date(y, m - 1, 1).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long' })
+      }
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(d)
     }
