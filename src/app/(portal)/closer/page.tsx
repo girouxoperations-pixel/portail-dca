@@ -22,7 +22,7 @@ export default async function CloserPage() {
   const db   = createAdminClient()
 
   // ── Vue admin / CSM ─────────────────────────────────────────────
-  if (role === 'admin' || role === 'csm') {
+  if (role === 'admin' || role === 'csm' || role === 'head_csm') {
     const now = dateQC()
     const [{ data: entrees }, { data: closers }, { data: cashEntries }, { data: teamGoalRaw }, { data: userGoalsRaw }] = await Promise.all([
       db.from('closer_entries')

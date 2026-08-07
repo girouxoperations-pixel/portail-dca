@@ -40,7 +40,7 @@ function parseFields(formData: FormData) {
 // ── Actions ──────────────────────────────────────────────────────────
 
 export async function ajouterEntree(formData: FormData) {
-  const { userId, role } = await requireRole(['admin', 'csm', 'closer'])
+  const { userId, role } = await requireRole(['admin', 'csm', 'head_csm', 'closer'])
   const db = createAdminClient()
 
   const targetUserId = (role === 'closer')
@@ -59,7 +59,7 @@ export async function ajouterEntree(formData: FormData) {
 }
 
 export async function modifierEntree(id: string, formData: FormData) {
-  const { userId, role } = await requireRole(['admin', 'csm', 'closer'])
+  const { userId, role } = await requireRole(['admin', 'csm', 'head_csm', 'closer'])
   const db = createAdminClient()
 
   if (role === 'closer') {
@@ -89,7 +89,7 @@ export async function supprimerEntree(id: string) {
 }
 
 export async function creerDealCloser(formData: FormData) {
-  const { userId } = await requireRole(['admin', 'csm', 'closer'])
+  const { userId } = await requireRole(['admin', 'csm', 'head_csm', 'closer'])
   const db = createAdminClient()
 
   const entryDate      = formData.get('entry_date') as string
@@ -249,7 +249,7 @@ export async function creerDealCloser(formData: FormData) {
 }
 
 export async function marquerRecuCloser(occurrenceId: string, montantRecu: number) {
-  const { userId } = await requireRole(['admin', 'csm', 'closer'])
+  const { userId } = await requireRole(['admin', 'csm', 'head_csm', 'closer'])
   const db = createAdminClient()
 
   const { data: occ, error: occErr } = await db

@@ -13,7 +13,7 @@ async function requireAdminOrCsm() {
   const { data: profil } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
 
-  if (!profil || !['admin', 'csm'].includes(profil.role as string)) {
+  if (!profil || !['admin', 'csm', 'head_csm'].includes(profil.role as string)) {
     throw new Error('Non autorisé')
   }
   return { userId: user.id, role: profil.role as string }

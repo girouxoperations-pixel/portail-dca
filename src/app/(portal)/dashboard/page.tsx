@@ -983,7 +983,7 @@ export default async function DashboardPage({
       }
     })
 
-  const isAdmin   = profil?.role === 'admin' || profil?.role === 'csm'
+  const isAdmin   = profil?.role === 'admin' || profil?.role === 'csm' || profil?.role === 'head_csm'
   const role      = profil?.role ?? ''
   const prenom    = profil?.full_name?.split(' ')[0] ?? 'vous'
 

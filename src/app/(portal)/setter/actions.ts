@@ -40,7 +40,7 @@ function parseFields(formData: FormData) {
 // ── Actions ───────────────────────────────────────────────────────────
 
 export async function ajouterEntreeSetter(formData: FormData) {
-  const { userId, role } = await requireRole(['admin', 'csm', 'setter'])
+  const { userId, role } = await requireRole(['admin', 'csm', 'head_csm', 'setter'])
   const db = createAdminClient()
 
   const targetUserId = role === 'setter'
@@ -57,7 +57,7 @@ export async function ajouterEntreeSetter(formData: FormData) {
 }
 
 export async function modifierEntreeSetter(id: string, formData: FormData) {
-  const { userId, role } = await requireRole(['admin', 'csm', 'setter'])
+  const { userId, role } = await requireRole(['admin', 'csm', 'head_csm', 'setter'])
   const db = createAdminClient()
 
   if (role === 'setter') {

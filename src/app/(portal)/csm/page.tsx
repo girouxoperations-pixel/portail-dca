@@ -16,7 +16,7 @@ export default async function CsmPage() {
     .single()
 
   const userRoles = (profile?.roles ?? []) as string[]
-  if (!profile || !userRoles.some(r => ['admin', 'csm'].includes(r))) redirect('/dashboard')
+  if (!profile || !userRoles.some(r => ['admin', 'csm', 'head_csm'].includes(r))) redirect('/dashboard')
 
   const db = createAdminClient()
   const { year, month } = nowQC()

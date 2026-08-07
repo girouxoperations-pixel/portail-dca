@@ -91,7 +91,7 @@ export async function supprimerDocument(id: string, fileUrl: string) {
     .from('documents').select('uploaded_by').eq('id', id).single()
   if (!doc) throw new Error('Document introuvable')
 
-  if (role !== 'admin' && role !== 'csm' && doc.uploaded_by !== userId) {
+  if (role !== 'admin' && role !== 'csm' && role !== 'head_csm' && doc.uploaded_by !== userId) {
     throw new Error('Non autorisé')
   }
 

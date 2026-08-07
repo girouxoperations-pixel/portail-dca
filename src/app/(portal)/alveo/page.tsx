@@ -11,7 +11,7 @@ export default async function AlveoPage() {
   const { data: profil } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
 
-  if (!profil || !['admin', 'csm'].includes(profil.role as string)) {
+  if (!profil || !['admin', 'csm', 'head_csm'].includes(profil.role as string)) {
     redirect('/dashboard')
   }
 

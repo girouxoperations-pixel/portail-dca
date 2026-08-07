@@ -107,7 +107,7 @@ export async function importCsmClients(rows: Record<string, string>[]) {
   if (!user) throw new Error('Unauthorized')
   const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
   const userRoles = (profile?.roles ?? []) as string[]
-  if (!profile || !userRoles.some((r: string) => ['admin', 'csm'].includes(r))) throw new Error('Forbidden')
+  if (!profile || !userRoles.some((r: string) => ['admin', 'csm', 'head_csm'].includes(r))) throw new Error('Forbidden')
 
   const db = createAdminClient()
 

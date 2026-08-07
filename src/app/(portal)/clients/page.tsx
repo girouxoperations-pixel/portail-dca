@@ -11,7 +11,7 @@ export default async function ClientsPage() {
   const { data: profil } = await supabase
     .from('profiles').select('role, roles').eq('id', user.id).single()
   const userRoles = (profil?.roles ?? []) as string[]
-  if (!profil || !userRoles.some(r => ['admin', 'csm'].includes(r))) redirect('/dashboard')
+  if (!profil || !userRoles.some(r => ['admin', 'csm', 'head_csm'].includes(r))) redirect('/dashboard')
 
   const db = createAdminClient()
   const currentYear = new Date().getFullYear()

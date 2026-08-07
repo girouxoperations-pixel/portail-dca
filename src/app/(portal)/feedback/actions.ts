@@ -22,7 +22,7 @@ async function requireRole(roles: string[]) {
 // ── Actions ──────────────────────────────────────────────────────────
 
 export async function ajouterFeedback(formData: FormData) {
-  const { userId, role } = await requireRole(['admin', 'csm', 'closer'])
+  const { userId, role } = await requireRole(['admin', 'csm', 'head_csm', 'closer'])
   const db = createAdminClient()
 
   // Closer can only add for themselves
@@ -53,7 +53,7 @@ export async function ajouterFeedback(formData: FormData) {
 }
 
 export async function supprimerFeedback(id: string) {
-  await requireRole(['admin', 'csm'])
+  await requireRole(['admin', 'csm', 'head_csm'])
   const db = createAdminClient()
 
   const { error } = await db.from('feedback_entries').delete().eq('id', id)

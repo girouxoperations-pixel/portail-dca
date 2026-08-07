@@ -39,11 +39,12 @@ function getInitials(fullName: string | null, email: string | null): string {
 
 /** Libellé du rôle en français. */
 const ROLE_LABELS: Record<string, string> = {
-  admin:  'Administrateur',
-  csm:    'CSM',
-  closer: 'Closer',
-  setter: 'Setter',
-  cm:     'Community Manager',
+  admin:    'Administrateur',
+  head_csm: 'Head of CSM',
+  csm:      'CSM',
+  closer:   'Closer',
+  setter:   'Setter',
+  cm:       'Community Manager',
 }
 
 // ── Composant ────────────────────────────────────────────────────

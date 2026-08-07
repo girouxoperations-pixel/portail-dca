@@ -40,7 +40,7 @@ export default async function AdminPage() {
     <AdminView
       membres={membres ?? []}
       currentUserId={user.id}
-      isAdmin={role === 'admin' || userRoles.includes('csm')}
+      isAdmin={role === 'admin' || userRoles.includes('csm') || userRoles.includes('head_csm')}
       isOwner={isOwner}
       orgChartData={orgChart?.data ?? DEFAULT_TREE}
       plMonths={plMonths ?? []}

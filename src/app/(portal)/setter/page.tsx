@@ -49,7 +49,7 @@ export default async function SetterPage() {
   }
 
   // ── Vue admin / CSM : toutes les entrées + liste des setters ─────
-  if (role !== 'admin' && role !== 'csm') redirect('/dashboard')
+  if (role !== 'admin' && role !== 'csm' && role !== 'head_csm') redirect('/dashboard')
 
   const now = dateQC()
   const [{ data: entrees }, { data: setters }, { data: cashEntries }, { data: userGoalsRaw }] = await Promise.all([

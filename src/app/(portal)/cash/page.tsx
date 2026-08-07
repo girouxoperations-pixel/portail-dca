@@ -17,7 +17,7 @@ export default async function CashPage() {
   if (!profil) redirect('/login')
 
   const role = profil.role as string
-  if (role !== 'admin' && role !== 'csm') redirect('/dashboard')
+  if (role !== 'admin' && role !== 'csm' && role !== 'head_csm') redirect('/dashboard')
 
   const db = createAdminClient()
 

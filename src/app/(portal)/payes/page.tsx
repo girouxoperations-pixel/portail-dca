@@ -35,7 +35,7 @@ export default async function PayesPage() {
   const periodStart = periode.start
 
   // ── Vue admin / CSM ───────────────────────────────────────────────
-  if (role === 'admin' || role === 'csm') {
+  if (role === 'admin' || role === 'head_csm') {
     const [
       { data: entrees },
       { data: closers },

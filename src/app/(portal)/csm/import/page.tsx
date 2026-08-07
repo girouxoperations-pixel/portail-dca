@@ -13,7 +13,7 @@ export default async function CsmImportPage() {
     .eq('id', user.id)
     .single()
 
-  if (!profile || !['admin', 'csm'].includes(profile.role)) redirect('/dashboard')
+  if (!profile || !['admin', 'csm', 'head_csm'].includes(profile.role)) redirect('/dashboard')
 
   return <CsmImportClient />
 }

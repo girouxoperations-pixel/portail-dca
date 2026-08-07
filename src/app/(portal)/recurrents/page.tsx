@@ -16,7 +16,7 @@ export default async function RecurrentsPage({
     .from('profiles').select('role').eq('id', user.id).single()
 
   const role = profil?.role ?? ''
-  if (!['admin', 'csm'].includes(role)) redirect('/dashboard')
+  if (!['admin', 'csm', 'head_csm'].includes(role)) redirect('/dashboard')
 
   const { filtre } = await searchParams
   const db = createAdminClient()
@@ -45,7 +45,7 @@ export default async function RecurrentsPage({
     <RecurrentsView
       deals={dealsNorm}
       profiles={profiles ?? []}
-      isAdmin={role === 'admin' || role === 'csm'}
+      isAdmin={role === 'admin' || role === 'csm' || role === 'head_csm'}
       initialFiltre={filtre ?? 'retard'}
     />
   )

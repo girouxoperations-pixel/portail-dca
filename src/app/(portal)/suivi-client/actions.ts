@@ -49,7 +49,7 @@ export async function toggleMessageAdmin(
     .from('profiles').select('roles').eq('id', user.id).single()
 
   const userRoles = (profil?.roles ?? []) as string[]
-  if (!profil || !userRoles.some((r: string) => ['admin', 'csm'].includes(r))) throw new Error('Accès refusé')
+  if (!profil || !userRoles.some((r: string) => ['admin', 'csm', 'head_csm'].includes(r))) throw new Error('Accès refusé')
 
   const db = createAdminClient()
   await db

@@ -32,7 +32,7 @@ export async function toggleProspectFollowup(id: string, done: boolean) {
   const db = createAdminClient()
   // Security: verify ownership or admin
   const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
-  const isAdmin = (profile?.roles as string[] | undefined)?.some(r => ['admin', 'csm'].includes(r)) ?? false
+  const isAdmin = (profile?.roles as string[] | undefined)?.some(r => ['admin', 'csm', 'head_csm'].includes(r)) ?? false
   if (!isAdmin) {
     const { data: fp } = await db.from('prospect_followups').select('closer_id').eq('id', id).single()
     if (!fp || fp.closer_id !== user.id) throw new Error('Non autorisé')
@@ -55,7 +55,7 @@ export async function deleteProspectFollowup(id: string) {
 
   const db = createAdminClient()
   const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
-  const isAdmin = (profile?.roles as string[] | undefined)?.some(r => ['admin', 'csm'].includes(r)) ?? false
+  const isAdmin = (profile?.roles as string[] | undefined)?.some(r => ['admin', 'csm', 'head_csm'].includes(r)) ?? false
   if (!isAdmin) {
     const { data: fp } = await db.from('prospect_followups').select('closer_id').eq('id', id).single()
     if (!fp || fp.closer_id !== user.id) throw new Error('Non autorisé')
@@ -74,7 +74,7 @@ export async function setProspectStatut(id: string, statut: 'actif' | 'contacté
 
   const db = createAdminClient()
   const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
-  const isAdmin = (profile?.roles as string[] | undefined)?.some(r => ['admin', 'csm'].includes(r)) ?? false
+  const isAdmin = (profile?.roles as string[] | undefined)?.some(r => ['admin', 'csm', 'head_csm'].includes(r)) ?? false
   if (!isAdmin) {
     const { data: fp } = await db.from('prospect_followups').select('closer_id').eq('id', id).single()
     if (!fp || fp.closer_id !== user.id) throw new Error('Non autorisé')
@@ -146,7 +146,7 @@ export async function toggleSuiviMessage(
   if (!user) throw new Error('Non authentifié')
 
   const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
-  const isAdmin = (profile?.roles as string[] | undefined)?.some(r => ['admin', 'csm'].includes(r)) ?? false
+  const isAdmin = (profile?.roles as string[] | undefined)?.some(r => ['admin', 'csm', 'head_csm'].includes(r)) ?? false
 
   const db = createAdminClient()
 
