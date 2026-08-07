@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
-import { Plus, ChevronDown, ChevronUp, X, Check, Ban, Trash2 } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, X, Check, Ban, Trash2, CheckCircle2, Circle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   ajouterDeal,
   modifierCollected,
   toggleRoleComplet,
+  toggleFondsCollectes,
   annulerDeal,
   supprimerDeal,
 } from '@/app/(portal)/alveo/actions'
@@ -37,6 +38,7 @@ type Deal = {
   commission_closer: number
   notes:             string | null
   statut:            string
+  fonds_collectes:   boolean
   payments:          Payment[]
 }
 
@@ -320,6 +322,22 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
           )}
         </td>
 
+        {/* Fonds collectés */}
+        <td className="px-2 py-2.5 text-center">
+          <button
+            disabled={!isAdmin || pending}
+            onClick={() => isAdmin && startTransition(() => toggleFondsCollectes(deal.id, !deal.fonds_collectes))}
+            title={deal.fonds_collectes ? 'Fonds collectés' : 'Marquer fonds collectés'}
+            className={cn(
+              'w-6 h-6 flex items-center justify-center rounded-full mx-auto transition-all',
+              isAdmin && !isCancelled ? 'hover:scale-110 cursor-pointer' : 'cursor-default',
+              deal.fonds_collectes ? 'text-emerald-500' : 'text-gray-300',
+            )}
+          >
+            {deal.fonds_collectes ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+          </button>
+        </td>
+
         {/* Setter */}
         <td className="px-3 py-2.5 text-xs text-blue-600">{deal.setter_name ?? '—'}</td>
 
@@ -416,7 +434,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
 
       {expanded && (
         <tr className="border-b border-gray-100 bg-gray-50">
-          <td colSpan={isAdmin ? 10 : 9} className="px-6 py-3">
+          <td colSpan={isAdmin ? 11 : 10} className="px-6 py-3">
             <div className="grid grid-cols-3 gap-6 text-xs">
               <div>
                 <p className="text-gray-500 mb-1">Commission setter</p>
@@ -459,7 +477,7 @@ function MonthSection({
     <>
       <tr className="bg-gray-100">
         <td
-          colSpan={isAdmin ? 10 : 9}
+          colSpan={isAdmin ? 11 : 10}
           className="px-3 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-200"
         >
           <span className="capitalize">{label}</span>
@@ -654,6 +672,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500">Date</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500">Client</th>
+                  <th className="px-2 py-2.5 text-xs font-semibold text-gray-500 text-center" title="Fonds collectés par la business">Fonds</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-blue-600">Setter</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-violet-600">Closer</th>
                   <th className="px-3 py-2.5 text-xs font-semibold text-gray-500 text-right">Montant</th>
@@ -667,7 +686,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
               <tbody>
                 {grouped.size === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 10 : 9} className="px-6 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={isAdmin ? 11 : 10} className="px-6 py-12 text-center text-sm text-gray-400">
                       Aucun deal trouvé
                     </td>
                   </tr>

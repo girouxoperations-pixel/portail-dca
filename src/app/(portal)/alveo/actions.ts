@@ -258,6 +258,15 @@ export async function annulerDeal(dealId: string) {
   revalidatePath('/alveo')
 }
 
+export async function toggleFondsCollectes(dealId: string, value: boolean) {
+  await requireAdminOrCsm()
+  const db = createAdminClient()
+
+  const { error } = await db.from('alveo_deals').update({ fonds_collectes: value }).eq('id', dealId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/alveo')
+}
+
 export async function supprimerDeal(dealId: string) {
   await requireAdminOrCsm()
   const db = createAdminClient()
