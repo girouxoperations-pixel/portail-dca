@@ -530,6 +530,13 @@ export default function AlveoView({ deals, isAdmin }: Props) {
       .sort()
   }, [deals])
 
+  const yearActive = useMemo(() => {
+    return deals.filter(d => {
+      const date = d.cash_entry_date ?? d.deal_date
+      return date?.slice(0, 4) === filterYear && d.statut === 'actif'
+    })
+  }, [deals, filterYear])
+
   const filtered = useMemo(() => {
     return deals
       .filter(d => {
@@ -546,7 +553,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
         const db2 = b.cash_entry_date ?? b.deal_date ?? ''
         return db2.localeCompare(da)
       })
-  }, [deals, filterStatut, filterPerson])
+  }, [deals, filterYear, filterStatut, filterPerson])
 
   const grouped = useMemo(() => {
     const map = new Map<string, Deal[]>()
@@ -564,14 +571,14 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   }, [filtered])
 
   const stats = useMemo(() => {
-    const active = deals.filter(d => d.statut === 'actif')
-    const totalMontant    = active.reduce((s, d) => s + d.montant, 0)
-    const totalCollected  = active.reduce((s, d) => s + d.collected, 0)
-    const pendingPayments = deals.flatMap(d => d.payments).filter(p => !p.paid)
+    const totalCollected  = yearActive.filter(d => d.fonds_collectes).reduce((s, d) => s + d.montant, 0)
+    const aCollecter      = yearActive.filter(d => !d.fonds_collectes).reduce((s, d) => s + d.montant, 0)
+    const totalMontant    = totalCollected + aCollecter
+    const pendingPayments = yearActive.flatMap(d => d.payments).filter(p => !p.paid)
     const pendingSetter   = pendingPayments.filter(p => p.person_role === 'setter').reduce((s, p) => s + p.amount, 0)
     const pendingCloser   = pendingPayments.filter(p => p.person_role === 'closer').reduce((s, p) => s + p.amount, 0)
-    return { totalMontant, totalCollected, aCollecter: totalMontant - totalCollected, pendingSetter, pendingCloser }
-  }, [deals])
+    return { totalMontant, totalCollected, aCollecter, pendingSetter, pendingCloser, count: yearActive.length }
+  }, [yearActive])
 
   return (
     <div className="min-h-screen bg-white">
@@ -597,10 +604,10 @@ export default function AlveoView({ deals, isAdmin }: Props) {
         {/* Stats cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[
-            { label: 'Deals actifs',       value: deals.filter(d => d.statut === 'actif').length.toString(), color: 'text-gray-900' },
-            { label: 'Montant total',       value: dollar(stats.totalMontant),   color: 'text-gray-900' },
-            { label: 'Collecté',            value: dollar(stats.totalCollected),  color: 'text-emerald-600' },
-            { label: 'À collecter (Alveo)', value: dollar(stats.aCollecter),      color: stats.aCollecter > 0 ? 'text-red-500' : 'text-emerald-600' },
+            { label: `Deals actifs ${filterYear}`,  value: stats.count.toString(),           color: 'text-gray-900' },
+            { label: 'Montant total',                value: dollar(stats.totalMontant),       color: 'text-gray-900' },
+            { label: 'Fonds collectés ✓',            value: dollar(stats.totalCollected),     color: 'text-emerald-600' },
+            { label: 'Fonds à recevoir',             value: dollar(stats.aCollecter),         color: stats.aCollecter > 0 ? 'text-red-500' : 'text-emerald-600' },
             { label: 'Comm. en attente',
               value: dollar(stats.pendingSetter + stats.pendingCloser),
               color: (stats.pendingSetter + stats.pendingCloser) > 0 ? 'text-amber-600' : 'text-emerald-600',
@@ -619,7 +626,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
             <p className="text-xs font-semibold text-amber-700 mb-2">Commissions en attente par personne</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {allPersons.map(person => {
-                const pending = deals
+                const pending = yearActive
                   .flatMap(d => d.payments.map(p => ({ ...p, deal: d })))
                   .filter(p => !p.paid && (
                     (p.person_role === 'setter' && p.deal.setter_name === person) ||
