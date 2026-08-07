@@ -502,12 +502,22 @@ function MonthSection({
 
 export default function AlveoView({ deals, isAdmin }: Props) {
   const [showForm, setShowForm]   = useState(false)
+  const [filterYear, setFilterYear]     = useState('2026')
   const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'annulé'>('actif')
   const [filterPerson, setFilterPerson] = useState('tous')
 
   const TEAM_NAMES = new Set(['shanny', 'jacinthe', 'kalianna', 'kim', 'melika', 'audrey'])
   const norm = (s: string) =>
     s.toLowerCase().trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+  const allYears = useMemo(() => {
+    const s = new Set<string>()
+    deals.forEach(d => {
+      const date = d.cash_entry_date ?? d.deal_date
+      if (date) s.add(date.slice(0, 4))
+    })
+    return Array.from(s).sort((a, b) => b.localeCompare(a))
+  }, [deals])
 
   const allPersons = useMemo(() => {
     const s = new Set<string>()
@@ -523,6 +533,8 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   const filtered = useMemo(() => {
     return deals
       .filter(d => {
+        const date = d.cash_entry_date ?? d.deal_date
+        if (date?.slice(0, 4) !== filterYear) return false
         if (filterStatut !== 'tous' && d.statut !== filterStatut) return false
         if (filterPerson !== 'tous') {
           if (d.setter_name !== filterPerson && d.closer_name !== filterPerson) return false
@@ -628,6 +640,24 @@ export default function AlveoView({ deals, isAdmin }: Props) {
 
         {/* Add form */}
         {showForm && <AddDealForm onClose={() => setShowForm(false)} />}
+
+        {/* Year tabs */}
+        <div className="flex items-center gap-1 mb-4 border-b border-gray-200">
+          {allYears.map(year => (
+            <button
+              key={year}
+              onClick={() => setFilterYear(year)}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                filterYear === year
+                  ? 'border-violet-600 text-violet-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300',
+              )}
+            >
+              {year}
+            </button>
+          ))}
+        </div>
 
         {/* Filters */}
         <div className="flex items-center gap-3 mb-4">
