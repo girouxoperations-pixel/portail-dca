@@ -1736,8 +1736,8 @@ export default function CashView({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {closerStats.map(c => (
-                      <tr key={c.name} className="hover:bg-gray-50/50 transition-colors">
+                    {closerStats.map((c, i) => (
+                      <tr key={`${c.name}-${i}`} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-5 py-3 font-medium text-gray-800">{c.name}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-orange-600">{c.webi > 0 ? dollar(c.webi) : <span className="text-gray-200">—</span>}</td>
                         <td className="px-5 py-3 text-right tabular-nums text-sky-600">{c.vsl > 0 ? dollar(c.vsl) : <span className="text-gray-200">—</span>}</td>
