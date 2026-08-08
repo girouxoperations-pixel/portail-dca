@@ -3,8 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 // Vercel invokes this with Authorization: Bearer <CRON_SECRET>
 export async function GET(req: Request) {
-  const auth = req.headers.get('authorization')
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (req.headers.get('x-vercel-cron') !== '1') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
