@@ -17,7 +17,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // ----------------------------------------------------------------
 // Routes publiques (pas d'authentification requise)
 // ----------------------------------------------------------------
-const PUBLIC_PATHS = ['/login', '/unauthorized', '/reset-password']
+const PUBLIC_PATHS = ['/login', '/unauthorized', '/reset-password', '/api/cron']
 
 // ----------------------------------------------------------------
 // Routes avec restriction de rôle.
