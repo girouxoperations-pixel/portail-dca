@@ -95,7 +95,6 @@ function formatDate(dateStr: string) {
 function getSourceType(e: CashEntry, recurringIds: Set<string>): SourceType {
   if (recurringIds.has(e.id)) return 'recurrent'
   if (e.close_type === 'recurring') return 'recurrent'
-  if (e.close_type === 'financement') return 'recurrent'
   if (e.notes?.startsWith('Récurrent')) return 'recurrent'
   return 'deal'
 }
@@ -1903,7 +1902,7 @@ export default function CashView({
         // Build counts[week][dow] — use ALL entries for the year, not just the filtered period
         const counts: Record<number, Record<number, number>> = {}
         for (let w = 1; w <= 52; w++) counts[w] = {}
-        const deals = entrees.filter(e => !recurringIds.has(e.id) && e.close_type !== 'recurring' && e.close_type !== 'financement')
+        const deals = entrees.filter(e => !recurringIds.has(e.id) && e.close_type !== 'recurring')
         deals.forEach(e => {
           const w = weekOfYear(e.entry_date)
           if (!w) return
