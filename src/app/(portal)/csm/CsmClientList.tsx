@@ -642,8 +642,8 @@ function TasksPanel({
     return (
       <div className={cn('bg-white rounded-xl border shadow-sm overflow-hidden', cls)}>
         <div className="px-4 py-3 border-b flex items-center gap-2">
-          <span className="text-sm font-semibold">{label}</span>
-          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{items.length}</span>
+          <span className="text-sm font-bold text-gray-900">{label}</span>
+          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{items.length}</span>
         </div>
         <div className="divide-y divide-gray-50">
           {items.map(t => <TaskRow key={t.id} task={t} />)}
