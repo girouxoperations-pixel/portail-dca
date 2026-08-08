@@ -618,7 +618,7 @@ function TasksPanel({
           }
         </button>
         <div className="flex-1 min-w-0">
-          <span className={cn('text-sm', task.done && 'line-through text-gray-400')}>{task.title}</span>
+          <span className={cn('text-sm font-medium text-gray-800', task.done && 'line-through text-gray-400')}>{task.title}</span>
           <button
             onClick={() => onAdd(task.csm_client_id, clientName)}
             className="ml-2 text-[11px] text-violet-500 hover:text-violet-700 font-medium"

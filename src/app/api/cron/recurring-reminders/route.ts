@@ -69,9 +69,9 @@ export async function GET(req: Request) {
     const csmClientId = clientMap.get((deal.client_name ?? '').toLowerCase().trim())
     if (!csmClientId) continue // client not in CSM module yet
 
+    const [, dm, dd] = occ.date_attendue.split('-').map(Number)
     const moisFr = ['jan.','fév.','mar.','avr.','mai','juin','juil.','août','sep.','oct.','nov.','déc.']
-    const label = `${occ.mois <= 12 ? moisFr[occ.mois - 1] : occ.mois} ${occ.annee}`
-    const title = `Email virement — ${deal.client_name} (versement ${label})`
+    const title = `Email virement — ${deal.client_name} (dû le ${dd} ${moisFr[dm - 1]})`
 
     await db.from('csm_tasks').insert({
       csm_client_id:          csmClientId,
