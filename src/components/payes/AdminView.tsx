@@ -906,8 +906,8 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
     const closers = new Map<string, string>()
     const setters = new Map<string, string>()
     for (const e of filtrees) {
-      if (e.closer_id && e.commission > 0)        closers.set(e.closer_id, profileMap.get(e.closer_id) ?? e.closer_id)
-      if (e.setter_id && e.commission_setter > 0)  setters.set(e.setter_id, profileMap.get(e.setter_id) ?? e.setter_id)
+      if (e.closer_id && e.commission !== 0)        closers.set(e.closer_id, profileMap.get(e.closer_id) ?? e.closer_id)
+      if (e.setter_id && e.commission_setter !== 0)  setters.set(e.setter_id, profileMap.get(e.setter_id) ?? e.setter_id)
     }
     const sortByNom = (a: PersonCol, b: PersonCol) => a.nom.localeCompare(b.nom, 'fr')
     return [
@@ -919,8 +919,8 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
   const vue = useMemo(() => {
     if (!selectedPersonId) return filtrees
     return filtrees.filter(e =>
-      (e.closer_id === selectedPersonId && e.commission > 0) ||
-      (e.setter_id === selectedPersonId && e.commission_setter > 0),
+      (e.closer_id === selectedPersonId && e.commission !== 0) ||
+      (e.setter_id === selectedPersonId && e.commission_setter !== 0),
     )
   }, [filtrees, selectedPersonId])
 
@@ -932,12 +932,12 @@ function VueClient({ filtrees, profileMap, isAdmin, pending, onToggle, onEdit }:
         ?? (e.commission > 0 ? Math.round(e.commission / 0.10) : e.montant)
       totalCollected += collected
       totalNet += collected - e.commission - e.commission_setter
-      if (e.closer_id && e.commission > 0) {
+      if (e.closer_id && e.commission !== 0) {
         const nom = (profileMap.get(e.closer_id) ?? '').trim().toLowerCase()
         if (!EXCLUDED_FROM_PAYES.includes(nom))
           map.set(e.closer_id, (map.get(e.closer_id) ?? 0) + e.commission)
       }
-      if (e.setter_id && e.commission_setter > 0) {
+      if (e.setter_id && e.commission_setter !== 0) {
         const nom = (profileMap.get(e.setter_id) ?? '').trim().toLowerCase()
         if (!EXCLUDED_FROM_PAYES.includes(nom))
           map.set(e.setter_id, (map.get(e.setter_id) ?? 0) + e.commission_setter)
