@@ -102,19 +102,27 @@ export async function toggleMilestone(
   const { error } = await db.from('csm_clients').update({ [field]: value }).eq('id', clientId)
   if (error) throw error
 
-  if (client?.csm_id) {
+  // If no CSM assigned, default to Jacinthe
+  let csmId = client?.csm_id
+  if (!csmId) {
+    const { data: jacinthe } = await db.from('profiles')
+      .select('id').ilike('full_name', 'Jacinthe%').limit(1).single()
+    csmId = jacinthe?.id ?? null
+  }
+
+  if (csmId) {
     if (value) {
       // Auto-commission on first-time milestone trigger
       if (field === 'cert_setter_done' && !client.cert_setter_done) {
         await insertCommission(db, {
-          csmId: client.csm_id, clientId, clientName: client.name,
+          csmId, clientId, clientName: client.name,
           type: 'cert_setter', amount: 50,
           description: `Certification setter — ${client.name}`,
         })
       }
       if (field === 'cert_closer_done' && !client.cert_closer_done) {
         await insertCommission(db, {
-          csmId: client.csm_id, clientId, clientName: client.name,
+          csmId, clientId, clientName: client.name,
           type: 'cert_closer', amount: 150,
           description: `Certification closer — ${client.name}`,
         })
@@ -123,7 +131,7 @@ export async function toggleMilestone(
       if ((field === 'opportunity_setter' || field === 'opportunity_closer')
         && !client.opportunity_setter && !client.opportunity_closer) {
         await insertCommission(db, {
-          csmId: client.csm_id, clientId, clientName: client.name,
+          csmId, clientId, clientName: client.name,
           type: 'placement', amount: 100,
           description: `Placement — ${client.name}`,
         })
@@ -347,13 +355,20 @@ export async function creerCsmClientManuel(data: {
 }) {
   await verifyAdminOrCsm()
   const db = createAdminClient()
+  let csmIdManuel = data.csm_id || null
+  if (!csmIdManuel) {
+    const { data: jacinthe } = await db.from('profiles')
+      .select('id').ilike('full_name', 'Jacinthe%').limit(1).single()
+    csmIdManuel = jacinthe?.id ?? null
+  }
+
   const { error } = await db.from('csm_clients').insert({
     name:            data.name.trim(),
     enrollment_date: data.enrollment_date,
     payment_type:    data.payment_type || 'pif',
     phone:           data.phone || null,
     email:           data.email || null,
-    csm_id:          data.csm_id || null,
+    csm_id:          csmIdManuel,
     status:          'active',
   })
   if (error) throw error
