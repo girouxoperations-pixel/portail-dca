@@ -234,11 +234,26 @@ export async function marquerRemboursementAvecMontant(clientId: string, montantA
   let closerId: string | null = null
   let setterId: string | null = null
 
-  if (client.cash_entry_id) {
+  let resolvedCashEntryId: string | null = client.cash_entry_id
+
+  // Fallback: if no cash_entry_id, look up by client name
+  if (!resolvedCashEntryId && client.name) {
+    const { data: found } = await db
+      .from('cash_entries')
+      .select('id')
+      .ilike('client_name', client.name.trim())
+      .eq('is_refunded', false)
+      .order('entry_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    resolvedCashEntryId = found?.id ?? null
+  }
+
+  if (resolvedCashEntryId) {
     const { data: payeEntry } = await db
       .from('paye_entries')
       .select('closer_id, setter_id')
-      .eq('cash_entry_id', client.cash_entry_id)
+      .eq('cash_entry_id', resolvedCashEntryId)
       .maybeSingle()
 
     closerId = payeEntry?.closer_id ?? null
@@ -252,7 +267,7 @@ export async function marquerRemboursementAvecMontant(clientId: string, montantA
         statut:            'Remboursé',
         notes:             `[REMBOURSÉ le ${dateStr}] — ${client.name ?? ''}`,
       })
-      .eq('cash_entry_id', client.cash_entry_id)
+      .eq('cash_entry_id', resolvedCashEntryId)
 
     await db.from('cash_entries')
       .update({
@@ -261,7 +276,7 @@ export async function marquerRemboursementAvecMontant(clientId: string, montantA
         is_refunded: true,
         notes:       `[REMBOURSÉ le ${dateStr}]`,
       })
-      .eq('id', client.cash_entry_id)
+      .eq('id', resolvedCashEntryId)
   }
 
   // Insert negative paye entries (closer 10%, setter 5%)
@@ -315,6 +330,7 @@ export async function marquerRemboursementAvecMontant(clientId: string, montantA
   revalidatePath('/clients')
   revalidatePath('/cm')
   revalidatePath('/cashcollect')
+  revalidatePath('/cash')
   revalidatePath('/dashboard')
 }
 
