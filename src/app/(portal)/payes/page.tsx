@@ -54,7 +54,7 @@ export default async function PayesPage() {
       db.from('csm_commissions')
         .select('id, csm_id, client_name, type, amount, paid, paid_at, month, year, description, created_at')
         .order('created_at', { ascending: false }),
-      db.from('profiles').select('id, full_name').contains('roles', ['csm']),
+      db.from('profiles').select('id, full_name').or('roles.cs.{csm},roles.cs.{head_csm}'),
     ])
 
     const entreesNorm = (entrees ?? []).map(e => ({
