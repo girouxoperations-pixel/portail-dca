@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useTransition, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown,
   Zap, Clock, ChevronDown, ChevronRight, RefreshCw, BarChart3,
@@ -1061,6 +1062,7 @@ function StatsBlock({
 export default function CashView({
   entrees, closers, setters, allProfiles, csmMembers, isAdmin, recurringCashIds, recurringOccMap, perfs, csmClients, closerEntries,
 }: Props) {
+  const router    = useRouter()
   const today     = new Date().toISOString().slice(0, 10)
   const yearNow   = new Date().getFullYear()
   const monthNow  = new Date().getMonth()
@@ -1079,18 +1081,25 @@ export default function CashView({
 
   const [refundTarget, setRefundTarget]   = useState<CashEntry | null>(null)
   const [refundMontant, setRefundMontant] = useState('')
+  const [refundError, setRefundError]     = useState<string | null>(null)
   const [refundPending, startRefundTrans] = useTransition()
 
-  function handleRefundOpen(e: CashEntry) { setRefundTarget(e); setRefundMontant('') }
-  function handleRefundClose() { setRefundTarget(null); setRefundMontant('') }
+  function handleRefundOpen(e: CashEntry) { setRefundTarget(e); setRefundMontant(''); setRefundError(null) }
+  function handleRefundClose() { setRefundTarget(null); setRefundMontant(''); setRefundError(null) }
   function handleRefundConfirm(ev: React.FormEvent) {
     ev.preventDefault()
     if (!refundTarget) return
     const montant = parseFloat(refundMontant.replace(',', '.'))
     if (!montant || montant <= 0) return
+    setRefundError(null)
     startRefundTrans(async () => {
-      await marquerRemboursementDepuisCash(refundTarget.id, montant)
-      handleRefundClose()
+      try {
+        await marquerRemboursementDepuisCash(refundTarget.id, montant)
+        handleRefundClose()
+        router.refresh()
+      } catch (err: unknown) {
+        setRefundError(err instanceof Error ? err.message : 'Erreur inconnue')
+      }
     })
   }
 
@@ -2156,6 +2165,9 @@ export default function CashView({
                   <p>Déduction closer : <span className="font-semibold">−{(parseFloat(refundMontant) * 0.10).toFixed(2)} $</span></p>
                   <p>Déduction setter : <span className="font-semibold">−{(parseFloat(refundMontant) * 0.05).toFixed(2)} $</span></p>
                 </div>
+              )}
+              {refundError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{refundError}</p>
               )}
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={handleRefundClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>

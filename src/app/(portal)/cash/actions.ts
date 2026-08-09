@@ -32,7 +32,7 @@ function parseYearMonth(entryDate: string) {
 // ── Actions ──────────────────────────────────────────────────────────
 
 export async function creerCash(formData: FormData) {
-  const { userId } = await requireRole(['admin', 'csm'])
+  const { userId } = await requireRole(['admin', 'csm', 'head_csm'])
   const db = createAdminClient()
 
   const entryDate = formData.get('entry_date') as string
@@ -62,7 +62,7 @@ export async function creerCash(formData: FormData) {
 }
 
 export async function modifierCash(id: string, formData: FormData) {
-  await requireRole(['admin', 'csm'])
+  await requireRole(['admin', 'csm', 'head_csm'])
   const db = createAdminClient()
 
   const entryDate      = formData.get('entry_date') as string
@@ -114,7 +114,7 @@ export async function modifierCash(id: string, formData: FormData) {
 }
 
 export async function marquerRemboursementDepuisCash(cashEntryId: string, montantAvantTaxe: number) {
-  await requireRole(['admin', 'csm'])
+  await requireRole(['admin', 'csm', 'head_csm'])
   const db = createAdminClient()
 
   const { data: entry } = await db
@@ -237,7 +237,7 @@ export async function supprimerCash(id: string) {
 // ── Weekly performance (Webi / VSL) ──────────────────────────────
 
 export async function ajouterWeeklyPerf(formData: FormData) {
-  const { userId } = await requireRole(['admin', 'csm'])
+  const { userId } = await requireRole(['admin', 'csm', 'head_csm'])
   const db = createAdminClient()
 
   const week_number = Number(formData.get('week_number'))
@@ -265,7 +265,7 @@ export async function ajouterWeeklyPerf(formData: FormData) {
 }
 
 export async function modifierWeeklyPerf(id: string, formData: FormData) {
-  await requireRole(['admin', 'csm'])
+  await requireRole(['admin', 'csm', 'head_csm'])
   const db = createAdminClient()
 
   const { error } = await db.from('weekly_perf').update({
@@ -326,7 +326,7 @@ export interface PerfImportRow {
 }
 
 export async function importerCashEntries(rows: CashImportRow[]) {
-  const { userId } = await requireRole(['admin', 'csm'])
+  const { userId } = await requireRole(['admin', 'csm', 'head_csm'])
   const db = createAdminClient()
 
   const { data: profiles } = await db.from('profiles').select('id, full_name')
@@ -427,7 +427,7 @@ export async function importerRecurringDeals(
   collectMonth: number,
   forceCreate = false,
 ) {
-  const { userId } = await requireRole(['admin', 'csm'])
+  const { userId } = await requireRole(['admin', 'csm', 'head_csm'])
   const db = createAdminClient()
 
   const { data: profiles } = await db.from('profiles').select('id, full_name')
@@ -596,7 +596,7 @@ export async function importerRecurringDeals(
 }
 
 export async function importerWeeklyPerfs(rows: PerfImportRow[]) {
-  const { userId } = await requireRole(['admin', 'csm'])
+  const { userId } = await requireRole(['admin', 'csm', 'head_csm'])
   const db = createAdminClient()
 
   const perfs = rows
