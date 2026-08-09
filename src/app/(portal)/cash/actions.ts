@@ -142,9 +142,12 @@ export async function marquerRemboursementDepuisCash(cashEntryId: string, montan
     .eq('cash_entry_id', cashEntryId)
 
   // Mark cash entry as refunded
-  await db.from('cash_entries')
+  const { data: updated, error: refundError } = await db.from('cash_entries')
     .update({ collected: 0, close_type: 'refund', is_refunded: true, notes: `[REMBOURSÉ le ${dateStr}]` })
     .eq('id', cashEntryId)
+    .select('id')
+  if (refundError) throw new Error(`Erreur DB: ${refundError.message}`)
+  if (!updated || updated.length === 0) throw new Error(`Aucune ligne mise à jour — vérifier l'ID: ${cashEntryId}`)
 
   // Insert negative paye entry (closer 10%, setter 5%)
   if (entry.closed_by || entry.set_by) {
