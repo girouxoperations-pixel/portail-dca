@@ -597,11 +597,13 @@ export default async function DashboardPage({
     supabase.from('cash_entries')
       .select('montant_courant, collected, closed_by, set_by, close_type, notes')
       .gte('entry_date', dateMin)
-      .lt('entry_date', dateMax),
+      .lt('entry_date', dateMax)
+      .neq('is_refunded', true),
     supabase.from('cash_entries')
       .select('montant_courant, collected')
       .gte('entry_date', prevMin)
-      .lt('entry_date', prevMax),
+      .lt('entry_date', prevMax)
+      .neq('is_refunded', true),
     supabase.from('profiles')
       .select('id, full_name, role'),
     supabase.from('cash_entries')
@@ -623,7 +625,8 @@ export default async function DashboardPage({
       .select('id, recurring_deal_id, date_attendue, montant_attendu, recu, mois, annee, recurring_deals(client_name, closer_id, methode_paiement, actif, notes)')
       .eq('recu', false),
     supabase.from('cash_entries')
-      .select('entry_date, closed_by, set_by, collected, close_type, notes'),
+      .select('entry_date, closed_by, set_by, collected, close_type, notes')
+      .neq('is_refunded', true),
     db.from('profiles').select('id, full_name').contains('roles', ['csm']),
   ])
 
