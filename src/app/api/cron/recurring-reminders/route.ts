@@ -8,11 +8,11 @@ export async function GET(req: Request) {
 
   const db = createAdminClient()
 
-  // Create tasks for virements due in the next 3 days (covers weekends + today)
+  // Create tasks for virements due in exactly 2 days
   const now = new Date()
   const todayStr   = now.toISOString().slice(0, 10)
   const futureDate = new Date(now)
-  futureDate.setDate(futureDate.getDate() + 3)
+  futureDate.setDate(futureDate.getDate() + 2)
   const futureDateStr = futureDate.toISOString().slice(0, 10)
 
   const moisFr = ['jan.','fév.','mar.','avr.','mai','juin','juil.','août','sep.','oct.','nov.','déc.']
@@ -22,8 +22,7 @@ export async function GET(req: Request) {
     .from('recurring_occurrences')
     .select('id, date_attendue, recurring_deal_id, recurring_deals(client_name, methode_paiement)')
     .eq('recu', false)
-    .gte('date_attendue', todayStr)
-    .lte('date_attendue', futureDateStr)
+    .eq('date_attendue', futureDateStr)
 
   if (occErr) return NextResponse.json({ error: occErr.message }, { status: 500 })
   if (!occurrences?.length) return NextResponse.json({ created: 0 })
