@@ -576,6 +576,7 @@ interface Props {
   currentMonth:     number
   currentUserId:    string
   isAdmin:          boolean
+  canSeeAll:        boolean
 }
 
 // ── Tasks panel ────────────────────────────────────────────────────────
@@ -972,7 +973,7 @@ function CsmDashboard({
 export default function CsmClientList({
   clients, fullyPaidNames, csmMembers,
   dashCommissions, csmGoals, virementStats, availableClients, tasks,
-  currentYear, currentMonth, currentUserId, isAdmin,
+  currentYear, currentMonth, currentUserId, isAdmin, canSeeAll,
 }: Props) {
   const fullyPaidSet = useMemo(() => new Set(fullyPaidNames), [fullyPaidNames])
   const [search, setSearch]             = useState('')
@@ -1287,7 +1288,7 @@ export default function CsmClientList({
             className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
-        {csmMembers.length > 0 && (
+        {canSeeAll && csmMembers.length > 0 && (
           <select
             value={csmFilter}
             onChange={e => setCsmFilter(e.target.value)}
@@ -1436,7 +1437,7 @@ export default function CsmClientList({
                           </select>
                         </div>
                       </div>
-                      {csmMembers.length > 0 && (
+                      {canSeeAll && csmMembers.length > 0 ? (
                         <div className="flex flex-col gap-1.5">
                           <label className="text-xs font-medium text-gray-600">CSM responsable</label>
                           <select name="csm_id" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
@@ -1444,6 +1445,8 @@ export default function CsmClientList({
                             {csmMembers.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>)}
                           </select>
                         </div>
+                      ) : (
+                        <input type="hidden" name="csm_id" value={currentUserId} />
                       )}
                       <div className="flex justify-end gap-2 pt-2">
                         <button type="button" onClick={closeAjout} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
@@ -1492,7 +1495,7 @@ export default function CsmClientList({
                         className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
                     </div>
                   </div>
-                  {csmMembers.length > 0 && (
+                  {canSeeAll && csmMembers.length > 0 ? (
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-medium text-gray-600">CSM responsable</label>
                       <select name="csm_id" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
@@ -1500,6 +1503,8 @@ export default function CsmClientList({
                         {csmMembers.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>)}
                       </select>
                     </div>
+                  ) : (
+                    <input type="hidden" name="csm_id" value={currentUserId} />
                   )}
                   <div className="flex justify-between items-center pt-2">
                     <button type="button" onClick={() => setAjoutMode('choice')} className="text-xs text-gray-400 hover:text-gray-600">← Retour</button>
@@ -1622,7 +1627,7 @@ export default function CsmClientList({
                   <th className="px-2 py-2.5 text-center border-l border-gray-100">Email</th>
                   <th className="px-2 py-2.5 text-center">Statut</th>
                   <th className="px-2 py-2.5 text-center">Paie</th>
-                  {csmMembers.length > 0 && <th className="px-2 py-2.5 text-center text-violet-400">CSM</th>}
+                  {canSeeAll && csmMembers.length > 0 && <th className="px-2 py-2.5 text-center text-violet-400">CSM</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -1755,7 +1760,7 @@ export default function CsmClientList({
                       />
 
                       {/* CSM assignée */}
-                      {csmMembers.length > 0 && (
+                      {canSeeAll && csmMembers.length > 0 && (
                         <CsmCell clientId={c.id} csmId={c.csm_id} csmMembers={csmMembers} />
                       )}
                     </tr>

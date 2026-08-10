@@ -3,6 +3,7 @@ import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { nowQC }             from '@/lib/dates'
 import CsmClientList         from './CsmClientList'
+import type { CsmTask }      from './types'
 
 export default async function CsmPage() {
   const supabase = await createClient()
@@ -21,8 +22,28 @@ export default async function CsmPage() {
   const db = createAdminClient()
   const { year, month } = nowQC()
 
+  const isCsmOnly = !userRoles.includes('admin') && !userRoles.includes('head_csm')
+
+  // Fetch clients first so we can scope subsequent queries for plain CSM users
+  const { data: clients } = await (isCsmOnly
+    ? db.from('csm_clients').select('*').eq('csm_id', user.id).order('enrollment_date', { ascending: false })
+    : db.from('csm_clients').select('*').order('enrollment_date', { ascending: false })
+  )
+
+  const ownClientIds = (clients ?? []).map(c => c.id)
+
+  const tasksQuery = isCsmOnly
+    ? (ownClientIds.length > 0
+        ? db.from('csm_tasks')
+            .select('id, csm_client_id, title, due_date, done, done_at, created_at, recurring_occurrences(date_attendue)')
+            .in('csm_client_id', ownClientIds)
+            .order('due_date', { ascending: true })
+        : Promise.resolve({ data: [] as CsmTask[] }))
+    : db.from('csm_tasks')
+        .select('id, csm_client_id, title, due_date, done, done_at, created_at, recurring_occurrences(date_attendue)')
+        .order('due_date', { ascending: true })
+
   const [
-    { data: clients },
     { data: dealData },
     { data: csmMembers },
     { data: dashCommissions },
@@ -31,7 +52,6 @@ export default async function CsmPage() {
     { data: cashEntries },
     { data: csmTasks },
   ] = await Promise.all([
-    db.from('csm_clients').select('*').order('enrollment_date', { ascending: false }),
     db.from('recurring_deals').select('client_name, versements_total, recurring_occurrences(recu)'),
     db.from('profiles').select('id, full_name').or('roles.cs.{csm},roles.cs.{head_csm}'),
     db.from('csm_commissions')
@@ -47,9 +67,7 @@ export default async function CsmPage() {
     db.from('cash_entries')
       .select('client_name, entry_date')
       .order('entry_date', { ascending: false }),
-    db.from('csm_tasks')
-      .select('id, csm_client_id, title, due_date, done, done_at, created_at, recurring_occurrences(date_attendue)')
-      .order('due_date', { ascending: true }),
+    tasksQuery,
   ])
 
   // Build per-CSM virement stats (attendu / collecté) per month
@@ -112,6 +130,7 @@ export default async function CsmPage() {
       currentMonth={month}
       currentUserId={user.id}
       isAdmin={userRoles.includes('admin')}
+      canSeeAll={!isCsmOnly}
     />
   )
 }
