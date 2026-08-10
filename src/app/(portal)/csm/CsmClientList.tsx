@@ -1151,10 +1151,11 @@ export default function CsmClientList({
   const m3NoShowCount   = clients.filter(c => c.m3_missed).length
   const j90Count        = clients.filter(c => daysBetween(c.enrollment_date, todayStr) >= 90).length
   const meetingsToday   = clients.filter(c =>
-    c.onboarding_date === todayStr ||
-    c.m2_date === todayStr ||
-    c.m3_date === todayStr ||
-    c.m4_date === todayStr
+    (csmFilter === 'tous' || c.csm_id === csmFilter) &&
+    (c.onboarding_date === todayStr ||
+     c.m2_date === todayStr ||
+     c.m3_date === todayStr ||
+     c.m4_date === todayStr)
   ).length
 
   const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
