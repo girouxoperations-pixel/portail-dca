@@ -40,7 +40,7 @@ export default async function CashPage() {
       .select('id, status, payment_type'),
     db.from('profiles')
       .select('id, full_name, role')
-      .contains('roles', ['csm']),
+      .or('roles.cs.{csm},roles.cs.{head_csm}'),
     db.from('closer_entries')
       .select('entry_date, pitch_calls, closes'),
   ])

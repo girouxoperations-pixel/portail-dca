@@ -632,7 +632,7 @@ export default async function DashboardPage({
     supabase.from('cash_entries')
       .select('entry_date, closed_by, set_by, collected, close_type, notes')
       .neq('is_refunded', true),
-    db.from('profiles').select('id, full_name').contains('roles', ['csm']),
+    db.from('profiles').select('id, full_name').or('roles.cs.{csm},roles.cs.{head_csm}'),
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
