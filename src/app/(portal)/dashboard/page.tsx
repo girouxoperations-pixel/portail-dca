@@ -591,11 +591,12 @@ export default async function DashboardPage({
     { data: recurringOccs },
     { data: allCashEntries },
     { data: csmMembers },
+    { data: recurringCashOccs },
   ] = await Promise.all([
     supabase.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
     supabase.from('cash_entries')
-      .select('montant_courant, collected, closed_by, set_by, close_type, notes')
+      .select('id, montant_courant, collected, closed_by, set_by, close_type, notes')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax)
       .neq('is_refunded', true),
@@ -624,6 +625,10 @@ export default async function DashboardPage({
     db.from('recurring_occurrences')
       .select('id, recurring_deal_id, date_attendue, montant_attendu, recu, mois, annee, recurring_deals(client_name, closer_id, methode_paiement, actif, notes)')
       .eq('recu', false),
+    db.from('recurring_occurrences')
+      .select('cash_entry_id')
+      .eq('recu', true)
+      .not('cash_entry_id', 'is', null),
     supabase.from('cash_entries')
       .select('entry_date, closed_by, set_by, collected, close_type, notes')
       .neq('is_refunded', true),
@@ -838,10 +843,14 @@ export default async function DashboardPage({
   }
 
   // ── KPIs ─────────────────────────────────────────────────────────
+  const recurringCashIds = new Set(
+    (recurringCashOccs ?? []).map(o => o.cash_entry_id).filter(Boolean) as string[]
+  )
   const cashRevenu    = (cashMois ?? []).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
   const cashCollected = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
-  const isRecEntry = (e: { close_type: string | null; notes: string | null }) =>
-    e.close_type === 'recurring' || e.close_type === 'financement' ||
+  const isRecEntry = (e: { id?: string; close_type: string | null; notes: string | null }) =>
+    (e.id ? recurringCashIds.has(e.id) : false) ||
+    e.close_type === 'recurring' ||
     e.notes?.startsWith('Récurrent') || e.notes?.startsWith('Alveo')
 
   const nOnTheSpotDash  = (cashMois ?? []).filter(e => !isRecEntry(e) && e.close_type === 'on_the_spot').length
