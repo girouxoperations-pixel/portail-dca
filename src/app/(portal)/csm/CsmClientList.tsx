@@ -1199,7 +1199,7 @@ export default function CsmClientList({
       {/* Dashboard certifications */}
       <CsmDashboard
         commissions={dashCommissions}
-        csmMembers={csmMembers}
+        csmMembers={canSeeAll ? csmMembers : csmMembers.filter(m => m.id === currentUserId)}
         goals={csmGoals}
         virementStats={virementStats}
         currentYear={currentYear}

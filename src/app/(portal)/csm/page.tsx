@@ -54,13 +54,24 @@ export default async function CsmPage() {
   ] = await Promise.all([
     db.from('recurring_deals').select('client_name, versements_total, recurring_occurrences(recu)'),
     db.from('profiles').select('id, full_name').or('roles.cs.{csm},roles.cs.{head_csm}'),
-    db.from('csm_commissions')
-      .select('csm_id, type, amount, created_at, month, year, client_name')
-      .in('type', ['cert_setter', 'placement', 'cert_closer', 'upsell', 'carte_2pct'])
-      .order('created_at', { ascending: false }),
-    db.from('user_goals')
-      .select('user_id, year, month, target_cert_setter, target_placement, target_cert_closer, target_upsell')
-      .eq('year', year),
+    isCsmOnly
+      ? db.from('csm_commissions')
+          .select('csm_id, type, amount, created_at, month, year, client_name')
+          .in('type', ['cert_setter', 'placement', 'cert_closer', 'upsell', 'carte_2pct'])
+          .eq('csm_id', user.id)
+          .order('created_at', { ascending: false })
+      : db.from('csm_commissions')
+          .select('csm_id, type, amount, created_at, month, year, client_name')
+          .in('type', ['cert_setter', 'placement', 'cert_closer', 'upsell', 'carte_2pct'])
+          .order('created_at', { ascending: false }),
+    isCsmOnly
+      ? db.from('user_goals')
+          .select('user_id, year, month, target_cert_setter, target_placement, target_cert_closer, target_upsell')
+          .eq('year', year)
+          .eq('user_id', user.id)
+      : db.from('user_goals')
+          .select('user_id, year, month, target_cert_setter, target_placement, target_cert_closer, target_upsell')
+          .eq('year', year),
     db.from('recurring_deals')
       .select('id, client_name, recurring_occurrences(mois, annee, montant_attendu, montant_recu, recu)')
       .eq('methode_paiement', 'virement'),
