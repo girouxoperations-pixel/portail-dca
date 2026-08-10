@@ -749,9 +749,7 @@ export default async function DashboardPage({
 
   function isLbDeal(e: { close_type: string | null; notes: string | null }) {
     if (e.close_type === 'recurring') return false
-    if (e.close_type === 'financement') return false
     if (e.notes?.startsWith('Récurrent')) return false
-    if (e.notes?.startsWith('Alveo')) return false
     return true
   }
 
