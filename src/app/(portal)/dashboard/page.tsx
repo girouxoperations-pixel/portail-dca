@@ -589,9 +589,9 @@ export default async function DashboardPage({
     { data: allCloserEntries },
     { data: setterEntriesMois },
     { data: recurringOccs },
+    { data: recurringCashOccs },
     { data: allCashEntries },
     { data: csmMembers },
-    { data: recurringCashOccs },
   ] = await Promise.all([
     supabase.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
