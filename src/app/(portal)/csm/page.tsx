@@ -48,7 +48,7 @@ export default async function CsmPage() {
       .select('client_name, entry_date')
       .order('entry_date', { ascending: false }),
     db.from('csm_tasks')
-      .select('id, csm_client_id, title, due_date, done, done_at, created_at')
+      .select('id, csm_client_id, title, due_date, done, done_at, created_at, recurring_occurrences(date_attendue)')
       .order('due_date', { ascending: true }),
   ])
 

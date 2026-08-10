@@ -1,11 +1,12 @@
 export interface CsmTask {
-  id:            string
-  csm_client_id: string
-  title:         string
-  due_date:      string
-  done:          boolean
-  done_at:       string | null
-  created_at:    string
+  id:                    string
+  csm_client_id:         string
+  title:                 string
+  due_date:              string
+  done:                  boolean
+  done_at:               string | null
+  created_at:            string
+  recurring_occurrences?: { date_attendue: string } | { date_attendue: string }[] | null
 }
 
 export interface CsmClient {

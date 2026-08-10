@@ -599,9 +599,15 @@ function TasksPanel({
     csmFilter === 'tous' || clientCsmMap.get(t.csm_client_id) === csmFilter
   )
 
-  const overdue  = visible.filter(t => !t.done && t.due_date <  todayStr)
-  const dueToday = visible.filter(t => !t.done && t.due_date === todayStr)
-  const upcoming = visible.filter(t => !t.done && t.due_date >  todayStr)
+  function virementDate(t: CsmTask): string {
+    const ro = t.recurring_occurrences
+    if (!ro) return t.due_date
+    return Array.isArray(ro) ? (ro[0]?.date_attendue ?? t.due_date) : ro.date_attendue
+  }
+  function byVirement(a: CsmTask, b: CsmTask) { return virementDate(a).localeCompare(virementDate(b)) }
+  const overdue  = visible.filter(t => !t.done && t.due_date <  todayStr).sort(byVirement)
+  const dueToday = visible.filter(t => !t.done && t.due_date === todayStr).sort(byVirement)
+  const upcoming = visible.filter(t => !t.done && t.due_date >  todayStr).sort(byVirement)
   const done     = visible.filter(t => t.done)
 
   function TaskRow({ task }: { task: CsmTask }) {
