@@ -718,15 +718,18 @@ function EntryRow({ e, profileMap, recurringIds, occurrenceId, isAdmin, onEdit, 
       <tr className="bg-red-50 border-l-4 border-red-400">
         <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{formatDate(e.entry_date)}</td>
         <td className="px-4 py-3 font-medium text-gray-600 max-w-[160px] truncate">{e.client_name ?? '—'}</td>
-        <td colSpan={6} className="px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-red-600 uppercase tracking-widest">Remboursement</span>
-            <span className="text-gray-400 line-through text-xs tabular-nums">{dollar(e.montant_courant)}</span>
-          </div>
+        <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-sm">{e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}</td>
+        <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-sm">{e.set_by ? (profileMap.get(e.set_by) ?? '—') : '—'}</td>
+        <td className="px-4 py-3">
+          <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Remboursement</span>
         </td>
+        <td className="px-4 py-3" />
+        <td className="px-4 py-3 text-right tabular-nums text-gray-400 line-through text-xs">{dollar(e.montant_courant)}</td>
         <td className="px-4 py-3 text-right tabular-nums">
           <span className="text-sm font-bold text-red-600">0,00 $</span>
         </td>
+        <td className="px-4 py-3" />
+        <td className="px-4 py-3 text-xs text-gray-400">{e.methode ?? '—'}</td>
         <td className="px-4 py-3">
           <div className="flex items-center justify-end gap-1.5">
             {isAdmin && (
