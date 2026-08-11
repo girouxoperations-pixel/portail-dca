@@ -80,9 +80,7 @@ export default async function EquipePage({
 
   function isRealDeal(e: { close_type: string | null; notes: string | null }) {
     return e.close_type !== 'recurring' &&
-      e.close_type !== 'financement' &&
-      !e.notes?.startsWith('Récurrent') &&
-      !e.notes?.startsWith('Alveo')
+      !e.notes?.startsWith('Récurrent')
   }
 
   const closerClosesAgg = new Map<string, number>()
