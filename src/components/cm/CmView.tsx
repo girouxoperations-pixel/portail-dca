@@ -338,8 +338,9 @@ export default function CmView({
       const q = search.toLowerCase()
       list = list.filter(f => f.client_name.toLowerCase().includes(q))
     }
-    // Sort by close date descending (most recent first); fall back to created_at
-    return [...list].sort((a, b) => closeDate(b).localeCompare(closeDate(a)))
+    // Order comes from the server (created_at DESC) — never re-sort on the client
+    // so that changing a status does not move entries around.
+    return list
   }, [followups, filtre, search])
 
   const kpis = useMemo(() => ({
