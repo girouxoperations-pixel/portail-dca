@@ -162,8 +162,10 @@ function SourceBadges({ f }: { f: CmFollowup }) {
 function CarteMobile({ followup, isPrivileged }: { followup: CmFollowup; isPrivileged: boolean }) {
   const s = useFollowupState(followup)
 
+  const isRefund = s.local.status === 'remboursee'
+
   return (
-    <div className={`bg-white/[0.04] border border-white/8 rounded-xl p-4 space-y-3 ${s.pending ? 'opacity-70' : ''}`}>
+    <div className={`border rounded-xl p-4 space-y-3 ${s.pending ? 'opacity-70' : ''} ${isRefund ? 'bg-red-950/40 border-red-500/40 border-l-4 border-l-red-500' : 'bg-white/[0.04] border-white/8'}`}>
       {/* Nom + delete */}
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -194,7 +196,10 @@ function CarteMobile({ followup, isPrivileged }: { followup: CmFollowup; isPrivi
 
       {/* Statut + notes */}
       <div className="flex items-center justify-between gap-3">
-        <StatusBadge status={s.local.status} onClick={s.cycleStatus} disabled={s.pending} />
+        {isRefund
+          ? <span className="text-sm font-bold text-red-400 uppercase tracking-widest">Remboursement</span>
+          : <StatusBadge status={s.local.status} onClick={s.cycleStatus} disabled={s.pending} />
+        }
         {s.editNotes ? (
           <div className="flex gap-1.5 flex-1">
             <input autoFocus value={s.notesVal} onChange={e => s.setNotesVal(e.target.value)}
@@ -222,8 +227,10 @@ function CarteMobile({ followup, isPrivileged }: { followup: CmFollowup; isPrivi
 function LigneDesktop({ followup, isPrivileged }: { followup: CmFollowup; isPrivileged: boolean }) {
   const s = useFollowupState(followup)
 
+  const isRefund = s.local.status === 'remboursee'
+
   return (
-    <tr className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${s.pending ? 'opacity-70' : ''}`}>
+    <tr className={`border-b transition-colors ${s.pending ? 'opacity-70' : ''} ${isRefund ? 'bg-red-950/30 border-red-500/20 border-l-4 border-l-red-500' : 'border-white/5 hover:bg-white/[0.02]'}`}>
       <td className="px-4 py-3">
         <div className="font-medium text-sm text-white">{s.local.client_name}</div>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -241,7 +248,10 @@ function LigneDesktop({ followup, isPrivileged }: { followup: CmFollowup; isPriv
         </div>
       </td>
       <td className="px-4 py-3">
-        <StatusBadge status={s.local.status} onClick={s.cycleStatus} disabled={s.pending} />
+        {isRefund
+          ? <span className="text-sm font-bold text-red-400 uppercase tracking-widest">Remboursement</span>
+          : <StatusBadge status={s.local.status} onClick={s.cycleStatus} disabled={s.pending} />
+        }
       </td>
       <td className="px-4 py-3 max-w-[200px]">
         {s.editNotes ? (
