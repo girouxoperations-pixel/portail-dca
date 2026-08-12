@@ -86,6 +86,28 @@ export async function ajouterDeal(data: {
   revalidatePath('/alveo')
 }
 
+export async function modifierNoms(dealId: string, setterName: string, closerName: string) {
+  await requireAdminOrCsm()
+  const db = createAdminClient()
+
+  const { data: deal } = await db.from('alveo_deals').select('montant').eq('id', dealId).single()
+  if (!deal) throw new Error('Deal introuvable')
+
+  const montant = deal.montant as number
+  const commS = Math.round(montant * 0.05 * 100) / 100
+  const commC = Math.round(montant * 0.10 * 100) / 100
+
+  const { error } = await db.from('alveo_deals').update({
+    setter_name:       setterName.trim() || null,
+    closer_name:       closerName.trim() || null,
+    commission_setter: setterName.trim() ? commS : 0,
+    commission_closer: closerName.trim() ? commC : 0,
+  }).eq('id', dealId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/alveo')
+}
+
 export async function modifierCollected(dealId: string, collected: number) {
   await requireAdminOrCsm()
   const db = createAdminClient()

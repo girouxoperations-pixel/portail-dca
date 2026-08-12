@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import {
   ajouterDeal,
   modifierCollected,
+  modifierNoms,
   toggleRoleComplet,
   toggleFondsCollectes,
   annulerDeal,
@@ -285,6 +286,9 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
   const [expanded, setExpanded]       = useState(false)
   const [editCollected, setEditCollected] = useState(false)
   const [collectedVal, setCollectedVal]   = useState(String(deal.collected))
+  const [editNoms, setEditNoms]           = useState(false)
+  const [setterVal, setSetterVal]         = useState(deal.setter_name ?? '')
+  const [closerVal, setCloserVal]         = useState(deal.closer_name ?? '')
   const [pending, startTransition]    = useTransition()
 
   const aCollecter = deal.montant - deal.collected
@@ -296,6 +300,11 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
       startTransition(() => modifierCollected(deal.id, val))
     }
     setEditCollected(false)
+  }
+
+  function saveNoms() {
+    startTransition(() => modifierNoms(deal.id, setterVal, closerVal))
+    setEditNoms(false)
   }
 
   return (
@@ -339,10 +348,43 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
         </td>
 
         {/* Setter */}
-        <td className="px-3 py-2.5 text-xs text-blue-600">{deal.setter_name ?? '—'}</td>
+        <td className="px-3 py-2.5 text-xs text-blue-600">
+          {editNoms ? (
+            <input
+              autoFocus
+              value={setterVal}
+              onChange={e => setSetterVal(e.target.value)}
+              onBlur={saveNoms}
+              onKeyDown={e => { if (e.key === 'Enter') saveNoms(); if (e.key === 'Escape') setEditNoms(false) }}
+              className="w-24 bg-white border border-blue-400 rounded px-1.5 py-0.5 text-xs text-gray-900 focus:outline-none"
+              placeholder="Prénom"
+            />
+          ) : (
+            <button onClick={() => isAdmin && setEditNoms(true)} title={isAdmin ? 'Cliquer pour modifier' : undefined}
+              className={isAdmin ? 'hover:text-blue-400' : ''}>
+              {deal.setter_name || <span className="text-gray-300">—</span>}
+            </button>
+          )}
+        </td>
 
         {/* Closer */}
-        <td className="px-3 py-2.5 text-xs text-violet-600">{deal.closer_name ?? '—'}</td>
+        <td className="px-3 py-2.5 text-xs text-violet-600">
+          {editNoms ? (
+            <input
+              value={closerVal}
+              onChange={e => setCloserVal(e.target.value)}
+              onBlur={saveNoms}
+              onKeyDown={e => { if (e.key === 'Enter') saveNoms(); if (e.key === 'Escape') setEditNoms(false) }}
+              className="w-24 bg-white border border-violet-400 rounded px-1.5 py-0.5 text-xs text-gray-900 focus:outline-none"
+              placeholder="Prénom"
+            />
+          ) : (
+            <button onClick={() => isAdmin && setEditNoms(true)} title={isAdmin ? 'Cliquer pour modifier' : undefined}
+              className={isAdmin ? 'hover:text-violet-400' : ''}>
+              {deal.closer_name || <span className="text-gray-300">—</span>}
+            </button>
+          )}
+        </td>
 
         {/* Montant */}
         <td className="px-3 py-2.5 text-xs text-gray-700 text-right font-mono">
