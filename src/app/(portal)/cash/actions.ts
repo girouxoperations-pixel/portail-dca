@@ -174,10 +174,24 @@ export async function marquerRemboursementDepuisCash(cashEntryId: string, montan
     await db.from('csm_clients').update({ status: 'refund' }).ilike('name', entry.client_name.trim())
   }
 
-  // Propagate to CM followups
+  // Propagate to CM followups — update existing rows, then create one if none existed
   await db.from('cm_followups').update({ status: 'remboursee' }).eq('cash_entry_id', cashEntryId)
   if (entry.client_name) {
     await db.from('cm_followups').update({ status: 'remboursee' }).ilike('client_name', entry.client_name.trim())
+  }
+  // If no cm_followup existed, create one so the CM always sees refunded clients
+  if (entry.client_name) {
+    const { data: existing } = await db.from('cm_followups')
+      .select('id')
+      .or(`cash_entry_id.eq.${cashEntryId},client_name.ilike.${entry.client_name.trim()}`)
+      .limit(1)
+    if (!existing || existing.length === 0) {
+      await db.from('cm_followups').insert({
+        client_name:   entry.client_name,
+        cash_entry_id: cashEntryId,
+        status:        'remboursee',
+      })
+    }
   }
 
   // Cancel active recurring deals
