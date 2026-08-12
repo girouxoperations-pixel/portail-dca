@@ -72,7 +72,7 @@ export async function setCmStatus(
 
   const { error } = await db.from('cm_followups').update({ status }).eq('id', followupId)
   if (error) throw new Error(error.message)
-  revalidatePath('/cm')
+  // No revalidatePath — optimistic local state handles UI; avoids reordering rows
 }
 
 export async function updateCmNotes(followupId: string, notes: string) {
