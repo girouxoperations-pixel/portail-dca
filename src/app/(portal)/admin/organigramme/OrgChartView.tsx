@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState, useTransition } from 'react'
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -27,12 +27,17 @@ import { saveOrgChart } from './actions'
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-type NodeData = { name: string; title: string; color: string }
+type NodeData = { name: string; title: string; color: string; cost?: number }
 type OrgNode  = Node<NodeData>
 
 // Old tree format (migration)
 interface OldNode { id: string; name: string; title: string; color: string; children: OldNode[] }
 interface FlowData { nodes: OrgNode[]; edges: Edge[] }
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+const dollar = (n: number) =>
+  new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(n)
 
 // ── Colors ─────────────────────────────────────────────────────────────
 
@@ -115,6 +120,11 @@ function OrgNodeCard({ data, selected }: NodeProps) {
       </div>
       <p className="text-[13px] font-bold text-gray-900 text-center leading-tight">{d.name}</p>
       {d.title && <p className="text-[10px] text-gray-400 text-center leading-tight">{d.title}</p>}
+      {(d.cost ?? 0) > 0 && (
+        <p className="text-[11px] font-semibold text-emerald-600 mt-0.5">
+          {dollar(d.cost!)} / mois
+        </p>
+      )}
     </div>
   )
 }
@@ -134,6 +144,7 @@ function EditPanel({
   const [name,  setName]  = useState(node.data.name)
   const [title, setTitle] = useState(node.data.title)
   const [color, setColor] = useState(node.data.color)
+  const [cost,  setCost]  = useState(String(node.data.cost ?? ''))
   const [confirmDel, setConfirmDel] = useState(false)
 
   return (
@@ -155,6 +166,18 @@ function EditPanel({
             className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
         </div>
         <div>
+          <label className="text-xs font-medium text-gray-500 mb-1 block">Coût fixe mensuel ($)</label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={cost}
+            onChange={e => setCost(e.target.value)}
+            placeholder="0"
+            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        </div>
+        <div>
           <label className="text-xs font-medium text-gray-500 mb-2 block">Couleur</label>
           <div className="flex flex-wrap gap-1.5">
             {COLORS.map(c => (
@@ -168,7 +191,15 @@ function EditPanel({
 
       <div className="p-4 pt-0 space-y-2">
         <button
-          onClick={() => { onUpdate(node.id, { name: name.trim() || node.data.name, title: title.trim(), color }); onClose() }}
+          onClick={() => {
+            onUpdate(node.id, {
+              name:  name.trim() || node.data.name,
+              title: title.trim(),
+              color,
+              cost:  parseFloat(cost) || 0,
+            })
+            onClose()
+          }}
           className="w-full py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors"
         >
           <Check size={13} /> Appliquer
@@ -209,6 +240,11 @@ function OrgChartInner({ initialData }: { initialData: unknown }) {
 
   const selectedNode = nodes.find(n => n.id === selectedId) ?? null
 
+  const totalCost = useMemo(
+    () => nodes.reduce((sum, n) => sum + (n.data.cost ?? 0), 0),
+    [nodes],
+  )
+
   const onConnect = useCallback((connection: Connection) => {
     setEdges(eds => addEdge({
       ...connection,
@@ -224,7 +260,7 @@ function OrgChartInner({ initialData }: { initialData: unknown }) {
       const rect = wrapperRef.current.getBoundingClientRect()
       position = screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
     }
-    setNodes(ns => [...ns, { id, type: 'orgNode', data: { name: 'Nouveau', title: '', color: '#7c3aed' }, position }])
+    setNodes(ns => [...ns, { id, type: 'orgNode', data: { name: 'Nouveau', title: '', color: '#7c3aed', cost: 0 }, position }])
     setSelectedId(id)
   }, [setNodes, screenToFlowPosition])
 
@@ -273,6 +309,20 @@ function OrgChartInner({ initialData }: { initialData: unknown }) {
             <p className="text-[11px] text-gray-400 bg-white/80 px-2 py-1 rounded-md">
               Glisser un bloc pour le déplacer · Cliquer-glisser depuis un point violet <span className="inline-block w-2.5 h-2.5 rounded-full bg-violet-600 align-middle mx-0.5" /> pour tracer une flèche · Suppr pour effacer
             </p>
+          </Panel>
+          <Panel position="bottom-left">
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm px-4 py-2.5 flex items-center gap-3">
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Coûts fixes totaux</p>
+                <p className="text-lg font-bold text-emerald-600">{dollar(totalCost)}<span className="text-xs font-normal text-gray-400 ml-1">/ mois</span></p>
+              </div>
+              {totalCost > 0 && (
+                <div className="border-l border-gray-100 pl-3">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">/ an</p>
+                  <p className="text-sm font-semibold text-gray-700">{dollar(totalCost * 12)}</p>
+                </div>
+              )}
+            </div>
           </Panel>
           <Panel position="top-right" className="flex gap-2">
             <button
