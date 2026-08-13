@@ -21,13 +21,13 @@ import {
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Check, Plus, Trash2, X } from 'lucide-react'
+import { Check, Plus, Star, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { saveOrgChart } from './actions'
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-type NodeData = { name: string; title: string; color: string; cost?: number }
+type NodeData = { name: string; title: string; color: string; cost?: number; important?: boolean }
 type OrgNode  = Node<NodeData>
 
 // Old tree format (migration)
@@ -103,18 +103,25 @@ function OrgNodeCard({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        'bg-white rounded-xl border-2 shadow-sm px-5 py-3 min-w-[140px] max-w-[180px] flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing select-none',
-        selected ? 'border-violet-500 shadow-violet-200 shadow-md' : 'border-gray-100 hover:border-gray-300 hover:shadow-md',
+        'bg-white rounded-xl border-2 shadow-sm px-5 py-3 min-w-[140px] max-w-[180px] flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing select-none relative',
+        d.important
+          ? 'border-amber-400 shadow-amber-100 shadow-md ring-2 ring-amber-300/40'
+          : selected
+            ? 'border-violet-500 shadow-violet-200 shadow-md'
+            : 'border-gray-100 hover:border-gray-300 hover:shadow-md',
       )}
-      style={{ borderLeftColor: d.color, borderLeftWidth: 4 }}
+      style={{ borderLeftColor: d.important ? '#f59e0b' : d.color, borderLeftWidth: 4 }}
     >
       <Handle type="source" position={Position.Top}    id="top"    style={handleStyle} />
       <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
       <Handle type="source" position={Position.Left}   id="left"   style={handleStyle} />
       <Handle type="source" position={Position.Right}  id="right"  style={handleStyle} />
+      {d.important && (
+        <Star size={11} className="absolute top-1.5 right-1.5 text-amber-400 fill-amber-400" />
+      )}
       <div
         className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-        style={{ backgroundColor: d.color }}
+        style={{ backgroundColor: d.important ? '#f59e0b' : d.color }}
       >
         {d.name.charAt(0).toUpperCase()}
       </div>
@@ -141,10 +148,11 @@ function EditPanel({
   onDelete: (id: string) => void
   onClose:  () => void
 }) {
-  const [name,  setName]  = useState(node.data.name)
-  const [title, setTitle] = useState(node.data.title)
-  const [color, setColor] = useState(node.data.color)
-  const [cost,  setCost]  = useState(String(node.data.cost ?? ''))
+  const [name,      setName]      = useState(node.data.name)
+  const [title,     setTitle]     = useState(node.data.title)
+  const [color,     setColor]     = useState(node.data.color)
+  const [cost,      setCost]      = useState(String(node.data.cost ?? ''))
+  const [important, setImportant] = useState(node.data.important ?? false)
   const [confirmDel, setConfirmDel] = useState(false)
 
   return (
@@ -164,6 +172,20 @@ function EditPanel({
           <label className="text-xs font-medium text-gray-500 mb-1 block">Titre / Rôle</label>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="ex: CEO, Closer, CSM…"
             className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500" />
+        </div>
+        <div>
+          <button
+            onClick={() => setImportant(v => !v)}
+            className={cn(
+              'w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors',
+              important
+                ? 'bg-amber-50 border-amber-300 text-amber-600'
+                : 'bg-white border-gray-200 text-gray-400 hover:border-amber-200 hover:text-amber-400',
+            )}
+          >
+            <Star size={14} className={important ? 'fill-amber-400 text-amber-400' : ''} />
+            {important ? 'Département important ★' : 'Marquer comme important'}
+          </button>
         </div>
         <div>
           <label className="text-xs font-medium text-gray-500 mb-1 block">Coût fixe mensuel ($)</label>
@@ -193,10 +215,11 @@ function EditPanel({
         <button
           onClick={() => {
             onUpdate(node.id, {
-              name:  name.trim() || node.data.name,
-              title: title.trim(),
+              name:      name.trim() || node.data.name,
+              title:     title.trim(),
               color,
-              cost:  parseFloat(cost) || 0,
+              cost:      parseFloat(cost) || 0,
+              important,
             })
             onClose()
           }}
