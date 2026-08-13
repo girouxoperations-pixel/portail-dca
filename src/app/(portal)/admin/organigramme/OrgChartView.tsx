@@ -10,6 +10,7 @@ import {
   Handle,
   Position,
   MarkerType,
+  ConnectionMode,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -260,6 +261,7 @@ function OrgChartInner({ initialData }: { initialData: unknown }) {
           fitView
           fitViewOptions={{ padding: 0.3 }}
           deleteKeyCode="Delete"
+          connectionMode={ConnectionMode.Loose}
           defaultEdgeOptions={{
             markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
             style: { stroke: '#9ca3af' },
