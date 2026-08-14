@@ -66,6 +66,15 @@ export async function supprimerPaye(id: string) {
   revalidatePath('/payes')
 }
 
+export async function supprimerCommissionCsm(id: string) {
+  await requireRole(['admin', 'head_csm'])
+  const db = createAdminClient()
+
+  const { error } = await db.from('csm_commissions').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/payes')
+}
+
 export async function modifierPaye(id: string, data: {
   client_name?:       string
   commission?:        number

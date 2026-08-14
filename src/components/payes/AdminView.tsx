@@ -7,7 +7,7 @@ import {
   basculerStatut,
   approuverPeriode, approuverPayesBatch, modifierPaye,
   ajouterBonusManuel, supprimerPaye, creerRemboursement,
-  payerCommissionCsm,
+  payerCommissionCsm, supprimerCommissionCsm,
 } from '@/app/(portal)/payes/actions'
 import { dollar, MOIS_FR } from '@/lib/constants'
 import Badge      from '@/components/ui/Badge'
@@ -1271,6 +1271,11 @@ function SectionCsm({ isAdmin, commissions, csmProfiles }: {
     startT(() => payerCommissionCsm(id))
   }
 
+  function handleDelete(id: string) {
+    if (!confirm('Supprimer cette commission ?')) return
+    startT(() => supprimerCommissionCsm(id))
+  }
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
@@ -1331,6 +1336,16 @@ function SectionCsm({ isAdmin, commissions, csmProfiles }: {
                   <span className="shrink-0 flex items-center gap-1 text-xs text-green-600 font-medium">
                     <CheckCircle2 size={12} />Payé
                   </span>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={() => handleDelete(c.id)}
+                    disabled={pending}
+                    title="Supprimer"
+                    className="shrink-0 p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                  >
+                    <X size={13} />
+                  </button>
                 )}
               </div>
             )
