@@ -405,7 +405,7 @@ export default function ClientsView({
                             title={c.refund_done ? 'Remboursement fait — cliquer pour annuler' : 'Marquer comme remboursé'}
                             className={cn(
                               'shrink-0 transition-colors',
-                              c.refund_done ? 'text-green-500 hover:text-green-700' : 'text-gray-200 hover:text-green-400',
+                              c.refund_done ? 'text-green-500 hover:text-green-700' : 'text-gray-400 hover:text-green-500',
                             )}
                           >
                             <CheckCircle2 size={15} />
