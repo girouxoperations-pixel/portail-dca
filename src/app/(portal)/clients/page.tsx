@@ -19,7 +19,7 @@ export default async function ClientsPage() {
   // ── Historical clients (all years in clients_registry) ──────────
   const { data: historical } = await db
     .from('clients_registry')
-    .select('*')
+    .select('*, refund_done')
     .order('entry_date', { ascending: false })
 
   // ── Current year live clients from csm_clients + cash_entries ───
@@ -27,7 +27,7 @@ export default async function ClientsPage() {
     .from('csm_clients')
     .select(`
       id, name, enrollment_date, payment_type, status, closer_id,
-      phone, email, methode,
+      phone, email, methode, refund_done,
       cash_entries!cash_entry_id (
         id, client_phone, client_email, methode,
         montant_courant, collected, a_collecter
@@ -58,6 +58,7 @@ export default async function ClientsPage() {
     const montantReste = pending > 0 ? pending : (ce?.a_collecter ?? 0)
     return {
       id:           c.id,
+      source:       'csm' as const,
       year:         currentYear as number,
       name:         c.name,
       phone:        ce?.client_phone ?? c.phone ?? null,
@@ -71,13 +72,20 @@ export default async function ClientsPage() {
       montant_reste: montantReste,
       payment_type: c.payment_type,
       status:       c.status as string,
+      refund_done:  c.refund_done ?? false,
       notes:        null as string | null,
     }
   })
 
+  const historicalMapped = (historical ?? []).map(c => ({
+    ...c,
+    source: 'registry' as const,
+    refund_done: (c as Record<string, unknown>).refund_done as boolean ?? false,
+  }))
+
   return (
     <ClientsView
-      historical={historical ?? []}
+      historical={historicalMapped}
       clients2026={clients2026}
     />
   )

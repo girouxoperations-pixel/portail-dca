@@ -4,12 +4,13 @@ import { useState, useMemo, useTransition } from 'react'
 import { Search, X, Download, Users, CheckCircle2, AlertCircle, XCircle, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
-import { updateCsmClientContact } from '@/app/(portal)/clients/actions'
+import { updateCsmClientContact, toggleClientRefundDone } from '@/app/(portal)/clients/actions'
 
 // ── Types ──────────────────────────────────────────────────────────
 
 interface HistoricalClient {
   id: string
+  source: 'registry'
   year: number
   name: string
   phone: string | null
@@ -19,11 +20,13 @@ interface HistoricalClient {
   methode: string | null
   montant_reste: number | null
   status: string
+  refund_done: boolean
   notes: string | null
 }
 
 interface LiveClient {
   id: string
+  source: 'csm'
   year: number
   name: string
   phone: string | null
@@ -35,6 +38,7 @@ interface LiveClient {
   montant_reste: number
   payment_type: string | null
   status: string
+  refund_done: boolean
   notes: string | null
 }
 
@@ -200,9 +204,10 @@ export default function ClientsView({
   const [year,        setYear]        = useState<number | 'sorties'>(currentYear)
   const [search,      setSearch]      = useState('')
   const [editClient,  setEditClient]  = useState<LiveClient | null>(null)
+  const [, startRefundDoneTrans] = useTransition()
 
   const allSorties: AnyClient[] = useMemo(() => {
-    const all = [...clients2026, ...historical].filter(c => c.status === 'dropped' || c.status === 'refund')
+    const all = [...clients2026, ...historical].filter(c => c.status === 'refund')
     return all.sort((a, b) => (b.year - a.year) || (b.entry_date ?? '').localeCompare(a.entry_date ?? ''))
   }, [historical, clients2026])
 
@@ -287,7 +292,7 @@ export default function ClientsView({
               year === 'sorties' ? 'bg-red-600 text-white' : 'text-red-500 hover:bg-red-50',
             )}
           >
-            Sortie / Refund
+            Refund
             <span className={cn(
               'ml-1.5 text-xs font-normal',
               year === 'sorties' ? 'text-red-200' : 'text-red-300',
@@ -390,7 +395,23 @@ export default function ClientsView({
                   )}>
                     <td className="px-4 py-3 text-xs text-gray-300 tabular-nums">{idx + 1}</td>
                     <td className="px-4 py-3 max-w-[180px]">
-                      <div className="font-medium text-gray-800 truncate">{c.name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-gray-800 truncate">{c.name}</span>
+                        {year === 'sorties' && c.status === 'refund' && (
+                          <button
+                            onClick={() => startRefundDoneTrans(async () => {
+                              await toggleClientRefundDone(c.id, c.source, !c.refund_done)
+                            })}
+                            title={c.refund_done ? 'Remboursement fait — cliquer pour annuler' : 'Marquer comme remboursé'}
+                            className={cn(
+                              'shrink-0 transition-colors',
+                              c.refund_done ? 'text-green-500 hover:text-green-700' : 'text-gray-200 hover:text-green-400',
+                            )}
+                          >
+                            <CheckCircle2 size={15} />
+                          </button>
+                        )}
+                      </div>
                       <StatusBadge status={c.status} />
                     </td>
                     {year === 'sorties' && (

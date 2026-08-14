@@ -12,6 +12,15 @@ async function requireAdmin() {
   if (profil?.role !== 'admin') throw new Error('Non autorisé')
 }
 
+async function requireAdminOrCsm() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non authentifié')
+  const { data: profil } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
+  const roles = (profil?.roles ?? []) as string[]
+  if (!roles.some(r => ['admin', 'csm', 'head_csm'].includes(r))) throw new Error('Non autorisé')
+}
+
 // Update contact info directly on csm_clients (for 2026 clients without cash_entry link)
 export async function updateCsmClientContact(
   id: string,
@@ -32,6 +41,19 @@ export async function updateRegistryClientContact(
   await requireAdmin()
   const db = createAdminClient()
   const { error } = await db.from('clients_registry').update(data).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/clients')
+}
+
+export async function toggleClientRefundDone(
+  id: string,
+  source: 'csm' | 'registry',
+  done: boolean,
+) {
+  await requireAdminOrCsm()
+  const db = createAdminClient()
+  const table = source === 'csm' ? 'csm_clients' : 'clients_registry'
+  const { error } = await db.from(table).update({ refund_done: done }).eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath('/clients')
 }
