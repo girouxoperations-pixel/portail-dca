@@ -71,10 +71,10 @@ function StatusBadge({ status }: { status: string }) {
   return null
 }
 
-function BalanceCell({ montantReste, status }: { montantReste: number | null; status: string }) {
+function BalanceCell({ montantReste, status, refundDone }: { montantReste: number | null; status: string; refundDone?: boolean }) {
   const s = status?.toLowerCase()
   if (s === 'dropped') return <span className="text-xs text-red-500 font-semibold">Sortie</span>
-  if (s === 'refund')  return <span className="text-xs text-orange-500 font-semibold">Remboursée</span>
+  if (s === 'refund')  return <span className={cn('text-xs font-semibold', refundDone ? 'text-green-600' : 'text-gray-400')}>Remboursée</span>
   if (!montantReste || montantReste <= 0) return (
     <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700">
       <CheckCircle2 size={10} />PIF
@@ -420,7 +420,7 @@ export default function ClientsView({
                     <td className="px-4 py-3"><MethBadge m={c.methode} /></td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <BalanceCell montantReste={c.montant_reste ?? null} status={c.status} />
+                        <BalanceCell montantReste={c.montant_reste ?? null} status={c.status} refundDone={c.refund_done} />
                         {year === 'sorties' && c.status === 'refund' && (
                           <button
                             onClick={() => startRefundDoneTrans(async () => {
