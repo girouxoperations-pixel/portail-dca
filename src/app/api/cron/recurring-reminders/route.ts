@@ -8,12 +8,15 @@ export async function GET(req: Request) {
 
   const db = createAdminClient()
 
-  // Create tasks for virements due in exactly 2 days
+  // Create tasks for virements due in the next 1–3 days.
+  // Using a window (not exact +2) so that a missed cron run catches up.
   const now = new Date()
-  const todayStr   = now.toISOString().slice(0, 10)
-  const futureDate = new Date(now)
-  futureDate.setDate(futureDate.getDate() + 2)
-  const futureDateStr = futureDate.toISOString().slice(0, 10)
+  const todayStr = now.toISOString().slice(0, 10)
+
+  const d1 = new Date(now); d1.setDate(d1.getDate() + 1)
+  const d3 = new Date(now); d3.setDate(d3.getDate() + 3)
+  const windowStart = d1.toISOString().slice(0, 10)
+  const windowEnd   = d3.toISOString().slice(0, 10)
 
   const moisFr = ['jan.','fév.','mar.','avr.','mai','juin','juil.','août','sep.','oct.','nov.','déc.']
 
@@ -22,7 +25,8 @@ export async function GET(req: Request) {
     .from('recurring_occurrences')
     .select('id, date_attendue, recurring_deal_id, recurring_deals(client_name, methode_paiement)')
     .eq('recu', false)
-    .eq('date_attendue', futureDateStr)
+    .gte('date_attendue', windowStart)
+    .lte('date_attendue', windowEnd)
 
   if (occErr) return NextResponse.json({ error: occErr.message }, { status: 500 })
   if (!occurrences?.length) return NextResponse.json({ created: 0 })
@@ -35,11 +39,11 @@ export async function GET(req: Request) {
 
   if (!virementOccs.length) return NextResponse.json({ created: 0 })
 
-  // Load all active CSM clients for name matching
+  // Load all CSM clients for name matching (no status filter — virement
+  // reminders are needed regardless of the client's CSM follow-up status)
   const { data: csmClients } = await db
     .from('csm_clients')
     .select('id, name')
-    .eq('status', 'active')
 
   // Dedup: find occurrences that already have a task
   const occurrenceIds = virementOccs.map(o => o.id)
@@ -89,5 +93,5 @@ export async function GET(req: Request) {
     await db.from('csm_tasks').insert(toInsert)
   }
 
-  return NextResponse.json({ created, window: `${todayStr} → ${futureDateStr}` })
+  return NextResponse.json({ created, window: `${windowStart} → ${windowEnd}` })
 }
