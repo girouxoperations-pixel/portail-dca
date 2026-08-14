@@ -753,6 +753,16 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
                           <CheckCircle2 size={12} />Payé
                         </span>
                       )}
+                      {isAdmin && (
+                        <button
+                          onClick={() => { if (confirm('Supprimer cette commission ?')) startCsmT(() => supprimerCommissionCsm(c.id)) }}
+                          disabled={csmPending}
+                          title="Supprimer"
+                          className="shrink-0 p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
                     </div>
                   )
                 })}
