@@ -58,7 +58,7 @@ export async function basculerStatut(id: string, statutActuel: string) {
 }
 
 export async function supprimerPaye(id: string) {
-  await requireRole(['admin'])
+  await requireRole(['admin', 'head_csm'])
   const db = createAdminClient()
 
   const { error } = await db.from('paye_entries').delete().eq('id', id)

@@ -69,7 +69,7 @@ export default async function PayesPage() {
         setters={setters ?? []}
         allProfiles={allProfiles ?? []}
         teamMembers={allProfiles ?? []}
-        isAdmin={role === 'admin'}
+        isAdmin={role === 'admin' || role === 'head_csm'}
         periodesCourant={periodes}
         periodeDefaut={periode.label}
         csmCommissions={csmCommissions ?? []}
