@@ -16,7 +16,7 @@ import {
   updateMeeting, updateMissed, toggleText, toggleMilestone, updateStatus,
   marquerRemboursementAvecMontant, updateOnboardingDate, updateEmailAvis, creerCsmClientManuel,
   updateCsmId, updatePaymentType, supprimerCsmClient,
-  creerTache, toggleTache, supprimerTache,
+  creerTache, toggleTache, supprimerTache, genererTachesVirement,
 } from './actions'
 import { definirObjectifCsm } from '@/app/(portal)/payes/actions'
 
@@ -595,6 +595,22 @@ function TasksPanel({
   onAdd:         (clientId?: string, clientName?: string) => void
 }) {
   const [showDone, setShowDone] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null)
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    setRefreshMsg(null)
+    try {
+      const { created } = await genererTachesVirement()
+      setRefreshMsg(created > 0 ? `${created} tâche(s) créée(s)` : 'Aucune nouvelle tâche')
+    } catch {
+      setRefreshMsg('Erreur')
+    } finally {
+      setRefreshing(false)
+      setTimeout(() => setRefreshMsg(null), 4000)
+    }
+  }
 
   const visible = tasks.filter(t =>
     csmFilter === 'tous' || clientCsmMap.get(t.csm_client_id) === csmFilter
@@ -663,7 +679,17 @@ function TasksPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end items-center gap-2">
+        {refreshMsg && (
+          <span className="text-xs text-gray-500">{refreshMsg}</span>
+        )}
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
+        >
+          <ListTodo size={12} /> {refreshing ? 'Génération…' : 'Tâches virement'}
+        </button>
         <button
           onClick={() => onAdd()}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
