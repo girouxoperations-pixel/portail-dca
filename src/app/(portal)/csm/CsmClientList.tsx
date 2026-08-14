@@ -16,7 +16,7 @@ import {
   updateMeeting, updateMissed, toggleText, toggleMilestone, updateStatus,
   marquerRemboursementAvecMontant, updateOnboardingDate, updateEmailAvis, creerCsmClientManuel,
   updateCsmId, updatePaymentType, supprimerCsmClient,
-  creerTache, toggleTache, supprimerTache, genererTachesVirement,
+  creerTache, toggleTache, supprimerTache, genererTachesVirement, toggleRefundDone,
 } from './actions'
 import { definirObjectifCsm } from '@/app/(portal)/payes/actions'
 
@@ -1019,6 +1019,7 @@ export default function CsmClientList({
   const [taskDate, setTaskDate] = useState('')
   const [taskClientId, setTaskClientId] = useState('')
   const [taskPending, startTaskTrans] = useTransition()
+  const [, startRefundDoneTrans] = useTransition()
 
   function openAjout() { setAjoutMode('choice'); setExistingSearch(''); setSelectedExisting(null) }
   function closeAjout() { setAjoutMode(null); setExistingSearch(''); setSelectedExisting(null) }
@@ -1689,6 +1690,18 @@ export default function CsmClientList({
                           <Link href={`/csm/${c.id}`} className="hover:underline min-w-0">
                             <span className={cn('font-semibold text-sm', nameCls)}>{c.name}</span>
                           </Link>
+                          {statusFilter === 'refund' && (
+                            <button
+                              onClick={() => startRefundDoneTrans(async () => { await toggleRefundDone(c.id, !c.refund_done) })}
+                              title={c.refund_done ? 'Remboursement fait — cliquer pour annuler' : 'Marquer le remboursement comme fait'}
+                              className={cn(
+                                'shrink-0 transition-colors rounded',
+                                c.refund_done ? 'text-green-500 hover:text-green-700' : 'text-gray-200 hover:text-green-400',
+                              )}
+                            >
+                              <CheckCircle2 size={15} />
+                            </button>
+                          )}
                           {(() => {
                             const clientTasks = tasksByClient.get(c.id) ?? []
                             const pending = clientTasks.filter(t => !t.done)

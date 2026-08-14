@@ -408,6 +408,14 @@ export async function updateCsmId(clientId: string, csmId: string | null) {
 }
 
 // ── Tâches CSM ──────────────────────────────────────────────────────
+export async function toggleRefundDone(clientId: string, done: boolean) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('csm_clients').update({ refund_done: done }).eq('id', clientId)
+  if (error) throw error
+  revalidatePath('/csm')
+}
+
 export async function creerTache(clientId: string, title: string, dueDate: string) {
   await verifyAdminOrCsm()
   const supabase = await createClient()
