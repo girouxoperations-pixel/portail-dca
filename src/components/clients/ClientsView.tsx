@@ -395,23 +395,7 @@ export default function ClientsView({
                   )}>
                     <td className="px-4 py-3 text-xs text-gray-300 tabular-nums">{idx + 1}</td>
                     <td className="px-4 py-3 max-w-[180px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-gray-800 truncate">{c.name}</span>
-                        {year === 'sorties' && c.status === 'refund' && (
-                          <button
-                            onClick={() => startRefundDoneTrans(async () => {
-                              await toggleClientRefundDone(c.id, c.source, !c.refund_done)
-                            })}
-                            title={c.refund_done ? 'Remboursement fait — cliquer pour annuler' : 'Marquer comme remboursé'}
-                            className={cn(
-                              'shrink-0 transition-colors',
-                              c.refund_done ? 'text-green-500 hover:text-green-700' : 'text-gray-400 hover:text-green-500',
-                            )}
-                          >
-                            <CheckCircle2 size={15} />
-                          </button>
-                        )}
-                      </div>
+                      <div className="font-medium text-gray-800 truncate">{c.name}</div>
                       <StatusBadge status={c.status} />
                     </td>
                     {year === 'sorties' && (
@@ -435,7 +419,23 @@ export default function ClientsView({
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(c.exit_date)}</td>
                     <td className="px-4 py-3"><MethBadge m={c.methode} /></td>
                     <td className="px-4 py-3">
-                      <BalanceCell montantReste={c.montant_reste ?? null} status={c.status} />
+                      <div className="flex items-center gap-1.5">
+                        <BalanceCell montantReste={c.montant_reste ?? null} status={c.status} />
+                        {year === 'sorties' && c.status === 'refund' && (
+                          <button
+                            onClick={() => startRefundDoneTrans(async () => {
+                              await toggleClientRefundDone(c.id, c.source, !c.refund_done)
+                            })}
+                            title={c.refund_done ? 'Remboursement fait — cliquer pour annuler' : 'Marquer comme remboursé'}
+                            className={cn(
+                              'shrink-0 transition-colors',
+                              c.refund_done ? 'text-green-500 hover:text-green-700' : 'text-gray-400 hover:text-green-500',
+                            )}
+                          >
+                            <CheckCircle2 size={15} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     {year === currentYear && (
                       <td className="px-2 py-3">
