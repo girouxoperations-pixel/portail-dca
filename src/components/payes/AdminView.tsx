@@ -1202,12 +1202,13 @@ function HistGroupSection({ label, totalComm, payeComm, employees }: {
 
 const EXCLUDED_FROM_PAYES = ['samuel giroux']
 
-const PAYROLL_PRENOMS = ['emma', 'kalianna', 'jacinthe']
+const PAYROLL_PRENOMS = ['emma', 'kalianna', 'jacinthe', 'maryka']
 
 const PAYROLL_SALAIRES: Record<string, number> = {
   emma:     750,
   kalianna: 500,
   jacinthe: 2000,
+  maryka:   1375,
 }
 
 function isPayroll(nom: string): boolean {
