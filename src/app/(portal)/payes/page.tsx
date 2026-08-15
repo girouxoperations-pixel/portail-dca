@@ -50,7 +50,7 @@ export default async function PayesPage() {
         .order('created_at', { ascending: false }),
       db.from('profiles').select('id, full_name, role').eq('role', 'closer'),
       db.from('profiles').select('id, full_name, role').eq('role', 'setter'),
-      db.from('profiles').select('id, full_name, role').in('role', ['closer', 'setter']),
+      db.from('profiles').select('id, full_name, role').in('role', ['closer', 'setter', 'csm', 'head_csm']),
       db.from('csm_commissions')
         .select('id, csm_id, client_name, type, amount, paid, paid_at, month, year, description, created_at')
         .order('created_at', { ascending: false }),
