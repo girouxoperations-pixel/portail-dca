@@ -102,7 +102,6 @@ function useFollowupState(followup: CmFollowup) {
     [2, local.message_2, local.message_2_date],
     [3, local.message_3, local.message_3_date],
     [4, local.message_4, local.message_4_date],
-    [5, local.message_5, local.message_5_date],
   ]
   const progress = msgs.filter(([, done]) => done).length
 
