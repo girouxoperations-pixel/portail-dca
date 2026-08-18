@@ -364,6 +364,69 @@ function fmtWeekLabel(isoYear: number, _quarter: number, isoWeek: number): strin
     : `${sd} ${MOIS_MIN[sm]} – ${ed} ${MOIS_MIN[em]}`
 }
 
+// ── Simulateur ───────────────────────────────────────────────────
+
+function Simulateur({ totals, source }: { totals: PanelTotals; source: 'webi' | 'vsl' }) {
+  const [leads, setLeads] = useState(500)
+
+  const pctLP  = totals.leads > 0 ? totals.webinar_att / totals.leads : 0
+  const pctLB  = totals.leads > 0 ? totals.booked      / totals.leads : 0
+  const pctBS  = totals.booked > 0 ? totals.showed     / totals.booked : 0
+  const pctSC  = totals.showed > 0 ? totals.closed     / totals.showed : 0
+  const avgRev = totals.closed > 0 ? totals.revenue     / totals.closed : 0
+  const avgCC  = totals.closed > 0 ? totals.cash_collect / totals.closed : 0
+
+  const simP  = Math.round(leads * pctLP)
+  const simB  = Math.round(leads * pctLB)
+  const simS  = Math.round(simB  * pctBS)
+  const simC  = Math.round(simS  * pctSC)
+  const simR  = Math.round(simC  * avgRev)
+  const simCC = Math.round(simC  * avgCC)
+
+  if (totals.leads === 0) return null
+
+  const row = (label: string, value: string | number, sub: string, color = 'text-gray-800') => (
+    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-gray-50 last:border-0">
+      <div>
+        <span className="text-xs font-medium text-gray-600">{label}</span>
+        <span className="ml-2 text-[10px] text-gray-400">{sub}</span>
+      </div>
+      <span className={cn('text-sm font-bold tabular-nums', color)}>{value}</span>
+    </div>
+  )
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mt-2">
+      <div className="flex items-center gap-3 mb-4">
+        <p className="text-sm font-semibold text-gray-800">Simulateur — basé sur les moyennes de la période</p>
+      </div>
+      <div className="flex items-center gap-3 mb-5">
+        <label className="text-xs font-medium text-gray-500 shrink-0">Nombre de leads</label>
+        <input
+          type="number"
+          min="1"
+          value={leads}
+          onChange={e => setLeads(Math.max(1, Number(e.target.value)))}
+          className="w-32 px-3 py-2 text-sm font-bold border border-violet-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 tabular-nums text-center"
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+        <div>
+          {source === 'webi' && row('Présentés (webi)', simP, `${(pctLP * 100).toFixed(1)}% des leads`)}
+          {row('Bookés', simB, `${(pctLB * 100).toFixed(1)}% des leads`)}
+          {row(source === 'webi' ? 'Show Up' : 'Présentés', simS, `${(pctBS * 100).toFixed(1)}% des bookés`)}
+          {row('Closes', simC, `${(pctSC * 100).toFixed(1)}% des shows`, 'text-violet-700')}
+        </div>
+        <div>
+          {row('Revenue estimé', dollarBig(simR), `~${dollarBig(avgRev)}/close`, 'text-gray-700')}
+          {row('Cash estimé', dollarBig(simCC), `~${dollarBig(avgCC)}/close`, 'text-blue-700')}
+          {totals.budget > 0 && row('Budget req. (CPL actuel)', dollarBig(Math.round(leads * (totals.budget / totals.leads))), `${dollar(totals.budget / totals.leads)}/lead`, 'text-gray-500')}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────
 
 export interface SourcedDeal {
@@ -597,7 +660,9 @@ export default function WeeklyPerfSection({
                     <th className={th}>Budget</th>
                     <th className={th}>Leads</th>
                     <th className={th}>Présentés</th>
+                    <th className={cn(th, 'text-orange-400')}>%L→P</th>
                     <th className={th}>Bookés</th>
+                    <th className={cn(th, 'text-orange-400')}>%L→B</th>
                     <th className={th}>Show Up</th>
                     <th className={th}>% Show</th>
                     <th className={th}>Closes</th>
@@ -621,7 +686,9 @@ export default function WeeklyPerfSection({
                       <td className={cn(td, 'text-gray-600')}>{dollar(p.budget)}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.leads}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.webinar_att || '—'}</td>
+                      <td className={cn(td, 'text-orange-500 text-[11px]')}>{fmtPct(p.webinar_att, p.leads)}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.booked}</td>
+                      <td className={cn(td, 'text-orange-500 text-[11px]')}>{fmtPct(p.booked, p.leads)}</td>
                       <td className={cn(td, 'text-gray-700')}>{p.showed}</td>
                       <td className={cn(td, 'text-gray-700')}>{fmtPct(p.showed, p.booked)}</td>
                       <td className={cn(td, 'font-bold text-gray-900')}>
@@ -670,7 +737,9 @@ export default function WeeklyPerfSection({
                     <td className={cn(td, 'text-gray-700')}>{dollar(totals.budget)}</td>
                     <td className={cn(td)}>{totals.leads}</td>
                     <td className={cn(td)}>{totals.webinar_att || '—'}</td>
+                    <td className={cn(td, 'font-normal text-orange-500')}>{fmtPct(totals.webinar_att, totals.leads)}</td>
                     <td className={cn(td)}>{totals.booked}</td>
+                    <td className={cn(td, 'font-normal text-orange-500')}>{fmtPct(totals.booked, totals.leads)}</td>
                     <td className={cn(td)}>{totals.showed}</td>
                     <td className={cn(td, 'font-normal text-gray-700')}>{fmtPct(totals.showed, totals.booked)}</td>
                     <td className={cn(td)}>{totals.closed}</td>
@@ -784,6 +853,11 @@ export default function WeeklyPerfSection({
           </div>
         )}
       </div>
+
+      {/* Simulateur */}
+      {filtered.length > 0 && (
+        <Simulateur totals={totals} source={source} />
+      )}
 
       {/* Modal */}
       {modal !== null && (
