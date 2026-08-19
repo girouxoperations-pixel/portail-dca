@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
-import { Plus, ChevronDown, ChevronUp, X, Check, Ban, Trash2, CheckCircle2, Circle, AlertTriangle } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, X, Check, Ban, Trash2, CheckCircle2, Circle, AlertTriangle, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   ajouterDeal,
@@ -591,6 +591,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   const [filterYear, setFilterYear]     = useState('2026')
   const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'annulé'>('actif')
   const [filterPerson, setFilterPerson] = useState('tous')
+  const [search, setSearch]             = useState('')
 
   const TEAM_NAMES = new Set(['shanny', 'jacinthe', 'kalianna', 'kim', 'melika', 'audrey'])
   const norm = (s: string) =>
@@ -624,6 +625,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   }, [deals, filterYear])
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
     return deals
       .filter(d => {
         const date = d.cash_entry_date ?? d.deal_date
@@ -632,6 +634,10 @@ export default function AlveoView({ deals, isAdmin }: Props) {
         if (filterPerson !== 'tous') {
           if (d.setter_name !== filterPerson && d.closer_name !== filterPerson) return false
         }
+        if (q) {
+          const hay = [d.client_name, d.setter_name, d.closer_name, d.notes].join(' ').toLowerCase()
+          if (!hay.includes(q)) return false
+        }
         return true
       })
       .sort((a, b) => {
@@ -639,7 +645,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
         const db2 = b.cash_entry_date ?? b.deal_date ?? ''
         return db2.localeCompare(da)
       })
-  }, [deals, filterYear, filterStatut, filterPerson])
+  }, [deals, filterYear, filterStatut, filterPerson, search])
 
   const grouped = useMemo(() => {
     const map = new Map<string, Deal[]>()
@@ -753,7 +759,17 @@ export default function AlveoView({ deals, isAdmin }: Props) {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher client, setter, closer…"
+              className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-56 focus:outline-none focus:border-violet-500 bg-white"
+            />
+          </div>
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
             {(['actif', 'tous', 'annulé'] as const).map(s => (
               <button
