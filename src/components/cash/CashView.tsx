@@ -52,6 +52,8 @@ interface CsmStat {
   id: string
   status: string | null
   payment_type: string | null
+  cash_entry_id: string | null
+  csm_id: string | null
 }
 
 interface Props {
@@ -702,8 +704,8 @@ function ModalNouveauDeal({
 
 // ── Month section ─────────────────────────────────────────────────
 
-function EntryRow({ e, profileMap, recurringIds, occurrenceId, isAdmin, onEdit, onDelete, onAnnulerRecu, onRefund, pending }: {
-  e: CashEntry; profileMap: Map<string, string>; recurringIds: Set<string>
+function EntryRow({ e, profileMap, csmByEntryId, recurringIds, occurrenceId, isAdmin, onEdit, onDelete, onAnnulerRecu, onRefund, pending }: {
+  e: CashEntry; profileMap: Map<string, string>; csmByEntryId: Map<string, string>; recurringIds: Set<string>
   occurrenceId?: string
   isAdmin: boolean; onEdit: (e: CashEntry) => void; onDelete: (id: string) => void
   onAnnulerRecu: (occId: string) => void
@@ -720,6 +722,7 @@ function EntryRow({ e, profileMap, recurringIds, occurrenceId, isAdmin, onEdit, 
         <td className="px-4 py-3 font-medium text-gray-600 max-w-[160px] truncate">{e.client_name ?? '—'}</td>
         <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-sm">{e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}</td>
         <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-sm">{e.set_by ? (profileMap.get(e.set_by) ?? '—') : '—'}</td>
+        <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-sm">{csmByEntryId.get(e.id) ?? '—'}</td>
         <td className="px-4 py-3">
           <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Remboursement</span>
         </td>
@@ -750,6 +753,7 @@ function EntryRow({ e, profileMap, recurringIds, occurrenceId, isAdmin, onEdit, 
       <td className="px-4 py-3 font-medium text-gray-800 max-w-[160px] truncate">{e.client_name ?? '—'}</td>
       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}</td>
       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{e.set_by ? (profileMap.get(e.set_by) ?? '—') : '—'}</td>
+      <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs">{csmByEntryId.get(e.id) ?? '—'}</td>
       <td className="px-4 py-3"><TypeBadge type={type} closeType={e.close_type} /></td>
       <td className="px-4 py-3"><SourceBadge source={e.source_type} /></td>
       <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">{dollar(e.montant_courant)}</td>
@@ -802,6 +806,7 @@ const TABLE_HEAD = (
       <th className="px-4 py-2.5 text-left">Client</th>
       <th className="px-4 py-2.5 text-left">Closer</th>
       <th className="px-4 py-2.5 text-left">Setter</th>
+      <th className="px-4 py-2.5 text-left">CSM</th>
       <th className="px-4 py-2.5 text-left">Type</th>
       <th className="px-4 py-2.5 text-left">Source</th>
       <th className="px-4 py-2.5 text-right whitespace-nowrap">Montant</th>
@@ -814,12 +819,13 @@ const TABLE_HEAD = (
 )
 
 function MonthSection({
-  monthKey, entries, profileMap, recurringIds, recurringOccMap, isAdmin,
+  monthKey, entries, profileMap, csmByEntryId, recurringIds, recurringOccMap, isAdmin,
   onEdit, onDelete, onAnnulerRecu, onRefund, pending, defaultOpen,
 }: {
   monthKey:        string
   entries:         CashEntry[]
   profileMap:      Map<string, string>
+  csmByEntryId:    Map<string, string>
   recurringIds:    Set<string>
   recurringOccMap: Record<string, string>
   isAdmin:         boolean
@@ -850,7 +856,7 @@ function MonthSection({
   const recsCollected   = recs.filter(e => !e.is_refunded).reduce((s, e) => s + (e.collected ?? 0), 0)
   const recsMontant     = recs.filter(e => !e.is_refunded).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
 
-  const rowProps = { profileMap, recurringIds, isAdmin, onEdit, onDelete, onAnnulerRecu, onRefund, pending }
+  const rowProps = { profileMap, csmByEntryId, recurringIds, isAdmin, onEdit, onDelete, onAnnulerRecu, onRefund, pending }
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -892,7 +898,7 @@ function MonthSection({
                 {/* Section Nouvelles deals */}
                 <tbody>
                   <tr className="bg-green-50 border-b border-green-100">
-                    <td colSpan={11} className="px-4 py-2">
+                    <td colSpan={12} className="px-4 py-2">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-[11px] font-bold text-green-700 uppercase tracking-wide">
                           <Zap size={10} /> Nouvelles deals
@@ -906,7 +912,7 @@ function MonthSection({
                   </tr>
                   {deals.map(e => <EntryRow key={e.id} e={e} {...rowProps} occurrenceId={recurringOccMap[e.id]} />)}
                   <tr className="border-t border-green-100 bg-green-50/40 text-xs font-semibold text-gray-600">
-                    <td colSpan={6} className="px-4 py-2 text-gray-400">Sous-total deals</td>
+                    <td colSpan={7} className="px-4 py-2 text-gray-400">Sous-total deals</td>
                     <td className="px-4 py-2 text-right tabular-nums">{dollar(dealsMontant)}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-green-700">{dollar(dealsCollected)}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-red-600">{dealsACollecter > 0 ? dollar(dealsACollecter) : '—'}</td>
@@ -917,7 +923,7 @@ function MonthSection({
                 {/* Section Récurrents */}
                 <tbody>
                   <tr className="bg-blue-50 border-b border-blue-100">
-                    <td colSpan={11} className="px-4 py-2">
+                    <td colSpan={12} className="px-4 py-2">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-[11px] font-bold text-blue-700 uppercase tracking-wide">
                           <RefreshCw size={10} /> Récurrents
@@ -930,7 +936,7 @@ function MonthSection({
                   </tr>
                   {recs.map(e => <EntryRow key={e.id} e={e} {...rowProps} occurrenceId={recurringOccMap[e.id]} />)}
                   <tr className="border-t border-blue-100 bg-blue-50/40 text-xs font-semibold text-gray-600">
-                    <td colSpan={6} className="px-4 py-2 text-gray-400">Sous-total récurrents</td>
+                    <td colSpan={7} className="px-4 py-2 text-gray-400">Sous-total récurrents</td>
                     <td className="px-4 py-2 text-right tabular-nums">{dollar(recsMontant)}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-blue-700">{dollar(recsCollected)}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-gray-300">—</td>
@@ -940,7 +946,7 @@ function MonthSection({
 
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold text-xs text-gray-700">
-                    <td colSpan={6} className="px-4 py-3 text-gray-500 uppercase tracking-wide">Total {label}</td>
+                    <td colSpan={7} className="px-4 py-3 text-gray-500 uppercase tracking-wide">Total {label}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{dollar(totaux.montant)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totaux.collected)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-600">
@@ -961,7 +967,7 @@ function MonthSection({
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-gray-100 bg-gray-50/50 font-semibold text-gray-700 text-xs">
-                    <td colSpan={6} className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
+                    <td colSpan={7} className="px-4 py-3 text-gray-400 uppercase tracking-wide">Total</td>
                     <td className="px-4 py-3 text-right tabular-nums">{dollar(totaux.montant)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(totaux.collected)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-600">
@@ -1112,6 +1118,17 @@ export default function CashView({
     () => new Map(allProfiles.map(p => [p.id, p.full_name ?? 'Inconnu'])),
     [allProfiles],
   )
+
+  const csmByEntryId = useMemo(() => {
+    const csmProfileMap = new Map(csmMembers.map(m => [m.id, m.full_name ?? '?']))
+    const map = new Map<string, string>()
+    for (const c of csmClients) {
+      if (c.cash_entry_id && c.csm_id) {
+        map.set(c.cash_entry_id, csmProfileMap.get(c.csm_id) ?? '?')
+      }
+    }
+    return map
+  }, [csmClients, csmMembers])
 
   // ── Period filter presets ─────────────────────────────────────
   const firstOfMonth = `${yearNow}-${String(monthNow + 1).padStart(2, '0')}-01`
@@ -1547,6 +1564,7 @@ export default function CashView({
                 monthKey={key}
                 entries={entries}
                 profileMap={profileMap}
+                csmByEntryId={csmByEntryId}
                 recurringIds={recurringIds}
                 recurringOccMap={recurringOccMap}
                 isAdmin={isAdmin}

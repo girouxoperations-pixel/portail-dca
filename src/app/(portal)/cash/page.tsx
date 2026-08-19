@@ -37,7 +37,7 @@ export default async function CashPage() {
       .order('quarter', { ascending: false })
       .order('week_number', { ascending: true }),
     db.from('csm_clients')
-      .select('id, status, payment_type'),
+      .select('id, status, payment_type, cash_entry_id, csm_id'),
     db.from('profiles')
       .select('id, full_name, role')
       .or('roles.cs.{csm},roles.cs.{head_csm}'),

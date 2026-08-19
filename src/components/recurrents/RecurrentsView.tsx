@@ -843,6 +843,7 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
               {dollar(deal.montant_mensuel)}/versement
               {closerNom && ` · ${closerNom}`}
               {setterNom && ` + ${setterNom}`}
+              {deal.csm_id && ` · CSM: ${profileMap.get(deal.csm_id) ?? '?'}`}
             </span>
             <span className={cn(
               'text-[11px] font-semibold px-2 py-0.5 rounded-full',

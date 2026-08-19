@@ -16,6 +16,7 @@ export interface RecurrentsOcc {
   annee:            number
   clientName:       string
   closerName?:      string
+  csmName?:         string
   methodePaiement?: string | null
   dealNotes?:       string | null
 }
@@ -109,7 +110,10 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
         <div className="font-medium text-gray-900">{occ.clientName}</div>
         {occ.dealNotes && <div className="text-[10px] text-gray-400 italic truncate max-w-[160px]">{occ.dealNotes}</div>}
       </td>
-      <td className="px-4 py-2.5 text-gray-500">{occ.closerName ?? '—'}</td>
+      <td className="px-4 py-2.5 text-gray-500">
+        <div>{occ.closerName ?? '—'}</div>
+        {occ.csmName && <div className="text-[10px] text-violet-500">CSM: {occ.csmName}</div>}
+      </td>
       <td className="px-4 py-2.5">{methodeLabel}</td>
 
       <td className="px-4 py-2.5 text-gray-500">
