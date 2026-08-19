@@ -25,15 +25,15 @@ const PUBLIC_PATHS = ['/login', '/unauthorized', '/reset-password', '/api/cron']
 // authentifiés (la RLS Supabase protège les données au niveau DB).
 // ----------------------------------------------------------------
 const ROUTE_RULES: { prefix: string; roles: string[] }[] = [
-  { prefix: '/cash',         roles: ['admin', 'csm']                       },
-  { prefix: '/admin',        roles: ['admin', 'csm']                       },
-  { prefix: '/closer',       roles: ['admin', 'csm', 'closer']             },
-  { prefix: '/setter',       roles: ['admin', 'csm', 'setter']             },
-  { prefix: '/feedback',     roles: ['admin', 'csm', 'closer', 'setter']   },
-  { prefix: '/suivi-client', roles: ['admin', 'csm', 'closer']             },
-  { prefix: '/csm',         roles: ['admin', 'csm']                       },
-  { prefix: '/cm',          roles: ['admin', 'csm', 'cm']                 },
-  { prefix: '/todo',        roles: ['admin', 'csm', 'closer']             },
+  { prefix: '/cash',         roles: ['admin', 'csm', 'head_csm']                       },
+  { prefix: '/admin',        roles: ['admin', 'csm', 'head_csm']                       },
+  { prefix: '/closer',       roles: ['admin', 'csm', 'head_csm', 'closer']             },
+  { prefix: '/setter',       roles: ['admin', 'csm', 'head_csm', 'setter']             },
+  { prefix: '/feedback',     roles: ['admin', 'csm', 'head_csm', 'closer', 'setter']   },
+  { prefix: '/suivi-client', roles: ['admin', 'csm', 'head_csm', 'closer']             },
+  { prefix: '/csm',         roles: ['admin', 'csm', 'head_csm']                       },
+  { prefix: '/cm',          roles: ['admin', 'csm', 'head_csm', 'cm']                 },
+  { prefix: '/todo',        roles: ['admin', 'csm', 'head_csm', 'closer']             },
 ]
 
 export async function proxy(request: NextRequest) {
