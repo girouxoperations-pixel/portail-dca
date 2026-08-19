@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
-import { Plus, ChevronDown, ChevronUp, X, Check, Ban, Trash2, CheckCircle2, Circle } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, X, Check, Ban, Trash2, CheckCircle2, Circle, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   ajouterDeal,
@@ -9,6 +9,7 @@ import {
   modifierNoms,
   toggleRoleComplet,
   toggleFondsCollectes,
+  toggleEnCollection,
   annulerDeal,
   supprimerDeal,
 } from '@/app/(portal)/alveo/actions'
@@ -33,6 +34,7 @@ type Deal = {
   cash_entry_id:     string | null
   cash_montant:      number | null
   cash_collected:    number | null
+  en_collection:     boolean
   montant:           number
   collected:         number
   methode:           string
@@ -306,6 +308,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
 
   const aCollecter = montantEffectif - collectedEffectif
   const isCancelled = deal.statut === 'annulé'
+  const isEnCollection = deal.en_collection
 
   const effectiveDeal = {
     ...deal,
@@ -328,12 +331,12 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
 
   return (
     <>
-      <tr className={[
-        'border-b border-gray-100 transition-colors',
-        isCancelled
-          ? 'opacity-40 bg-gray-50'
-          : 'hover:bg-gray-50',
-      ].join(' ')}>
+      <tr className={cn(
+        'border-b transition-colors',
+        isCancelled       ? 'opacity-40 bg-gray-50 border-gray-100' :
+        isEnCollection    ? 'bg-red-50 border-red-200 hover:bg-red-100' :
+                            'border-gray-100 hover:bg-gray-50',
+      )}>
         {/* Date */}
         <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">
           {formatDate(deal.cash_entry_date ?? deal.deal_date)}
@@ -341,12 +344,19 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
 
         {/* Client */}
         <td className="px-3 py-2.5">
-          <span className="text-sm text-gray-900 font-medium">{deal.client_name}</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm text-gray-900 font-medium">{deal.client_name}</span>
+            {isCancelled && (
+              <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Annulé</span>
+            )}
+            {isEnCollection && (
+              <span className="flex items-center gap-1 text-[10px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded uppercase tracking-wide">
+                <AlertTriangle size={9} /> En collection
+              </span>
+            )}
+          </div>
           {deal.notes && (
-            <span className="ml-1.5 text-xs text-gray-500">{deal.notes}</span>
-          )}
-          {isCancelled && (
-            <span className="ml-2 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Annulé</span>
+            <span className="text-xs text-gray-500">{deal.notes}</span>
           )}
         </td>
 
@@ -466,6 +476,21 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
               >
                 {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
+              {!isCancelled && (
+                <button
+                  disabled={pending}
+                  onClick={() => startTransition(() => toggleEnCollection(deal.id, !isEnCollection))}
+                  title={isEnCollection ? 'Retirer de collection' : 'Mettre en collection'}
+                  className={cn(
+                    'w-6 h-6 flex items-center justify-center rounded transition-colors',
+                    isEnCollection
+                      ? 'text-red-600 hover:text-red-400'
+                      : 'text-gray-400 hover:text-red-500',
+                  )}
+                >
+                  <AlertTriangle size={12} />
+                </button>
+              )}
               {!isCancelled && (
                 <button
                   disabled={pending}
