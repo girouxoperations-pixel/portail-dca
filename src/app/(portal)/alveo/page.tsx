@@ -17,31 +17,26 @@ export default async function AlveoPage() {
 
   const db = createAdminClient()
 
-  const [{ data: deals }, { data: payments }, { data: cashFinancement }] = await Promise.all([
+  const [{ data: deals }, { data: payments }] = await Promise.all([
     db.from('alveo_deals')
-      .select('*')
+      .select('*, cash_entries(id, montant_courant, collected, entry_date)')
       .order('deal_date', { ascending: false }),
     db.from('alveo_payments')
       .select('*')
       .order('mois', { ascending: true }),
-    db.from('cash_entries')
-      .select('client_name, entry_date')
-      .eq('close_type', 'financement')
-      .order('entry_date', { ascending: false }),
   ])
 
-  // Map client_name (lowercase) → most recent financement entry_date
-  const cashDateMap: Record<string, string> = {}
-  for (const e of cashFinancement ?? []) {
-    const key = (e.client_name ?? '').toLowerCase().trim()
-    if (key && !cashDateMap[key]) cashDateMap[key] = e.entry_date
-  }
-
-  const dealsWithPayments = (deals ?? []).map(d => ({
-    ...d,
-    payments: (payments ?? []).filter(p => p.deal_id === d.id),
-    cash_entry_date: cashDateMap[(d.client_name ?? '').toLowerCase().trim()] ?? null,
-  }))
+  const dealsWithPayments = (deals ?? []).map(d => {
+    const ce = Array.isArray(d.cash_entries) ? (d.cash_entries[0] ?? null) : (d.cash_entries ?? null)
+    return {
+      ...d,
+      cash_entries: undefined,
+      payments: (payments ?? []).filter(p => p.deal_id === d.id),
+      cash_entry_date:    ce?.entry_date    ?? null,
+      cash_montant:       ce?.montant_courant ?? null,
+      cash_collected:     ce?.collected       ?? null,
+    }
+  })
 
   return (
     <AlveoView

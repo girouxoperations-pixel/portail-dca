@@ -30,6 +30,9 @@ type Deal = {
   client_name:       string
   deal_date:         string | null
   cash_entry_date:   string | null
+  cash_entry_id:     string | null
+  cash_montant:      number | null
+  cash_collected:    number | null
   montant:           number
   collected:         number
   methode:           string
@@ -291,8 +294,24 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
   const [closerVal, setCloserVal]         = useState(deal.closer_name ?? '')
   const [pending, startTransition]    = useTransition()
 
-  const aCollecter = deal.montant - deal.collected
+  // Use live montant from cash/stats when linked, otherwise stored value
+  const montantEffectif = deal.cash_montant ?? deal.montant
+  const collectedEffectif = deal.cash_collected ?? deal.collected
+  const commSetterEffectif = deal.cash_montant != null
+    ? Math.round(montantEffectif * 0.05 * 100) / 100
+    : deal.commission_setter
+  const commCloserEffectif = deal.cash_montant != null
+    ? Math.round(montantEffectif * 0.10 * 100) / 100
+    : deal.commission_closer
+
+  const aCollecter = montantEffectif - collectedEffectif
   const isCancelled = deal.statut === 'annulé'
+
+  const effectiveDeal = {
+    ...deal,
+    commission_setter: commSetterEffectif,
+    commission_closer: commCloserEffectif,
+  }
 
   function saveCollected() {
     const val = parseFloat(collectedVal)
@@ -388,12 +407,12 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
 
         {/* Montant */}
         <td className="px-3 py-2.5 text-xs text-gray-700 text-right font-mono">
-          {dollar(deal.montant)}
+          {dollar(montantEffectif)}
         </td>
 
         {/* Collected */}
         <td className="px-3 py-2.5 text-xs text-right">
-          {editCollected ? (
+          {editCollected && !deal.cash_entry_id ? (
             <div className="flex items-center gap-1 justify-end">
               <input
                 type="number"
@@ -408,13 +427,13 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
             </div>
           ) : (
             <button
-              onClick={() => isAdmin && setEditCollected(true)}
-              className={deal.collected >= deal.montant
+              onClick={() => isAdmin && !deal.cash_entry_id && setEditCollected(true)}
+              className={collectedEffectif >= montantEffectif
                 ? 'text-emerald-600 font-mono'
                 : 'text-amber-600 font-mono hover:text-amber-500'}
-              title={isAdmin ? 'Cliquer pour modifier' : undefined}
+              title={isAdmin && !deal.cash_entry_id ? 'Cliquer pour modifier' : undefined}
             >
-              {dollar(deal.collected)}
+              {dollar(collectedEffectif)}
             </button>
           )}
         </td>
@@ -429,12 +448,12 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
 
         {/* Setter commission */}
         <td className="px-3 py-2.5">
-          <RoleBadge deal={deal} role="setter" disabled={isCancelled} />
+          <RoleBadge deal={effectiveDeal} role="setter" disabled={isCancelled} />
         </td>
 
         {/* Closer commission */}
         <td className="px-3 py-2.5">
-          <RoleBadge deal={deal} role="closer" disabled={isCancelled} />
+          <RoleBadge deal={effectiveDeal} role="closer" disabled={isCancelled} />
         </td>
 
         {/* Actions */}
@@ -480,12 +499,12 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
             <div className="grid grid-cols-3 gap-6 text-xs">
               <div>
                 <p className="text-gray-500 mb-1">Commission setter</p>
-                <p className="text-blue-600 font-mono">{dollar(deal.commission_setter)}</p>
+                <p className="text-blue-600 font-mono">{dollar(commSetterEffectif)}</p>
                 <p className="text-gray-400 mt-0.5">5% du montant courant</p>
               </div>
               <div>
                 <p className="text-gray-500 mb-1">Commission closer</p>
-                <p className="text-violet-600 font-mono">{dollar(deal.commission_closer)}</p>
+                <p className="text-violet-600 font-mono">{dollar(commCloserEffectif)}</p>
                 <p className="text-gray-400 mt-0.5">10% du montant courant</p>
               </div>
               <div>
@@ -511,8 +530,8 @@ function MonthSection({
   deals:   Deal[]
   isAdmin: boolean
 }) {
-  const totalMontant   = deals.reduce((s, d) => s + d.montant, 0)
-  const totalCollected = deals.reduce((s, d) => s + d.collected, 0)
+  const totalMontant    = deals.reduce((s, d) => s + (d.cash_montant ?? d.montant), 0)
+  const totalCollected  = deals.reduce((s, d) => s + (d.cash_collected ?? d.collected), 0)
   const totalACollecter = totalMontant - totalCollected
 
   return (
@@ -613,8 +632,8 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   }, [filtered])
 
   const stats = useMemo(() => {
-    const totalCollected  = yearActive.filter(d => d.fonds_collectes).reduce((s, d) => s + d.montant, 0)
-    const aCollecter      = yearActive.filter(d => !d.fonds_collectes).reduce((s, d) => s + d.montant, 0)
+    const totalCollected  = yearActive.filter(d => d.fonds_collectes).reduce((s, d) => s + (d.cash_montant ?? d.montant), 0)
+    const aCollecter      = yearActive.filter(d => !d.fonds_collectes).reduce((s, d) => s + (d.cash_montant ?? d.montant), 0)
     const totalMontant    = totalCollected + aCollecter
     const pendingPayments = yearActive.flatMap(d => d.payments).filter(p => !p.paid)
     const pendingSetter   = pendingPayments.filter(p => p.person_role === 'setter').reduce((s, p) => s + p.amount, 0)
