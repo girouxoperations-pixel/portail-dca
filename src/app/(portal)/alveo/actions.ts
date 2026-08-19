@@ -28,14 +28,16 @@ export async function ajouterDeal(data: {
   setter_name:  string
   closer_name:  string
   notes:        string
+  versements?:  3 | 4
 }) {
   const { userId } = await requireAdminOrCsm()
   const db = createAdminClient()
 
+  const nVersements = data.versements ?? 3
   const commission_setter = Math.round(data.montant * 0.05 * 100) / 100
   const commission_closer = Math.round(data.montant * 0.10 * 100) / 100
-  const moisAmount_s = Math.round((commission_setter / 3) * 100) / 100
-  const moisAmount_c = Math.round((commission_closer / 3) * 100) / 100
+  const moisAmount_s = Math.round((commission_setter / nVersements) * 100) / 100
+  const moisAmount_c = Math.round((commission_closer / nVersements) * 100) / 100
 
   const { data: deal, error } = await db.from('alveo_deals').insert({
     client_name:      data.client_name.trim(),
@@ -56,7 +58,7 @@ export async function ajouterDeal(data: {
 
   const payments = []
   if (commission_setter > 0) {
-    for (const m of [1, 2, 3] as const) {
+    for (let m = 1; m <= nVersements; m++) {
       payments.push({
         deal_id:     deal.id,
         person_role: 'setter' as const,
@@ -67,7 +69,7 @@ export async function ajouterDeal(data: {
     }
   }
   if (commission_closer > 0) {
-    for (const m of [1, 2, 3] as const) {
+    for (let m = 1; m <= nVersements; m++) {
       payments.push({
         deal_id:     deal.id,
         person_role: 'closer' as const,

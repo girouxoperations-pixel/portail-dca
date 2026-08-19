@@ -82,6 +82,7 @@ const EMPTY_FORM = {
   setter_name: '',
   closer_name: '',
   notes:       '',
+  versements:  '3',
 }
 
 // ── Role badge (paiement complet setter ou closer) ────────────────────
@@ -149,6 +150,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
           setter_name:  form.setter_name,
           closer_name:  form.closer_name,
           notes:        form.notes,
+          versements:   Number(form.versements) as 3 | 4,
         })
         onClose()
       } catch (e) {
@@ -254,12 +256,29 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
+      <div className="mt-3">
+        <label className="block text-xs text-gray-500 mb-1">Versements</label>
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden w-fit">
+          {(['3', '4'] as const).map((n, i) => (
+            <button
+              key={n} type="button"
+              onClick={() => set('versements', n)}
+              className={cn(
+                'px-4 py-1.5 text-xs font-medium transition-colors',
+                i > 0 && 'border-l border-gray-200',
+                form.versements === n ? 'bg-violet-600 text-white' : 'text-gray-500 hover:bg-gray-50',
+              )}
+            >{n} versements</button>
+          ))}
+        </div>
+      </div>
+
       {montant > 0 && (
         <p className="mt-2 text-xs text-gray-500">
           Commission setter : <span className="text-blue-600">{dollar(commS)}</span>
           &nbsp;·&nbsp;
           Commission closer : <span className="text-violet-600">{dollar(commC)}</span>
-          &nbsp;·&nbsp;versées en 3 mensualités
+          &nbsp;·&nbsp;versées en {form.versements} mensualités
         </p>
       )}
 

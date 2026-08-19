@@ -366,7 +366,7 @@ function ModalNouveauDeal({
   const [pending, startTransition] = useTransition()
   const today = new Date().toISOString().slice(0, 10)
 
-  const [versementsMode, setVersementsMode] = useState<'1' | '2' | '3' | 'autre'>('1')
+  const [versementsMode, setVersementsMode] = useState<'1' | '2' | '3' | '4' | 'autre'>('1')
   const [autreDates,     setAutreDates]     = useState<string[]>([])
   const [autreAmounts,   setAutreAmounts]   = useState<number[]>([0])
   const [entryDate,      setEntryDate]      = useState(today)
@@ -471,7 +471,7 @@ function ModalNouveauDeal({
           </Champ>
           <Champ label="Versements">
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-              {(['1', '2', '3', 'autre'] as const).map((n, i) => (
+              {(['1', '2', '3', '4', 'autre'] as const).map((n, i) => (
                 <button
                   key={n} type="button"
                   onClick={() => { setVersementsMode(n); if (n === 'autre') { setAutreDates([]); setAutreAmounts([0]) } }}
