@@ -592,6 +592,7 @@ export default async function DashboardPage({
     { data: recurringCashOccs },
     { data: allCashEntries },
     { data: csmMembers },
+    { data: csmClients },
   ] = await Promise.all([
     supabase.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
@@ -633,6 +634,7 @@ export default async function DashboardPage({
       .select('entry_date, closed_by, set_by, collected, close_type, notes')
       .neq('is_refunded', true),
     db.from('profiles').select('id, full_name').or('roles.cs.{csm},roles.cs.{head_csm}'),
+    db.from('csm_clients').select('name, csm_id'),
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
@@ -811,9 +813,21 @@ export default async function DashboardPage({
 
   const csmMemberMap = new Map((csmMembers ?? []).map(m => [m.id, m.full_name ?? '?']))
 
+  // Build name → csm_name map from csm_clients (primary source)
+  const csmByClientName = new Map<string, string>()
+  for (const c of csmClients ?? []) {
+    if (c.csm_id) {
+      const key = (c.name ?? '').toLowerCase().trim()
+      if (key) csmByClientName.set(key, csmMemberMap.get(c.csm_id) ?? '?')
+    }
+  }
+
   function toHealthOcc(o: typeof occs[number]): RecurrentsOcc {
     const raw  = o.recurring_deals as unknown
     const deal = (Array.isArray(raw) ? raw[0] : raw) as { client_name: string; closer_id: string | null; csm_id: string | null; methode_paiement: string | null; notes: string | null } | null
+    const clientKey = (deal?.client_name ?? '').toLowerCase().trim()
+    const csmName = csmByClientName.get(clientKey)
+      ?? (deal?.csm_id ? (csmMemberMap.get(deal.csm_id) ?? undefined) : undefined)
     return {
       id:               o.id,
       dealId:           o.recurring_deal_id ?? '',
@@ -823,7 +837,7 @@ export default async function DashboardPage({
       annee:            o.annee,
       clientName:       deal?.client_name ?? '—',
       closerName:       deal?.closer_id ? (profileMap.get(deal.closer_id) ?? undefined) : undefined,
-      csmName:          deal?.csm_id ? (csmMemberMap.get(deal.csm_id) ?? undefined) : undefined,
+      csmName,
       methodePaiement:  deal?.methode_paiement ?? null,
       dealNotes:        deal?.notes ?? null,
     }

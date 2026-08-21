@@ -110,10 +110,8 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
         <div className="font-medium text-gray-900">{occ.clientName}</div>
         {occ.dealNotes && <div className="text-[10px] text-gray-400 italic truncate max-w-[160px]">{occ.dealNotes}</div>}
       </td>
-      <td className="px-4 py-2.5 text-gray-500">
-        <div>{occ.closerName ?? '—'}</div>
-        {occ.csmName && <div className="text-[10px] text-violet-500">CSM: {occ.csmName}</div>}
-      </td>
+      <td className="px-4 py-2.5 text-gray-500">{occ.closerName ?? '—'}</td>
+      <td className="px-4 py-2.5 text-violet-600 text-xs font-medium">{occ.csmName ?? '—'}</td>
       <td className="px-4 py-2.5">{methodeLabel}</td>
 
       <td className="px-4 py-2.5 text-gray-500">
@@ -263,6 +261,7 @@ function OccTable({ occs, headerCls }: { occs: RecurrentsOcc[]; headerCls: strin
           <tr className={cn('text-xs font-semibold uppercase tracking-wider', headerCls)}>
             <th className="px-4 py-2.5 text-left">Client</th>
             <th className="px-4 py-2.5 text-left">Closer</th>
+            <th className="px-4 py-2.5 text-left">CSM</th>
             <th className="px-4 py-2.5 text-left">Méthode</th>
             <th className="px-4 py-2.5 text-left">Date attendue</th>
             <th className="px-4 py-2.5 text-right">Montant</th>
@@ -274,7 +273,7 @@ function OccTable({ occs, headerCls }: { occs: RecurrentsOcc[]; headerCls: strin
         </tbody>
         <tfoot>
           <tr className="border-t border-gray-100 bg-gray-50">
-            <td colSpan={5} className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</td>
+            <td colSpan={6} className="px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</td>
             <td className="px-4 py-2.5 text-right font-bold text-gray-900 tabular-nums">
               {dollar(sorted.reduce((s, o) => s + o.montant_attendu, 0))}
             </td>
