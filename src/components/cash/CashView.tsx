@@ -1412,13 +1412,27 @@ export default function CashView({
   }, [filtrees, recurringIds, closerEntries])
 
   const momData = useMemo(() => {
-    const months = grouped.map(([key, entries]) => {
+    const groupedKeys = new Set(grouped.map(([k]) => k))
+    const filterStartMonth = filterStart.slice(0, 7)
+    const filterEndMonth   = filterEnd.slice(0, 7)
+
+    // Months with entries
+    const fromEntries = grouped.map(([key, entries]) => {
       const liveCollected = entries.filter(e => !e.is_refunded).reduce((s, e) => s + (e.collected ?? 0), 0)
       const collected = snapshotMap.get(key) ?? liveCollected
       const [year, month] = key.split('-').map(Number)
       return { key, label: `${MOIS_COURT[month - 1]} ${year}`, collected }
     })
-    const sorted = [...months].reverse()
+
+    // Snapshot-only months within filter range
+    const fromSnapshots = [...snapshotMap.entries()]
+      .filter(([k]) => k >= filterStartMonth && k <= filterEndMonth && !groupedKeys.has(k))
+      .map(([key, collected]) => {
+        const [year, month] = key.split('-').map(Number)
+        return { key, label: `${MOIS_COURT[month - 1]} ${year}`, collected }
+      })
+
+    const sorted = [...fromEntries, ...fromSnapshots].sort((a, b) => a.key.localeCompare(b.key))
     return sorted.map((m, i) => {
       const prev = sorted[i - 1]
       const growth = prev !== undefined ? m.collected - prev.collected : null
@@ -1427,7 +1441,7 @@ export default function CashView({
         : null
       return { ...m, growth, growthPct }
     })
-  }, [grouped, snapshotMap])
+  }, [grouped, snapshotMap, filterStart, filterEnd])
 
   const wowData = useMemo(() => {
     const sorted = [...weeklyStats].reverse()
