@@ -820,6 +820,23 @@ const TABLE_HEAD = (
   </thead>
 )
 
+function SnapshotMonthRow({ monthKey, collected }: { monthKey: string; collected: number }) {
+  const [year, month] = monthKey.split('-').map(Number)
+  const label = `${MOIS_FR[month - 1]} ${year}`
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="w-full px-5 py-4 flex items-center gap-3">
+        <span className="text-gray-300 flex-shrink-0"><ChevronRight size={16} /></span>
+        <span className="font-semibold text-gray-900 text-sm">{label}</span>
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-sm font-bold text-gray-800 tabular-nums">{dollar(collected)}</span>
+          <span className="inline-flex items-center gap-0.5 text-xs text-gray-400"><Lock size={10} /> total</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MonthSection({
   monthKey, entries, profileMap, csmByEntryId, recurringIds, recurringOccMap, isAdmin,
   onEdit, onDelete, onAnnulerRecu, onRefund, pending, defaultOpen, snapshotCollected,
@@ -1600,36 +1617,51 @@ export default function CashView({
       )}</>}
 
       {/* ── Tab Entrées ─────────────────────────────────────────── */}
-      {tab === 'entrees' && (
-        grouped.length === 0 ? (
+      {tab === 'entrees' && (() => {
+        const groupedKeys = new Set(grouped.map(([k]) => k))
+        const filterStartMonth = filterStart.slice(0, 7)
+        const filterEndMonth   = filterEnd.slice(0, 7)
+        const snapshotOnlyKeys = [...snapshotMap.keys()]
+          .filter(k => k >= filterStartMonth && k <= filterEndMonth && !groupedKeys.has(k))
+        const allRows: [string, CashEntry[] | null][] = [
+          ...grouped,
+          ...snapshotOnlyKeys.map(k => [k, null] as [string, null]),
+        ].sort(([a], [b]) => b.localeCompare(a))
+
+        if (allRows.length === 0) return (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-12 text-center">
             <p className="text-sm text-gray-400">Aucune entrée sur cette période</p>
             <p className="text-xs text-gray-300 mt-1">Ajustez la période ou ajoutez une entrée.</p>
           </div>
-        ) : (
+        )
+        return (
           <div className="space-y-3">
-            {grouped.map(([key, entries], idx) => (
-              <MonthSection
-                key={key}
-                monthKey={key}
-                entries={entries}
-                profileMap={profileMap}
-                csmByEntryId={csmByEntryId}
-                recurringIds={recurringIds}
-                recurringOccMap={recurringOccMap}
-                isAdmin={isAdmin}
-                onEdit={setModalEntry}
-                onDelete={handleDelete}
-                onAnnulerRecu={handleAnnulerRecu}
-                onRefund={handleRefundOpen}
-                pending={pending}
-                defaultOpen={idx === 0}
-                snapshotCollected={snapshotMap.get(key)}
-              />
-            ))}
+            {allRows.map(([key, entries], idx) =>
+              entries === null ? (
+                <SnapshotMonthRow key={key} monthKey={key} collected={snapshotMap.get(key)!} />
+              ) : (
+                <MonthSection
+                  key={key}
+                  monthKey={key}
+                  entries={entries}
+                  profileMap={profileMap}
+                  csmByEntryId={csmByEntryId}
+                  recurringIds={recurringIds}
+                  recurringOccMap={recurringOccMap}
+                  isAdmin={isAdmin}
+                  onEdit={setModalEntry}
+                  onDelete={handleDelete}
+                  onAnnulerRecu={handleAnnulerRecu}
+                  onRefund={handleRefundOpen}
+                  pending={pending}
+                  defaultOpen={idx === 0}
+                  snapshotCollected={snapshotMap.get(key)}
+                />
+              )
+            )}
           </div>
         )
-      )}
+      })()}
 
       {/* ── Tab Stats ───────────────────────────────────────────── */}
       {tab === 'stats' && (
