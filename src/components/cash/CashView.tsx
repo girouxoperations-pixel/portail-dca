@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown,
   Zap, Clock, ChevronDown, ChevronRight, RefreshCw, BarChart3,
-  Monitor, Film, Globe, Upload, Search, X, Undo2, RotateCcw,
+  Monitor, Film, Globe, Upload, Search, X, Undo2, RotateCcw, Lock,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -68,6 +68,7 @@ interface Props {
   perfs:            WeeklyPerf[]
   csmClients:       CsmStat[]
   closerEntries:    { entry_date: string; pitch_calls: number; closes: number }[]
+  snapshots:        { month_key: string; collected: number }[]
 }
 
 type SourceType = 'deal' | 'recurrent'
@@ -820,18 +821,19 @@ const TABLE_HEAD = (
 
 function MonthSection({
   monthKey, entries, profileMap, csmByEntryId, recurringIds, recurringOccMap, isAdmin,
-  onEdit, onDelete, onAnnulerRecu, onRefund, pending, defaultOpen,
+  onEdit, onDelete, onAnnulerRecu, onRefund, pending, defaultOpen, snapshotCollected,
 }: {
-  monthKey:        string
-  entries:         CashEntry[]
-  profileMap:      Map<string, string>
-  csmByEntryId:    Map<string, string>
-  recurringIds:    Set<string>
-  recurringOccMap: Record<string, string>
-  isAdmin:         boolean
-  onEdit:          (e: CashEntry) => void
-  onDelete:        (id: string) => void
-  onAnnulerRecu:   (occId: string) => void
+  monthKey:          string
+  entries:           CashEntry[]
+  profileMap:        Map<string, string>
+  csmByEntryId:      Map<string, string>
+  recurringIds:      Set<string>
+  recurringOccMap:   Record<string, string>
+  isAdmin:           boolean
+  onEdit:            (e: CashEntry) => void
+  onDelete:          (id: string) => void
+  onAnnulerRecu:     (occId: string) => void
+  snapshotCollected?: number
   onRefund:        (e: CashEntry) => void
   pending:         boolean
   defaultOpen:     boolean
@@ -881,8 +883,17 @@ function MonthSection({
               <RefreshCw size={8} />{recs.length} récurrent{recs.length > 1 ? 's' : ''} · {dollar(recsCollected)}
             </span>
           )}
-          <span className="text-sm font-bold text-gray-800 tabular-nums">{dollar(totaux.collected)}</span>
-          <span className="text-xs text-gray-400">total</span>
+          {snapshotCollected !== undefined ? (
+            <>
+              <span className="text-sm font-bold text-gray-800 tabular-nums">{dollar(snapshotCollected)}</span>
+              <span className="inline-flex items-center gap-0.5 text-xs text-gray-400"><Lock size={10} /> total</span>
+            </>
+          ) : (
+            <>
+              <span className="text-sm font-bold text-gray-800 tabular-nums">{dollar(totaux.collected)}</span>
+              <span className="text-xs text-gray-400">total</span>
+            </>
+          )}
         </div>
       </button>
 
@@ -1069,7 +1080,7 @@ function StatsBlock({
 // ── Composant principal ───────────────────────────────────────────
 
 export default function CashView({
-  entrees, closers, setters, allProfiles, csmMembers, isAdmin, recurringCashIds, recurringOccMap, perfs, csmClients, closerEntries,
+  entrees, closers, setters, allProfiles, csmMembers, isAdmin, recurringCashIds, recurringOccMap, perfs, csmClients, closerEntries, snapshots,
 }: Props) {
   const router    = useRouter()
   const today     = new Date().toISOString().slice(0, 10)
@@ -1129,6 +1140,11 @@ export default function CashView({
     }
     return map
   }, [csmClients, csmMembers])
+
+  const snapshotMap = useMemo(
+    () => new Map(snapshots.map(s => [s.month_key, s.collected])),
+    [snapshots],
+  )
 
   // ── Period filter presets ─────────────────────────────────────
   const firstOfMonth = `${yearNow}-${String(monthNow + 1).padStart(2, '0')}-01`
@@ -1574,6 +1590,7 @@ export default function CashView({
                 onRefund={handleRefundOpen}
                 pending={pending}
                 defaultOpen={idx === 0}
+                snapshotCollected={snapshotMap.get(key)}
               />
             ))}
           </div>
