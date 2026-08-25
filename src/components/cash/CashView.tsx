@@ -6,10 +6,11 @@ import {
   Plus, Pencil, Trash2, DollarSign, Wallet, TrendingDown,
   Zap, Clock, ChevronDown, ChevronRight, RefreshCw, BarChart3,
   Monitor, Film, Globe, Upload, Search, X, Undo2, RotateCcw, Lock,
+  TrendingUp, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
+  ResponsiveContainer, Legend, LineChart, Line, ReferenceLine,
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { modifierCash, supprimerCash, marquerRemboursementDepuisCash } from '@/app/(portal)/cash/actions'
@@ -1087,7 +1088,7 @@ export default function CashView({
   const yearNow   = new Date().getFullYear()
   const monthNow  = new Date().getMonth()
 
-  const [tab, setTab]               = useState<'entrees' | 'stats' | 'semaine' | 'pjour' | 'hebdo'>('entrees')
+  const [tab, setTab]               = useState<'entrees' | 'stats' | 'semaine' | 'pjour' | 'hebdo' | 'croissance'>('entrees')
   const [filterStart, setFilterStart] = useState(`${yearNow}-01-01`)
   const [filterEnd, setFilterEnd]     = useState(today)
   const [filterCloserId, setFilterCloserId] = useState('')
@@ -1393,6 +1394,38 @@ export default function CashView({
       })
   }, [filtrees, recurringIds, closerEntries])
 
+  const momData = useMemo(() => {
+    const months = grouped.map(([key, entries]) => {
+      const liveCollected = entries.filter(e => !e.is_refunded).reduce((s, e) => s + (e.collected ?? 0), 0)
+      const collected = snapshotMap.get(key) ?? liveCollected
+      const [year, month] = key.split('-').map(Number)
+      return { key, label: `${MOIS_COURT[month - 1]} ${year}`, collected }
+    })
+    const sorted = [...months].reverse()
+    return sorted.map((m, i) => {
+      const prev = sorted[i - 1]
+      const growth = prev !== undefined ? m.collected - prev.collected : null
+      const growthPct = prev && prev.collected > 0
+        ? ((m.collected - prev.collected) / prev.collected) * 100
+        : null
+      return { ...m, growth, growthPct }
+    })
+  }, [grouped, snapshotMap])
+
+  const wowData = useMemo(() => {
+    const sorted = [...weeklyStats].reverse()
+    return sorted.map((w, i) => {
+      const total = w.cashDeal + w.cashRec
+      const prev = sorted[i - 1]
+      const prevTotal = prev !== undefined ? prev.cashDeal + prev.cashRec : null
+      const growth = prevTotal !== null ? total - prevTotal : null
+      const growthPct = prevTotal && prevTotal > 0
+        ? ((total - prevTotal) / prevTotal) * 100
+        : null
+      return { ...w, total, growth, growthPct, label: `S${w.week}` }
+    })
+  }, [weeklyStats])
+
   const tabCls = (t: typeof tab) => cn(
     'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
     tab === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
@@ -1427,15 +1460,16 @@ export default function CashView({
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        <button className={tabCls('entrees')}  onClick={() => setTab('entrees')}>Entrées</button>
-        <button className={tabCls('stats')}    onClick={() => setTab('stats')}>Stats</button>
-        <button className={tabCls('semaine')}  onClick={() => setTab('semaine')}>Par semaine</button>
-        <button className={tabCls('pjour')}    onClick={() => setTab('pjour')}>Par jour</button>
-        <button className={tabCls('hebdo')}    onClick={() => setTab('hebdo')}>Perf hebdo</button>
+        <button className={tabCls('entrees')}    onClick={() => setTab('entrees')}>Entrées</button>
+        <button className={tabCls('stats')}      onClick={() => setTab('stats')}>Stats</button>
+        <button className={tabCls('croissance')} onClick={() => setTab('croissance')}>Croissance</button>
+        <button className={tabCls('semaine')}    onClick={() => setTab('semaine')}>Par semaine</button>
+        <button className={tabCls('pjour')}      onClick={() => setTab('pjour')}>Par jour</button>
+        <button className={tabCls('hebdo')}      onClick={() => setTab('hebdo')}>Perf hebdo</button>
       </div>
 
       {/* Period filter + KPIs — entrées + semaine tabs only */}
-      {(tab === 'entrees' || tab === 'stats' || tab === 'semaine') && <><div className="flex items-center gap-2 flex-wrap">
+      {(tab === 'entrees' || tab === 'stats' || tab === 'semaine' || tab === 'croissance') && <><div className="flex items-center gap-2 flex-wrap">
         {PRESETS.map(p => {
           const active = filterStart === p.start && filterEnd === p.end
           return (
@@ -2144,6 +2178,148 @@ export default function CashView({
               collected:   e.collected ?? 0,
             }))}
         />
+      )}
+
+      {/* ── Tab Croissance ──────────────────────────────────────── */}
+      {tab === 'croissance' && (
+        <div className="space-y-8">
+
+          {/* ── MoM ── */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={18} className="text-violet-600" />
+              <h2 className="text-base font-semibold text-gray-900">Croissance mensuelle (MoM)</h2>
+            </div>
+
+            {momData.length > 1 && (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={momData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)} tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      formatter={(v: unknown) => dollar(v as number)}
+                      contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', fontSize: 12 }}
+                    />
+                    <Line type="monotone" dataKey="collected" name="Cash collecté" stroke="#7c3aed" strokeWidth={2.5} dot={{ r: 4, fill: '#7c3aed' }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100 bg-gray-50">
+                      <th className="px-5 py-3 text-left">Mois</th>
+                      <th className="px-5 py-3 text-right text-violet-500">Cash collecté</th>
+                      <th className="px-5 py-3 text-right">Δ vs mois préc.</th>
+                      <th className="px-5 py-3 text-right">% Croissance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {[...momData].reverse().map(m => {
+                      const up = (m.growthPct ?? 0) >= 0
+                      return (
+                        <tr key={m.key} className="hover:bg-gray-50/50">
+                          <td className="px-5 py-3 font-medium text-gray-800">{m.label}</td>
+                          <td className="px-5 py-3 text-right tabular-nums font-semibold text-violet-700">{dollar(m.collected)}</td>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {m.growth !== null ? (
+                              <span className={cn('font-medium', up ? 'text-emerald-600' : 'text-red-500')}>
+                                {up ? '+' : ''}{dollar(m.growth)}
+                              </span>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            {m.growthPct !== null ? (
+                              <span className={cn('inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full',
+                                up ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600')}>
+                                {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
+                                {up ? '+' : ''}{m.growthPct.toFixed(1)} %
+                              </span>
+                            ) : <span className="text-gray-300 text-xs">—</span>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* ── WoW ── */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 size={18} className="text-blue-600" />
+              <h2 className="text-base font-semibold text-gray-900">Croissance hebdomadaire (WoW)</h2>
+            </div>
+
+            {wowData.length > 1 && (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={wowData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)} tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <ReferenceLine y={0} stroke="#e5e7eb" />
+                    <Tooltip
+                      formatter={(v: unknown) => dollar(v as number)}
+                      contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', fontSize: 12 }}
+                    />
+                    <Line type="monotone" dataKey="total" name="Cash total" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 4, fill: '#3b82f6' }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100 bg-gray-50">
+                      <th className="px-5 py-3 text-left">Semaine</th>
+                      <th className="px-5 py-3 text-right text-blue-500">Cash total</th>
+                      <th className="px-5 py-3 text-right">Δ vs sem. préc.</th>
+                      <th className="px-5 py-3 text-right">% Croissance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {[...wowData].reverse().map((w, i) => {
+                      const up = (w.growthPct ?? 0) >= 0
+                      return (
+                        <tr key={i} className="hover:bg-gray-50/50">
+                          <td className="px-5 py-3 font-medium text-gray-800">{w.label}</td>
+                          <td className="px-5 py-3 text-right tabular-nums font-semibold text-blue-700">{dollar(w.total)}</td>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {w.growth !== null ? (
+                              <span className={cn('font-medium', up ? 'text-emerald-600' : 'text-red-500')}>
+                                {up ? '+' : ''}{dollar(w.growth)}
+                              </span>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            {w.growthPct !== null ? (
+                              <span className={cn('inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full',
+                                up ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600')}>
+                                {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
+                                {up ? '+' : ''}{w.growthPct.toFixed(1)} %
+                              </span>
+                            ) : <span className="text-gray-300 text-xs">—</span>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
       )}
 
       {/* Modal nouveau deal */}
