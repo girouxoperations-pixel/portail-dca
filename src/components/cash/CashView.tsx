@@ -727,7 +727,7 @@ function EntryRow({ e, profileMap, csmByEntryId, recurringIds, occurrenceId, isA
           <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Remboursement</span>
         </td>
         <td className="px-4 py-3" />
-        <td className="px-4 py-3 text-right tabular-nums text-gray-400 line-through text-xs">{dollar(e.montant_courant)}</td>
+        <td className="px-4 py-3 text-right tabular-nums text-gray-400 line-through text-xs whitespace-nowrap">{dollar(e.montant_courant)}</td>
         <td className="px-4 py-3 text-right tabular-nums">
           <span className="text-sm font-bold text-red-600">0,00 $</span>
         </td>
@@ -756,9 +756,9 @@ function EntryRow({ e, profileMap, csmByEntryId, recurringIds, occurrenceId, isA
       <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs">{csmByEntryId.get(e.id) ?? '—'}</td>
       <td className="px-4 py-3"><TypeBadge type={type} closeType={e.close_type} /></td>
       <td className="px-4 py-3"><SourceBadge source={e.source_type} /></td>
-      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800">{dollar(e.montant_courant)}</td>
-      <td className="px-4 py-3 text-right tabular-nums text-blue-700">{dollar(e.collected)}</td>
-      <td className="px-4 py-3 text-right tabular-nums">
+      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">{dollar(e.montant_courant)}</td>
+      <td className="px-4 py-3 text-right tabular-nums text-blue-700 whitespace-nowrap">{dollar(e.collected)}</td>
+      <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
         <span className={cn('font-medium', (e.a_collecter ?? 0) > 0 ? 'text-red-600' : 'text-gray-300')}>
           {dollar(e.a_collecter ?? 0)}
         </span>
