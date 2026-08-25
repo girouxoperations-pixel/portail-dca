@@ -86,7 +86,7 @@ const METHODES = ['Virement', 'Stripe', 'Interac', 'Chèque', 'Espèces', 'Autre
 // ── Helpers ───────────────────────────────────────────────────────
 
 function dollar(n: number) {
-  return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n)} $`
+  return `${new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)} $`
 }
 
 function formatDate(dateStr: string) {
