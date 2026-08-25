@@ -160,12 +160,13 @@ export async function togglePaiement(paymentId: string, paid: boolean) {
     const { data: profiles } = await db
       .from('profiles')
       .select('id, full_name')
-      .in('role', ['closer', 'setter'])
 
-    const firstName = personName.toLowerCase().split(/[\s\-–]/)[0]
-    const matched = (profiles ?? []).find(p =>
-      (p.full_name ?? '').toLowerCase().startsWith(firstName)
-    )
+    const needle = personName.toLowerCase().trim()
+    const firstName = needle.split(/[\s\-–]/)[0]
+    const matched = (profiles ?? []).find(p => {
+      const hay = (p.full_name ?? '').toLowerCase().trim()
+      return hay === needle || hay.startsWith(firstName + ' ')
+    })
 
     const isCloser = payment.person_role === 'closer'
 
@@ -224,11 +225,15 @@ export async function toggleRoleComplet(dealId: string, role: 'setter' | 'closer
     // Supprimer une éventuelle paye_entry groupée existante avant de recréer
     await db.from('paye_entries').delete().like('notes', `Alveo|${dealId}|${role}`)
 
-    // Résoudre le profil par prénom
+    // Résoudre le profil par nom complet puis prénom
     const personName = role === 'setter' ? (deal.setter_name ?? '') : (deal.closer_name ?? '')
-    const { data: profiles } = await db.from('profiles').select('id, full_name').in('role', ['closer', 'setter'])
-    const firstName = personName.toLowerCase().split(/[\s\-–]/)[0]
-    const matched = (profiles ?? []).find(p => (p.full_name ?? '').toLowerCase().startsWith(firstName))
+    const { data: profiles } = await db.from('profiles').select('id, full_name')
+    const needle2 = personName.toLowerCase().trim()
+    const firstName2 = needle2.split(/[\s\-–]/)[0]
+    const matched = (profiles ?? []).find(p => {
+      const hay = (p.full_name ?? '').toLowerCase().trim()
+      return hay === needle2 || hay.startsWith(firstName2 + ' ')
+    })
 
     const periode      = currentPeriode(new Date())
     const fullComm     = role === 'closer' ? (deal.commission_closer as number) : (deal.commission_setter as number)
