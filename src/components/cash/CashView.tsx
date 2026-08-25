@@ -892,7 +892,7 @@ function MonthSection({
           {hasBoth ? (
             /* ── Split view: deals then récurrents ── */
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="min-w-full text-sm">
                 {TABLE_HEAD}
 
                 {/* Section Nouvelles deals */}
@@ -960,7 +960,7 @@ function MonthSection({
           ) : (
             /* ── Single-type view (no split) ── */
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="min-w-full text-sm">
                 {TABLE_HEAD}
                 <tbody className="divide-y divide-gray-50">
                   {entries.map(e => <EntryRow key={e.id} e={e} {...rowProps} occurrenceId={recurringOccMap[e.id]} />)}
@@ -1750,7 +1750,7 @@ export default function CashView({
                 <h3 className="text-sm font-semibold text-gray-900">Par closer — Cash collecté</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-xs font-medium text-gray-400 border-b border-gray-50">
                       <th className="px-5 py-2.5 text-left">Closer</th>
@@ -1846,7 +1846,7 @@ export default function CashView({
                 <p className="text-center py-12 text-sm text-gray-400">Aucune entrée sur cette période</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="min-w-full text-sm">
                     <thead>
                       <tr className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100 bg-gray-50">
                         <th className="px-5 py-3 text-left">Semaine</th>
