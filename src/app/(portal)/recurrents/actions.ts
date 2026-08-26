@@ -336,18 +336,6 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number, csm
       await db.from('csm_clients')
         .update({ payment_type: 'pif' })
         .eq('id', csmClient.id)
-      // Set collected = montant_courant so a_collecter (generated) becomes 0 → Clientes shows PIF
-      if (csmClient.cash_entry_id) {
-        const { data: ce } = await db.from('cash_entries')
-          .select('montant_courant')
-          .eq('id', csmClient.cash_entry_id)
-          .single()
-        if (ce?.montant_courant) {
-          await db.from('cash_entries')
-            .update({ collected: ce.montant_courant })
-            .eq('id', csmClient.cash_entry_id)
-        }
-      }
     }
   }
 
