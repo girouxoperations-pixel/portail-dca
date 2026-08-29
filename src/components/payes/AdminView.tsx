@@ -1736,7 +1736,7 @@ export default function AdminView({
 
       {/* Contenu selon la vue */}
       {vue === 'employe' ? (
-        filtrees.length === 0 ? (
+        grouped.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-16 text-center">
             <p className="text-sm text-gray-400">Aucune entrée pour cette période</p>
             <p className="text-xs text-gray-300 mt-1">Sélectionne une autre période ou ajoute des entrées via Cash Collect.</p>
