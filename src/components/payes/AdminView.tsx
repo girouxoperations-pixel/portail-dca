@@ -7,7 +7,7 @@ import {
   basculerStatut,
   approuverPeriode, approuverPayesBatch, modifierPaye,
   ajouterBonusManuel, supprimerPaye, creerRemboursement,
-  payerCommissionCsm, supprimerCommissionCsm,
+  payerCommissionCsm, supprimerCommissionCsm, annulerBonus,
 } from '@/app/(portal)/payes/actions'
 import { dollar, MOIS_FR } from '@/lib/constants'
 import Badge      from '@/components/ui/Badge'
@@ -494,14 +494,15 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
 
 // ── Deal table (shared between sections) ─────────────────────────────
 
-function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }: {
-  deals:    DealItem[]
-  role:     string
-  isAdmin:  boolean
-  pending:  boolean
-  onEdit:   (id: string) => void
-  onToggle: (id: string, statut: string) => void
-  onDelete: (id: string) => void
+function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete, onAnnulerBonus }: {
+  deals:           DealItem[]
+  role:            string
+  isAdmin:         boolean
+  pending:         boolean
+  onEdit:          (id: string) => void
+  onToggle:        (id: string, statut: string) => void
+  onDelete:        (id: string) => void
+  onAnnulerBonus?: (id: string) => void
 }) {
   return (
     <table className="w-full text-xs">
@@ -558,6 +559,16 @@ function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }
                       {d.statut === 'Payé' ? '↩ En attente' : '✓ Payé'}
                     </button>
                   )}
+                  {d.type === 'bonus' && onAnnulerBonus && (
+                    <button
+                      onClick={() => { if (confirm('Créer un remboursement pour ce bonus?')) onAnnulerBonus(d.id) }}
+                      disabled={pending}
+                      className="px-2 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-500 hover:bg-red-100 transition-colors disabled:opacity-40"
+                      title="Annuler le bonus (chargeback)"
+                    >
+                      − Annuler
+                    </button>
+                  )}
                   <button
                     onClick={() => onDelete(d.id)}
                     disabled={pending}
@@ -578,17 +589,18 @@ function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }
 
 // ── Carte employé ─────────────────────────────────────────────────────
 
-function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pending, onEdit, onToggle, onDelete }: {
-  label:    string
-  labelCls: string
-  headerCls: string
-  deals:    DealItem[]
-  role:     string
-  isAdmin:  boolean
-  pending:  boolean
-  onEdit:   (id: string) => void
-  onToggle: (id: string, statut: string) => void
-  onDelete: (id: string) => void
+function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pending, onEdit, onToggle, onDelete, onAnnulerBonus }: {
+  label:           string
+  labelCls:        string
+  headerCls:       string
+  deals:           DealItem[]
+  role:            string
+  isAdmin:         boolean
+  pending:         boolean
+  onEdit:          (id: string) => void
+  onToggle:        (id: string, statut: string) => void
+  onDelete:        (id: string) => void
+  onAnnulerBonus?: (id: string) => void
 }) {
   if (deals.length === 0) return null
   const total = deals.reduce((s, d) => s + d.maCommission, 0)
@@ -598,12 +610,12 @@ function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pendin
         <span className={cn('text-[11px] font-bold uppercase tracking-wider', labelCls)}>{label}</span>
         <span className={cn('text-xs font-bold tabular-nums', labelCls)}>{dollar(total)}</span>
       </div>
-      <DealTable deals={deals} role={role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
+      <DealTable deals={deals} role={role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} onAnnulerBonus={onAnnulerBonus} />
     </div>
   )
 }
 
-function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, onDelete, myCsmCommissions }: {
+function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, onDelete, onAnnulerBonus, myCsmCommissions }: {
   group:             EmployeeGroup
   isAdmin:           boolean
   pending:           boolean
@@ -611,6 +623,7 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
   onToggle:          (id: string, statut: string) => void
   onEdit:            (id: string) => void
   onDelete:          (id: string) => void
+  onAnnulerBonus:    (id: string) => void
   myCsmCommissions:  CsmCommission[]
 }) {
   const [ouvert, setOuvert]   = useState(false)
@@ -715,7 +728,7 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
           <SectionDeals
             label="Bonus" labelCls="text-emerald-600" headerCls="bg-emerald-50/30"
             deals={bonus} role={group.role} isAdmin={isAdmin} pending={pending}
-            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete}
+            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} onAnnulerBonus={onAnnulerBonus}
           />
           <SectionDeals
             label="Remboursements" labelCls="text-red-600" headerCls="bg-red-50/40"
@@ -1547,6 +1560,10 @@ export default function AdminView({
     startTransition(async () => { await supprimerPaye(id) })
   }
 
+  function handleAnnulerBonus(id: string) {
+    startTransition(async () => { await annulerBonus(id) })
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
 
@@ -1763,6 +1780,7 @@ export default function AdminView({
                       onToggle={handleToggle}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
+                      onAnnulerBonus={handleAnnulerBonus}
                       myCsmCommissions={csmCommissions.filter(c =>
                         c.csm_id === g.uid &&
                         (!selectedPeriode?.start || c.created_at >= selectedPeriode.start) &&
@@ -1794,6 +1812,7 @@ export default function AdminView({
                       onToggle={handleToggle}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
+                      onAnnulerBonus={handleAnnulerBonus}
                       myCsmCommissions={csmCommissions.filter(c =>
                         c.csm_id === g.uid &&
                         (!selectedPeriode?.start || c.created_at >= selectedPeriode.start) &&

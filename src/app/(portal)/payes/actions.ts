@@ -257,6 +257,37 @@ export async function creerRemboursement(data: {
   revalidatePath('/payes')
 }
 
+export async function annulerBonus(bonusId: string) {
+  const { userId } = await requireRole(['admin'])
+  const db = createAdminClient()
+
+  const { data: bonus, error: fetchErr } = await db
+    .from('paye_entries')
+    .select('period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, notes')
+    .eq('id', bonusId)
+    .single()
+
+  if (fetchErr || !bonus) throw new Error('Bonus introuvable')
+
+  const { error } = await db.from('paye_entries').insert({
+    period_label:      bonus.period_label,
+    month:             bonus.month,
+    year:              bonus.year,
+    client_name:       bonus.client_name,
+    closer_id:         bonus.closer_id,
+    setter_id:         bonus.setter_id,
+    montant:           -Math.abs(bonus.montant),
+    commission:        -Math.abs(bonus.commission),
+    commission_setter: -Math.abs(bonus.commission_setter),
+    statut:            'En attente',
+    notes:             `Remboursement — ${bonus.notes ?? 'Bonus'}`,
+    created_by:        userId,
+  })
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/payes')
+}
+
 export async function assignerMVP(
   personId: string,
   personRole: string,
