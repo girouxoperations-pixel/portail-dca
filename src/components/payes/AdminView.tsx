@@ -615,7 +615,7 @@ function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pendin
   )
 }
 
-function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, onDelete, onAnnulerBonus, myCsmCommissions }: {
+function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, onDelete, periodes, myCsmCommissions }: {
   group:             EmployeeGroup
   isAdmin:           boolean
   pending:           boolean
@@ -623,11 +623,28 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
   onToggle:          (id: string, statut: string) => void
   onEdit:            (id: string) => void
   onDelete:          (id: string) => void
-  onAnnulerBonus:    (id: string) => void
+  periodes:          { label: string; month: number; year: number }[]
   myCsmCommissions:  CsmCommission[]
 }) {
-  const [ouvert, setOuvert]   = useState(false)
-  const [csmPending, startCsmT] = useTransition()
+  const [ouvert, setOuvert]         = useState(false)
+  const [csmPending, startCsmT]     = useTransition()
+  const [pendingCancelId, setPendingCancelId] = useState<string | null>(null)
+  const [cancelPeriodeIdx, setCancelPeriodeIdx] = useState(0)
+  const [cancelPending, startCancelT] = useTransition()
+
+  function handleAnnulerBonus(id: string) {
+    setPendingCancelId(id)
+    setCancelPeriodeIdx(0)
+  }
+
+  function confirmAnnulerBonus() {
+    if (!pendingCancelId) return
+    const p = periodes[cancelPeriodeIdx]
+    startCancelT(async () => {
+      await annulerBonus(pendingCancelId, { label: p.label, month: p.month, year: p.year })
+      setPendingCancelId(null)
+    })
+  }
 
   const csmTotal   = myCsmCommissions.reduce((s, c) => s + (c.amount ?? 0), 0)
   const csmUnpaid  = myCsmCommissions.filter(c => !c.paid).reduce((s, c) => s + (c.amount ?? 0), 0)
@@ -728,8 +745,37 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
           <SectionDeals
             label="Bonus" labelCls="text-emerald-600" headerCls="bg-emerald-50/30"
             deals={bonus} role={group.role} isAdmin={isAdmin} pending={pending}
-            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} onAnnulerBonus={onAnnulerBonus}
+            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} onAnnulerBonus={handleAnnulerBonus}
           />
+          {pendingCancelId && (
+            <div className="mx-5 my-3 p-4 bg-red-50 border border-red-100 rounded-xl">
+              <p className="text-xs font-semibold text-red-700 mb-2">Appliquer le remboursement dans quelle période?</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={cancelPeriodeIdx}
+                  onChange={e => setCancelPeriodeIdx(Number(e.target.value))}
+                  className="flex-1 min-w-[180px] px-3 py-2 rounded-lg border border-red-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
+                >
+                  {periodes.map((p, i) => (
+                    <option key={p.label} value={i}>{p.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={confirmAnnulerBonus}
+                  disabled={cancelPending}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {cancelPending ? 'En cours…' : 'Confirmer'}
+                </button>
+                <button
+                  onClick={() => setPendingCancelId(null)}
+                  className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
           <SectionDeals
             label="Remboursements" labelCls="text-red-600" headerCls="bg-red-50/40"
             deals={refunds} role={group.role} isAdmin={isAdmin} pending={pending}
@@ -1560,10 +1606,6 @@ export default function AdminView({
     startTransition(async () => { await supprimerPaye(id) })
   }
 
-  function handleAnnulerBonus(id: string) {
-    startTransition(async () => { await annulerBonus(id) })
-  }
-
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
 
@@ -1780,7 +1822,7 @@ export default function AdminView({
                       onToggle={handleToggle}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
-                      onAnnulerBonus={handleAnnulerBonus}
+                      periodes={periodesCourant}
                       myCsmCommissions={csmCommissions.filter(c =>
                         c.csm_id === g.uid &&
                         (!selectedPeriode?.start || c.created_at >= selectedPeriode.start) &&
@@ -1812,7 +1854,7 @@ export default function AdminView({
                       onToggle={handleToggle}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
-                      onAnnulerBonus={handleAnnulerBonus}
+                      periodes={periodesCourant}
                       myCsmCommissions={csmCommissions.filter(c =>
                         c.csm_id === g.uid &&
                         (!selectedPeriode?.start || c.created_at >= selectedPeriode.start) &&

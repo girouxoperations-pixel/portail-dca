@@ -257,22 +257,25 @@ export async function creerRemboursement(data: {
   revalidatePath('/payes')
 }
 
-export async function annulerBonus(bonusId: string) {
+export async function annulerBonus(
+  bonusId: string,
+  targetPeriod: { label: string; month: number; year: number },
+) {
   const { userId } = await requireRole(['admin'])
   const db = createAdminClient()
 
   const { data: bonus, error: fetchErr } = await db
     .from('paye_entries')
-    .select('period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, notes')
+    .select('client_name, closer_id, setter_id, montant, commission, commission_setter, notes')
     .eq('id', bonusId)
     .single()
 
   if (fetchErr || !bonus) throw new Error('Bonus introuvable')
 
   const { error } = await db.from('paye_entries').insert({
-    period_label:      bonus.period_label,
-    month:             bonus.month,
-    year:              bonus.year,
+    period_label:      targetPeriod.label,
+    month:             targetPeriod.month,
+    year:              targetPeriod.year,
     client_name:       bonus.client_name,
     closer_id:         bonus.closer_id,
     setter_id:         bonus.setter_id,
