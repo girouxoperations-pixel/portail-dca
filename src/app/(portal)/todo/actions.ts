@@ -92,6 +92,28 @@ export async function setProspectStatut(id: string, statut: 'actif' | 'contacté
   revalidatePath('/closer')
 }
 
+export async function updateProspectNotes(id: string, notes: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non authentifié')
+
+  const db = createAdminClient()
+  const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single()
+  const isAdmin = (profile?.roles as string[] | undefined)?.some(r => ['admin', 'csm', 'head_csm'].includes(r)) ?? false
+  if (!isAdmin) {
+    const { data: fp } = await db.from('prospect_followups').select('closer_id').eq('id', id).single()
+    if (!fp || fp.closer_id !== user.id) throw new Error('Non autorisé')
+  }
+
+  const { error } = await db.from('prospect_followups').update({
+    notes: notes.trim() || null,
+  }).eq('id', id)
+  if (error) throw error
+  revalidatePath('/todo')
+  revalidatePath('/suivi-client')
+  revalidatePath('/closer')
+}
+
 export async function batchAddFollowups(items: { closer_id: string; prospect_name: string; followup_date: string }[]) {
   if (items.length === 0) return
   const supabase = await createClient()

@@ -8,7 +8,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { SuiviTask, VersementTask, ProspectTask } from './types'
 import { todayStr, weekEnd, classifyTask, dollar, fmtDate } from './types'
-import { toggleSuiviMessage, addProspectFollowup, toggleProspectFollowup, deleteProspectFollowup, noterRecuCloser } from './actions'
+import { toggleSuiviMessage, addProspectFollowup, toggleProspectFollowup, deleteProspectFollowup, noterRecuCloser, updateProspectNotes } from './actions'
 
 interface Props {
   suiviTasks:     SuiviTask[]
@@ -354,7 +354,10 @@ function AddProspectForm() {
 // ── Prospect row ──────────────────────────────────────────────────────
 function ProspectRow({ task: t, today }: { task: ProspectTask; today: string }) {
   const [optimisticDone, setOptimistic] = useOptimistic(t.done)
-  const [, startTransition] = useTransition()
+  const [, startTransition]  = useTransition()
+  const [showInfo, setShowInfo] = useState(false)
+  const [notesVal, setNotesVal] = useState(t.notes ?? '')
+  const [saving, startSaveT]   = useTransition()
 
   const isOverdue = !optimisticDone && t.followupDate < today
   const isToday   = !optimisticDone && t.followupDate === today
@@ -372,41 +375,85 @@ function ProspectRow({ task: t, today }: { task: ProspectTask; today: string }) 
     startTransition(() => { deleteProspectFollowup(t.id) })
   }
 
+  function saveNotes() {
+    startSaveT(async () => { await updateProspectNotes(t.id, notesVal) })
+  }
+
   return (
     <div className={cn(
-      'flex items-center gap-3 p-3.5 rounded-xl border transition-all',
+      'rounded-xl border transition-all overflow-hidden',
       optimisticDone ? 'bg-green-50 border-green-100'
       : isOverdue    ? 'bg-red-50 border-red-200'
       : isToday      ? 'bg-amber-50 border-amber-200'
       : 'bg-white border-gray-100',
     )}>
-      <button onClick={toggle} className="shrink-0">
-        {optimisticDone
-          ? <CheckCircle2 size={20} className="text-green-500" />
-          : isOverdue
-            ? <AlertCircle size={20} className="text-red-400" />
-            : isToday
-              ? <Clock size={20} className="text-amber-500" />
-              : <Circle size={20} className="text-gray-300" />
-        }
-      </button>
-      <div className="flex-1 min-w-0" onClick={toggle} role="button">
-        <p className={cn('text-sm font-medium', optimisticDone ? 'text-gray-400 line-through' : 'text-gray-800')}>
-          {t.prospectName}
-        </p>
-        <p className="text-xs text-gray-400 mt-0.5">
-          {optimisticDone && t.doneDate ? `Fait le ${fmtDate(t.doneDate)}` : fmtDate(t.followupDate)}
-          {t.notes && <span className="ml-2 text-gray-300">· {t.notes}</span>}
-        </p>
+      {/* Ligne principale */}
+      <div className="flex items-center gap-3 p-3.5">
+        <button onClick={toggle} className="shrink-0">
+          {optimisticDone
+            ? <CheckCircle2 size={20} className="text-green-500" />
+            : isOverdue
+              ? <AlertCircle size={20} className="text-red-400" />
+              : isToday
+                ? <Clock size={20} className="text-amber-500" />
+                : <Circle size={20} className="text-gray-300" />
+          }
+        </button>
+        <div className="flex-1 min-w-0" onClick={toggle} role="button">
+          <p className={cn('text-sm font-medium', optimisticDone ? 'text-gray-400 line-through' : 'text-gray-800')}>
+            {t.prospectName}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {optimisticDone && t.doneDate ? `Fait le ${fmtDate(t.doneDate)}` : fmtDate(t.followupDate)}
+          </p>
+        </div>
+        {isOverdue && !optimisticDone && (
+          <span className="text-[10px] font-semibold text-red-600 bg-red-100 px-2 py-0.5 rounded-full shrink-0">
+            En retard
+          </span>
+        )}
+        <button
+          onClick={() => setShowInfo(v => !v)}
+          className={cn(
+            'shrink-0 px-2 py-1 rounded-lg text-[11px] font-medium transition-colors',
+            showInfo
+              ? 'bg-violet-100 text-violet-700'
+              : notesVal
+                ? 'bg-gray-100 text-gray-600 hover:bg-violet-50 hover:text-violet-600'
+                : 'text-gray-300 hover:text-violet-500 hover:bg-violet-50',
+          )}
+        >
+          Info{notesVal && !showInfo ? ' ·' : ''}
+        </button>
+        <button onClick={remove} className="p-1 text-gray-200 hover:text-red-400 shrink-0 transition-colors">
+          <Trash2 size={14} />
+        </button>
       </div>
-      {isOverdue && !optimisticDone && (
-        <span className="text-[10px] font-semibold text-red-600 bg-red-100 px-2 py-0.5 rounded-full shrink-0">
-          En retard
-        </span>
+
+      {/* Panneau Info */}
+      {showInfo && (
+        <div className="px-4 pb-3 border-t border-gray-100 pt-2.5 bg-white/60">
+          <textarea
+            value={notesVal}
+            onChange={e => setNotesVal(e.target.value)}
+            rows={3}
+            placeholder="Informations sur le prospect (situation, objections, contexte…)"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none bg-white"
+          />
+          <div className="flex gap-2 mt-1.5">
+            <button
+              onClick={saveNotes}
+              disabled={saving}
+              className="px-3 py-1 bg-violet-600 text-white text-xs font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50"
+            >
+              {saving ? 'Sauvegarde…' : 'Sauvegarder'}
+            </button>
+            <button onClick={() => setShowInfo(false)} className="px-3 py-1 text-xs text-gray-400 hover:text-gray-600">
+              Fermer
+            </button>
+          </div>
+        </div>
       )}
-      <button onClick={remove} className="p-1 text-gray-200 hover:text-red-400 shrink-0 transition-colors">
-        <Trash2 size={14} />
-      </button>
     </div>
   )
 }

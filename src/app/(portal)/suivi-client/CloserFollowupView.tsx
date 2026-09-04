@@ -157,7 +157,7 @@ function ProspectRow({ p }: { p: ProspectItem }) {
           <Trash2 size={13} />
         </button>
       </div>
-      {p.notes && <p className="text-xs text-gray-400 mt-0.5 pl-7 truncate">{p.notes}</p>}
+      {p.notes && <p className="text-xs text-gray-400 mt-1 pl-7 leading-relaxed whitespace-pre-wrap">{p.notes}</p>}
       <div className="flex items-center gap-1.5 mt-2 pl-7">
         {(['contacté', 'closé', 'perdu'] as const).map(s => (
           <button
