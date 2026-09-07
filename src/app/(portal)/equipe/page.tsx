@@ -57,6 +57,7 @@ export default async function EquipePage({
     { data: goals },
     { data: setterEntries },
     { data: cashEntries },
+    { data: q3Cash },
   ] = await Promise.all([
     db.from('profiles')
       .select('id, full_name, role')
@@ -74,9 +75,34 @@ export default async function EquipePage({
       .select('closed_by, set_by, collected, close_type, notes')
       .gte('entry_date', dateMin)
       .lt('entry_date', dateMax),
+    db.from('cash_entries')
+      .select('closed_by, set_by, collected')
+      .gte('entry_date', '2026-07-01')
+      .lt('entry_date', '2026-10-01'),
   ])
 
   const goalMap = new Map((goals ?? []).map(g => [g.user_id, g]))
+
+  // ── Q3 2026 bonus trimestriel ────────────────────────────────────────
+  const CLOSER_PALIERS = [215_000, 270_000] as const
+  const SETTER_PALIERS = [270_000, 325_000] as const
+
+  const closerQ3 = new Map<string, number>()
+  const setterQ3 = new Map<string, number>()
+  for (const e of q3Cash ?? []) {
+    if (e.closed_by) closerQ3.set(e.closed_by, (closerQ3.get(e.closed_by) ?? 0) + (e.collected ?? 0))
+    if (e.set_by)    setterQ3.set(e.set_by,    (setterQ3.get(e.set_by)    ?? 0) + (e.collected ?? 0))
+  }
+
+  const q3Closers = (profiles ?? [])
+    .filter(p => p.role === 'closer')
+    .map(p => ({ id: p.id, nom: p.full_name ?? '?', cash: closerQ3.get(p.id) ?? 0 }))
+    .sort((a, b) => b.cash - a.cash)
+
+  const q3Setters = (profiles ?? [])
+    .filter(p => p.role === 'setter')
+    .map(p => ({ id: p.id, nom: p.full_name ?? '?', cash: setterQ3.get(p.id) ?? 0 }))
+    .sort((a, b) => b.cash - a.cash)
 
   function isRealDeal(e: { close_type: string | null; notes: string | null }) {
     return e.close_type !== 'recurring' &&
@@ -210,6 +236,127 @@ export default async function EquipePage({
           </div>
         )}
       </div>
+
+      {/* ── Bonus Trimestriel Q3 2026 ─────────────────────────────────── */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Bonus Trimestriel — Q3 2026</h2>
+          <span className="text-xs bg-amber-50 text-amber-600 ring-1 ring-amber-100 px-2 py-0.5 rounded-full font-medium">Juil – Sep</span>
+        </div>
+
+        <div className="bg-white border border-gray-150 rounded-2xl shadow-sm overflow-hidden">
+          {/* Paliers legend */}
+          <div className="px-6 py-3 border-b border-gray-100 flex items-center gap-6 flex-wrap bg-gray-50/60">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-violet-500">Closers</span>
+              <span className="text-xs text-gray-500">Palier 1 : 215 000 $</span>
+              <span className="text-xs text-gray-300">·</span>
+              <span className="text-xs text-gray-500">Palier 2 : 270 000 $</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-blue-500">Setters</span>
+              <span className="text-xs text-gray-500">Palier 1 : 270 000 $</span>
+              <span className="text-xs text-gray-300">·</span>
+              <span className="text-xs text-gray-500">Palier 2 : 325 000 $</span>
+            </div>
+          </div>
+
+          {/* Closers */}
+          {q3Closers.length > 0 && (
+            <div className="divide-y divide-gray-50">
+              {q3Closers.map(p => {
+                const max      = CLOSER_PALIERS[1]
+                const pct      = Math.min(100, Math.round((p.cash / max) * 100))
+                const p1done   = p.cash >= CLOSER_PALIERS[0]
+                const p2done   = p.cash >= CLOSER_PALIERS[1]
+                const manquant = p1done
+                  ? p2done ? null : CLOSER_PALIERS[1] - p.cash
+                  : CLOSER_PALIERS[0] - p.cash
+                const barColor = p2done ? 'bg-emerald-500' : p1done ? 'bg-amber-400' : 'bg-gray-300'
+                const p1Pct    = Math.round((CLOSER_PALIERS[0] / max) * 100)
+                return (
+                  <div key={p.id} className="px-6 py-3.5 flex items-center gap-4">
+                    <div className="w-32 shrink-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{p.nom.split(' ')[0]}</p>
+                      <span className="text-[10px] font-medium bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded">closer</span>
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold tabular-nums text-gray-900">{p.cash.toLocaleString('fr-FR')} $</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${p1done ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'}`}>
+                            {p1done ? '✓' : '○'} Palier 1
+                          </span>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${p2done ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'}`}>
+                            {p2done ? '✓' : '○'} Palier 2
+                          </span>
+                        </div>
+                      </div>
+                      <div className="relative w-full h-2 rounded-full bg-gray-100 overflow-visible">
+                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.max(pct > 0 ? 2 : 0, pct)}%` }} />
+                        {/* Palier 1 marker */}
+                        <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3 bg-violet-300 rounded-full" style={{ left: `${p1Pct}%` }} />
+                      </div>
+                      {manquant !== null && (
+                        <p className="text-[10px] text-gray-400">
+                          Il manque <span className="font-semibold text-gray-600">{manquant.toLocaleString('fr-FR')} $</span> pour le {p1done ? 'palier 2' : 'palier 1'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Setters */}
+          {q3Setters.length > 0 && (
+            <div className="border-t border-gray-100 divide-y divide-gray-50">
+              {q3Setters.map(p => {
+                const max      = SETTER_PALIERS[1]
+                const pct      = Math.min(100, Math.round((p.cash / max) * 100))
+                const p1done   = p.cash >= SETTER_PALIERS[0]
+                const p2done   = p.cash >= SETTER_PALIERS[1]
+                const manquant = p1done
+                  ? p2done ? null : SETTER_PALIERS[1] - p.cash
+                  : SETTER_PALIERS[0] - p.cash
+                const barColor = p2done ? 'bg-emerald-500' : p1done ? 'bg-amber-400' : 'bg-gray-300'
+                const p1Pct    = Math.round((SETTER_PALIERS[0] / max) * 100)
+                return (
+                  <div key={p.id} className="px-6 py-3.5 flex items-center gap-4">
+                    <div className="w-32 shrink-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{p.nom.split(' ')[0]}</p>
+                      <span className="text-[10px] font-medium bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">setter</span>
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold tabular-nums text-gray-900">{p.cash.toLocaleString('fr-FR')} $</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${p1done ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'}`}>
+                            {p1done ? '✓' : '○'} Palier 1
+                          </span>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${p2done ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'}`}>
+                            {p2done ? '✓' : '○'} Palier 2
+                          </span>
+                        </div>
+                      </div>
+                      <div className="relative w-full h-2 rounded-full bg-gray-100 overflow-visible">
+                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.max(pct > 0 ? 2 : 0, pct)}%` }} />
+                        <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3 bg-blue-300 rounded-full" style={{ left: `${p1Pct}%` }} />
+                      </div>
+                      {manquant !== null && (
+                        <p className="text-[10px] text-gray-400">
+                          Il manque <span className="font-semibold text-gray-600">{manquant.toLocaleString('fr-FR')} $</span> pour le {p1done ? 'palier 2' : 'palier 1'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Closers */}
       {closerCards.length > 0 && (
