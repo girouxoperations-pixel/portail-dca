@@ -347,51 +347,6 @@ export async function marquerRecu(occurrenceId: string, montantRecu: number, csm
     } catch { /* column may not exist yet — ignore */ }
   }
 
-  // Commission CSM 2% sur les virements
-  if (deal.methode_paiement === 'virement') {
-    // Prefer csm_id directly on the deal; fall back to csm_clients name lookup
-    let csmId = resolvedCsmId
-    let clientId: string | null = null
-    if (!csmId) {
-      const { data: csmClient } = await db.from('csm_clients')
-        .select('id, csm_id').ilike('name', deal.client_name).maybeSingle()
-      csmId    = csmClient?.csm_id ?? null
-      clientId = csmClient?.id ?? null
-    }
-    if (csmId) {
-      const commission2pct = Math.round(montantRecu * 0.02 * 100) / 100
-      await db.from('csm_commissions').insert({
-        csm_id: csmId, client_id: clientId,
-        client_name: deal.client_name, type: 'virement_2pct',
-        amount: commission2pct, month, year,
-        description: `Virement 2% — ${deal.client_name} (${montantRecu}$)`,
-        occurrence_id: occurrenceId,
-      })
-    }
-  }
-
-  // Commission CSM 2% sur les cartes avec suivi email
-  if (csmFollowup && deal.methode_paiement === 'carte') {
-    let csmId = resolvedCsmId
-    let clientId: string | null = null
-    if (!csmId) {
-      const { data: csmClient } = await db.from('csm_clients')
-        .select('id, csm_id').ilike('name', deal.client_name).maybeSingle()
-      csmId    = csmClient?.csm_id ?? null
-      clientId = csmClient?.id ?? null
-    }
-    if (csmId) {
-      const commission2pct = Math.round(montantRecu * 0.02 * 100) / 100
-      await db.from('csm_commissions').insert({
-        csm_id: csmId, client_id: clientId,
-        client_name: deal.client_name, type: 'carte_2pct',
-        amount: commission2pct, month, year,
-        description: `Carte suivi 2% — ${deal.client_name} (${montantRecu}$)`,
-        occurrence_id: occurrenceId,
-      })
-    }
-  }
-
   revalidatePath('/recurrents')
   revalidatePath(`/recurrents/${occ.recurring_deal_id}`)
   revalidatePath('/dashboard')
