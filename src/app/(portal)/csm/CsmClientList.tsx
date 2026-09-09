@@ -956,9 +956,6 @@ function CsmDashboard({
                       <span className="text-xs text-gray-400">
                         / {fmtMoney(virement.attendu)} $ attendu
                       </span>
-                      <span className="text-xs text-sky-500 ml-auto tabular-nums">
-                        Comm. 2 % : {fmtMoney(Math.round(virement.recu * 0.02))} $
-                      </span>
                     </div>
                     <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
                       <div className={cn('h-full rounded-full transition-all', vBarCl)} style={{ width: `${vPct}%` }} />
