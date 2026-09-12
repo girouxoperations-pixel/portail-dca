@@ -64,6 +64,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
   ],
   csm: [
     { label: 'Dashboard',    href: '/dashboard',  icon: LayoutDashboard },
+    { label: 'Ma Paie',      href: '/payes',      icon: Banknote        },
     { label: 'Récurrents',   href: '/recurrents', icon: RefreshCw       },
     { label: 'Cash / Stats', href: '/cash',       icon: Wallet          },
     { label: 'Alveo',        href: '/alveo',      icon: CreditCard      },
