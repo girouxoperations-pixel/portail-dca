@@ -56,9 +56,14 @@ export default function ResetPasswordPage() {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       )
-      supabase.auth.exchangeCodeForSession(code).then(({ error: e }) => {
-        if (e) setError('Lien invalide. Demande un nouveau lien.')
-        else setReady(true)
+      supabase.auth.exchangeCodeForSession(code).then(({ data, error: e }) => {
+        if (e) { setError('Lien invalide. Demande un nouveau lien.'); return }
+        // Store tokens from PKCE session so handleSubmit can use them
+        if (data.session) {
+          accessTokenRef.current  = data.session.access_token
+          refreshTokenRef.current = data.session.refresh_token
+        }
+        setReady(true)
       })
       return
     }
