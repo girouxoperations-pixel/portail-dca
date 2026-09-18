@@ -256,6 +256,7 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
   const [showDiff, setShowDiff]         = useState(false)
   const [amount, setAmount]             = useState(String(occ.montant_attendu))
   const [soldeLines, setSoldeLines]     = useState<SoldeLine[]>([{ montant: '', date: '' }])
+  const [nextDate, setNextDate]         = useState('')
   const [editOpen, setEditOpen]         = useState(false)
   const [editDate, setEditDate]         = useState(false)
   const [newDate, setNewDate]           = useState(occ.date_attendue)
@@ -279,6 +280,7 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
     setShowDiff(false)
     setAmount(String(occ.montant_attendu))
     setSoldeLines([{ montant: '', date: '' }])
+    setNextDate('')
   }
 
   function handleSaveDate() {
@@ -349,9 +351,18 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
     startTransition(async () => {
       if (isPartial && soldeValid && soldeLines.some(l => l.date && Number(l.montant) > 0)) {
         const lignes = soldeLines.filter(l => l.date && Number(l.montant) > 0)
+        // Ajouter le prochain paiement (montant plein) si une date est spécifiée
+        if (nextDate) {
+          lignes.push({ montant: String(occ.montant_attendu), date: nextDate })
+        }
         await marquerRecuAvecSoldes(occ.id, val, lignes.map(l => ({ montant: Number(l.montant), date: l.date })))
       } else {
-        await marquerRecu(occ.id, val, false, methodeEffective, csmEffective)
+        // Montant exact — créer juste le prochain paiement si date spécifiée
+        if (nextDate) {
+          await marquerRecuAvecSoldes(occ.id, val, [{ montant: occ.montant_attendu, date: nextDate }])
+        } else {
+          await marquerRecu(occ.id, val, false, methodeEffective, csmEffective)
+        }
       }
     })
   }
@@ -449,6 +460,16 @@ function OccurrenceRow({ occ, deal, profileMap, profiles, isAdmin }: {
                       className="w-28 px-2 py-1 rounded border border-violet-300 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-violet-500"
                     />
                     <span className="text-[10px] text-gray-400 whitespace-nowrap">/ {dollar(occ.montant_attendu)}</span>
+                  </div>
+                  {/* Prochain paiement — toujours visible dans le panneau diff */}
+                  <div className="mt-1.5 space-y-1">
+                    <p className="text-[10px] font-semibold text-violet-500 uppercase tracking-wide">Prochain paiement</p>
+                    <input
+                      type="date" value={nextDate}
+                      onChange={e => setNextDate(e.target.value)}
+                      className="px-1.5 py-0.5 rounded border border-violet-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-violet-400 bg-violet-50 text-violet-800"
+                    />
+                    {nextDate && <p className="text-[10px] text-violet-400">Créera une occurrence de {dollar(occ.montant_attendu)} à cette date</p>}
                   </div>
                   {isPartial && (
                     <div className="mt-1.5 space-y-1">

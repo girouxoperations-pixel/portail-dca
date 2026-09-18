@@ -42,6 +42,7 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
   const [showDiff, setShowDiff]       = useState(false)
   const [amount, setAmount]           = useState(String(occ.montant_attendu))
   const [soldeLines, setSoldeLines]   = useState<SoldeLine[]>([{ montant: '', date: '' }])
+  const [nextDate, setNextDate]       = useState('')
   const [editDate, setEditDate]       = useState(false)
   const [newDate, setNewDate]         = useState(occ.date_attendue)
   const [datePending, startDateTrans] = useTransition()
@@ -80,7 +81,10 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
     start(async () => {
       if (isPartial && soldeValid && soldeLines.some(l => l.date && Number(l.montant) > 0)) {
         const lignes = soldeLines.filter(l => l.date && Number(l.montant) > 0)
+        if (nextDate) lignes.push({ montant: String(occ.montant_attendu), date: nextDate })
         await marquerRecuAvecSoldes(occ.id, val, lignes.map(l => ({ montant: Number(l.montant), date: l.date })))
+      } else if (nextDate) {
+        await marquerRecuAvecSoldes(occ.id, val, [{ montant: occ.montant_attendu, date: nextDate }])
       } else {
         await marquerRecu(occ.id, val)
       }
@@ -148,6 +152,15 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
                 className="w-24 px-2 py-0.5 rounded border border-violet-300 bg-white text-sm text-gray-900 text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-violet-500"
               />
               <span className="text-[10px] text-gray-400 whitespace-nowrap">/ {dollar(occ.montant_attendu)}</span>
+            </div>
+            <div className="mt-1 space-y-1 text-right">
+              <p className="text-[10px] font-semibold text-violet-500 uppercase tracking-wide">Prochain paiement</p>
+              <input
+                type="date" value={nextDate}
+                onChange={e => setNextDate(e.target.value)}
+                className="px-1 py-0.5 rounded border border-violet-200 bg-violet-50 text-[11px] text-violet-700 focus:outline-none"
+              />
+              {nextDate && <p className="text-[10px] text-violet-400">Créera une occurrence de {dollar(occ.montant_attendu)}</p>}
             </div>
             {isPartial && (
               <div className="mt-1 space-y-1 text-right">
