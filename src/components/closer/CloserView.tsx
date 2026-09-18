@@ -508,7 +508,8 @@ function RecuOccRow({ occ }: { occ: RecurringOcc & { client_name: string } }) {
       <td className="px-4 py-3">
         {occ.recu
           ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 ring-1 ring-green-200">
-              <CheckCircle2 size={10} />Reçu
+              <CheckCircle2 size={10} />
+              {occ.date_recue ? `Reçu · ${formatDate(occ.date_recue, MOIS_COURT)}` : 'Reçu'}
             </span>
           : <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200">
               En attente
