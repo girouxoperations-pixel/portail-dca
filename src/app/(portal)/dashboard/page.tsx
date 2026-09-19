@@ -1177,6 +1177,36 @@ export default async function DashboardPage({
         )}
       </div>
 
+      {/* ── Onboardings CSM ──────────────────────────────────────── */}
+      {onboardingStats.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Onboardings par CSM</p>
+          <div className="bg-white border border-gray-150 rounded-2xl shadow-xl overflow-hidden">
+            <div className="grid grid-cols-3 bg-gray-50 border-b border-gray-100 px-5 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+              <span>CSM</span>
+              <span className="text-center">Cette semaine</span>
+              <span className="text-center">Ce mois</span>
+            </div>
+            {onboardingStats.map(row => (
+              <div key={row.id} className="grid grid-cols-3 px-5 py-3 border-b border-gray-50 last:border-0 items-center">
+                <span className="text-sm font-semibold text-gray-800">{row.prenom}</span>
+                <span className="text-center text-sm font-bold tabular-nums text-violet-700">{row.semaine}</span>
+                <span className="text-center text-sm font-bold tabular-nums text-gray-900">{row.mois}</span>
+              </div>
+            ))}
+            <div className="grid grid-cols-3 px-5 py-2.5 bg-gray-50 border-t border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Total</span>
+              <span className="text-center text-xs font-bold tabular-nums text-violet-700">
+                {onboardingStats.reduce((s, r) => s + r.semaine, 0)}
+              </span>
+              <span className="text-center text-xs font-bold tabular-nums text-gray-900">
+                {onboardingStats.reduce((s, r) => s + r.mois, 0)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Row 2 : Stats deals + Leaderboard ────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Mini KPI cards */}
@@ -1209,36 +1239,6 @@ export default async function DashboardPage({
           <LeaderboardSection leaderboard={leaderboardData} />
         </div>
       </div>
-
-      {/* ── Onboardings CSM ──────────────────────────────────────── */}
-      {onboardingStats.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Onboardings par CSM</p>
-          <div className="bg-white border border-gray-150 rounded-2xl shadow-xl overflow-hidden">
-            <div className="grid grid-cols-3 bg-gray-50 border-b border-gray-100 px-5 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-              <span>CSM</span>
-              <span className="text-center">Cette semaine</span>
-              <span className="text-center">Ce mois</span>
-            </div>
-            {onboardingStats.map(row => (
-              <div key={row.id} className="grid grid-cols-3 px-5 py-3 border-b border-gray-50 last:border-0 items-center">
-                <span className="text-sm font-semibold text-gray-800">{row.prenom}</span>
-                <span className="text-center text-sm font-bold tabular-nums text-violet-700">{row.semaine}</span>
-                <span className="text-center text-sm font-bold tabular-nums text-gray-900">{row.mois}</span>
-              </div>
-            ))}
-            <div className="grid grid-cols-3 px-5 py-2.5 bg-gray-50 border-t border-gray-100">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Total</span>
-              <span className="text-center text-xs font-bold tabular-nums text-violet-700">
-                {onboardingStats.reduce((s, r) => s + r.semaine, 0)}
-              </span>
-              <span className="text-center text-xs font-bold tabular-nums text-gray-900">
-                {onboardingStats.reduce((s, r) => s + r.mois, 0)}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Santé des récurrents ──────────────────────────────────── */}
       <div>
