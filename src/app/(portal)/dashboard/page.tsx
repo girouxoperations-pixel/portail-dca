@@ -593,6 +593,7 @@ export default async function DashboardPage({
     { data: allCashEntries },
     { data: csmMembers },
     { data: csmClients },
+    { data: onboardingClients },
   ] = await Promise.all([
     supabase.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
@@ -635,6 +636,10 @@ export default async function DashboardPage({
       .neq('is_refunded', true),
     db.from('profiles').select('id, full_name').or('roles.cs.{csm},roles.cs.{head_csm}'),
     db.from('csm_clients').select('name, csm_id'),
+    db.from('csm_clients')
+      .select('name, csm_id, onboarding_date')
+      .not('onboarding_date', 'is', null)
+      .neq('status', 'refund'),
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
@@ -856,6 +861,35 @@ export default async function DashboardPage({
     nMois:      occsMoisHealth.length,
     montMois:   occsMoisHealth.reduce((s, o) => s + o.montant_attendu, 0),
   }
+
+  // ── Onboarding tracker per CSM ───────────────────────────────────
+  const monday       = getMonday(dateQC())
+  const weekStart    = toISO(monday)
+  const weekEndD     = new Date(monday); weekEndD.setDate(monday.getDate() + 7)
+  const weekEnd2     = toISO(weekEndD)
+  const monthStart   = `${curYear}-${String(curMonth).padStart(2, '0')}-01`
+  const nextMonthD   = new Date(curYear, curMonth, 1)
+  const monthEnd2    = toISO(nextMonthD)
+
+  const csmNameMap   = new Map((csmMembers ?? []).map(p => [p.id, (p.full_name ?? '').split(' ')[0]]))
+
+  interface CsmOnboarding { id: string; prenom: string; semaine: number; mois: number }
+  const onboardingByCsm = new Map<string, CsmOnboarding>()
+  for (const c of (onboardingClients ?? []) as { name: string; csm_id: string | null; onboarding_date: string }[]) {
+    if (!c.csm_id) continue
+    if (!onboardingByCsm.has(c.csm_id)) {
+      onboardingByCsm.set(c.csm_id, {
+        id: c.csm_id,
+        prenom: csmNameMap.get(c.csm_id) ?? '?',
+        semaine: 0,
+        mois: 0,
+      })
+    }
+    const row = onboardingByCsm.get(c.csm_id)!
+    if (c.onboarding_date >= weekStart && c.onboarding_date < weekEnd2) row.semaine++
+    if (c.onboarding_date >= monthStart && c.onboarding_date < monthEnd2) row.mois++
+  }
+  const onboardingStats = Array.from(onboardingByCsm.values()).sort((a, b) => b.mois - a.mois)
 
   // ── KPIs ─────────────────────────────────────────────────────────
   const recurringCashIds = new Set(
@@ -1175,6 +1209,36 @@ export default async function DashboardPage({
           <LeaderboardSection leaderboard={leaderboardData} />
         </div>
       </div>
+
+      {/* ── Onboardings CSM ──────────────────────────────────────── */}
+      {isAdmin && onboardingStats.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Onboardings par CSM</p>
+          <div className="bg-white border border-gray-150 rounded-2xl shadow-xl overflow-hidden">
+            <div className="grid grid-cols-3 bg-gray-50 border-b border-gray-100 px-5 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+              <span>CSM</span>
+              <span className="text-center">Cette semaine</span>
+              <span className="text-center">Ce mois</span>
+            </div>
+            {onboardingStats.map(row => (
+              <div key={row.id} className="grid grid-cols-3 px-5 py-3 border-b border-gray-50 last:border-0 items-center">
+                <span className="text-sm font-semibold text-gray-800">{row.prenom}</span>
+                <span className="text-center text-sm font-bold tabular-nums text-violet-700">{row.semaine}</span>
+                <span className="text-center text-sm font-bold tabular-nums text-gray-900">{row.mois}</span>
+              </div>
+            ))}
+            <div className="grid grid-cols-3 px-5 py-2.5 bg-gray-50 border-t border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Total</span>
+              <span className="text-center text-xs font-bold tabular-nums text-violet-700">
+                {onboardingStats.reduce((s, r) => s + r.semaine, 0)}
+              </span>
+              <span className="text-center text-xs font-bold tabular-nums text-gray-900">
+                {onboardingStats.reduce((s, r) => s + r.mois, 0)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Santé des récurrents ──────────────────────────────────── */}
       <div>
