@@ -1211,7 +1211,7 @@ export default async function DashboardPage({
       </div>
 
       {/* ── Onboardings CSM ──────────────────────────────────────── */}
-      {isAdmin && onboardingStats.length > 0 && (
+      {onboardingStats.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Onboardings par CSM</p>
           <div className="bg-white border border-gray-150 rounded-2xl shadow-xl overflow-hidden">
