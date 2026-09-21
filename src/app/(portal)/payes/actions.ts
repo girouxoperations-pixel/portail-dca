@@ -269,12 +269,41 @@ export async function creerRemboursement(data: {
       await db.from('csm_clients').update({ status: 'refund' }).eq('id', csmClient.id)
       await db.from('cm_followups').update({ status: 'remboursee' }).eq('csm_client_id', csmClient.id)
       if (csmClient.cash_entry_id) {
-        await db.from('cash_entries').update({ is_refunded: true }).eq('id', csmClient.cash_entry_id)
+        // Partial refund: reduce collected instead of marking fully refunded
+        const { data: cashEntry } = await db
+          .from('cash_entries')
+          .select('collected')
+          .eq('id', csmClient.cash_entry_id)
+          .single()
+        const originalCollected = cashEntry?.collected ?? 0
+        const newCollected = Math.max(0, Math.round((originalCollected - data.montantRefund) * 100) / 100)
+        if (newCollected === 0) {
+          await db.from('cash_entries').update({ is_refunded: true, collected: 0 }).eq('id', csmClient.cash_entry_id)
+        } else {
+          await db.from('cash_entries').update({ collected: newCollected }).eq('id', csmClient.cash_entry_id)
+        }
       }
     } else {
+      // Name-match path: reduce collected per entry
+      const { data: cashEntries } = await db
+        .from('cash_entries')
+        .select('id, collected')
+        .ilike('client_name', data.clientName.trim())
+        .eq('is_refunded', false)
+      let remaining = data.montantRefund
+      for (const entry of cashEntries ?? []) {
+        if (remaining <= 0) break
+        const deduct = Math.min(entry.collected ?? 0, remaining)
+        const newCollected = Math.round(((entry.collected ?? 0) - deduct) * 100) / 100
+        remaining = Math.round((remaining - deduct) * 100) / 100
+        if (newCollected === 0) {
+          await db.from('cash_entries').update({ is_refunded: true, collected: 0 }).eq('id', entry.id)
+        } else {
+          await db.from('cash_entries').update({ collected: newCollected }).eq('id', entry.id)
+        }
+      }
       await Promise.all([
         db.from('csm_clients').update({ status: 'refund' }).ilike('name', data.clientName.trim()),
-        db.from('cash_entries').update({ is_refunded: true }).ilike('client_name', data.clientName.trim()),
         db.from('cm_followups').update({ status: 'remboursee' }).ilike('client_name', data.clientName.trim()),
       ])
     }
