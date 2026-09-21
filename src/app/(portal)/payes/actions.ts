@@ -202,7 +202,7 @@ export async function renverserRemboursement(id: string, restaurerStatut: boolea
 
   const { data: entry } = await db
     .from('paye_entries')
-    .select('client_name')
+    .select('client_name, montant')
     .eq('id', id)
     .single()
 
@@ -211,19 +211,34 @@ export async function renverserRemboursement(id: string, restaurerStatut: boolea
   const { error } = await db.from('paye_entries').delete().eq('id', id)
   if (error) throw new Error(error.message)
 
+  // Toujours restaurer le cash collect — ajouter le montant remboursé au collected
+  const montantRembourse = Math.abs(entry.montant)
+  const clientName = entry.client_name.trim()
+
+  const { data: cashEntries } = await db
+    .from('cash_entries')
+    .select('id, collected, is_refunded')
+    .ilike('client_name', clientName)
+
+  for (const ce of cashEntries ?? []) {
+    const newCollected = Math.round(((ce.collected ?? 0) + montantRembourse) * 100) / 100
+    await db.from('cash_entries').update({
+      collected:   newCollected,
+      is_refunded: false,
+    }).eq('id', ce.id)
+  }
+
   if (restaurerStatut) {
-    const clientName = entry.client_name.trim()
     await Promise.all([
       db.from('csm_clients').update({ status: 'active' }).ilike('name', clientName),
-      db.from('cash_entries').update({ is_refunded: false }).ilike('client_name', clientName),
       db.from('cm_followups').update({ status: 'active' }).ilike('client_name', clientName),
     ])
     revalidatePath('/csm')
     revalidatePath('/cm')
-    revalidatePath('/cash')
-    revalidatePath('/cashcollect')
   }
 
+  revalidatePath('/cash')
+  revalidatePath('/cashcollect')
   revalidatePath('/payes')
 }
 
