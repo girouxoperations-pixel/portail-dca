@@ -196,6 +196,37 @@ export async function ajouterBonusManuel(data: {
   revalidatePath('/payes')
 }
 
+export async function renverserRemboursement(id: string, restaurerStatut: boolean) {
+  await requireRole(['admin'])
+  const db = createAdminClient()
+
+  const { data: entry } = await db
+    .from('paye_entries')
+    .select('client_name')
+    .eq('id', id)
+    .single()
+
+  if (!entry) throw new Error('Remboursement introuvable')
+
+  const { error } = await db.from('paye_entries').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+
+  if (restaurerStatut) {
+    const clientName = entry.client_name.trim()
+    await Promise.all([
+      db.from('csm_clients').update({ status: 'active' }).ilike('name', clientName),
+      db.from('cash_entries').update({ is_refunded: false }).ilike('client_name', clientName),
+      db.from('cm_followups').update({ status: 'active' }).ilike('client_name', clientName),
+    ])
+    revalidatePath('/csm')
+    revalidatePath('/cm')
+    revalidatePath('/cash')
+    revalidatePath('/cashcollect')
+  }
+
+  revalidatePath('/payes')
+}
+
 export async function creerRemboursement(data: {
   clientName:    string
   closerId:      string | null

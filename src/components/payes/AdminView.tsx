@@ -7,7 +7,7 @@ import {
   basculerStatut,
   approuverPeriode, approuverPayesBatch, modifierPaye,
   ajouterBonusManuel, supprimerPaye, creerRemboursement,
-  payerCommissionCsm, supprimerCommissionCsm,
+  payerCommissionCsm, supprimerCommissionCsm, renverserRemboursement,
 } from '@/app/(portal)/payes/actions'
 import { dollar, MOIS_FR } from '@/lib/constants'
 import Badge      from '@/components/ui/Badge'
@@ -494,14 +494,15 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
 
 // ── Deal table (shared between sections) ─────────────────────────────
 
-function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }: {
-  deals:    DealItem[]
-  role:     string
-  isAdmin:  boolean
-  pending:  boolean
-  onEdit:   (id: string) => void
-  onToggle: (id: string, statut: string) => void
-  onDelete: (id: string) => void
+function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete, onRenverser }: {
+  deals:        DealItem[]
+  role:         string
+  isAdmin:      boolean
+  pending:      boolean
+  onEdit:       (id: string) => void
+  onToggle:     (id: string, statut: string) => void
+  onDelete:     (id: string) => void
+  onRenverser?: (id: string) => void
 }) {
   return (
     <table className="w-full text-xs">
@@ -558,14 +559,25 @@ function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }
                       {d.statut === 'Payé' ? '↩ En attente' : '✓ Payé'}
                     </button>
                   )}
-                  <button
-                    onClick={() => onDelete(d.id)}
-                    disabled={pending}
-                    className="p-1 rounded text-gray-200 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    title="Supprimer la commission"
-                  >
-                    <X size={11} />
-                  </button>
+                  {d.type === 'refund' && onRenverser ? (
+                    <button
+                      onClick={() => onRenverser(d.id)}
+                      disabled={pending}
+                      className="px-2 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors disabled:opacity-40"
+                      title="Renverser ce remboursement"
+                    >
+                      ↩ Renverser
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onDelete(d.id)}
+                      disabled={pending}
+                      className="p-1 rounded text-gray-200 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      title="Supprimer"
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
                 </div>
               </td>
             )}
@@ -578,17 +590,18 @@ function DealTable({ deals, role, isAdmin, pending, onEdit, onToggle, onDelete }
 
 // ── Carte employé ─────────────────────────────────────────────────────
 
-function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pending, onEdit, onToggle, onDelete }: {
-  label:    string
-  labelCls: string
-  headerCls: string
-  deals:    DealItem[]
-  role:     string
-  isAdmin:  boolean
-  pending:  boolean
-  onEdit:   (id: string) => void
-  onToggle: (id: string, statut: string) => void
-  onDelete: (id: string) => void
+function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pending, onEdit, onToggle, onDelete, onRenverser }: {
+  label:        string
+  labelCls:     string
+  headerCls:    string
+  deals:        DealItem[]
+  role:         string
+  isAdmin:      boolean
+  pending:      boolean
+  onEdit:       (id: string) => void
+  onToggle:     (id: string, statut: string) => void
+  onDelete:     (id: string) => void
+  onRenverser?: (id: string) => void
 }) {
   if (deals.length === 0) return null
   const total = deals.reduce((s, d) => s + d.maCommission, 0)
@@ -598,7 +611,7 @@ function SectionDeals({ label, labelCls, headerCls, deals, role, isAdmin, pendin
         <span className={cn('text-[11px] font-bold uppercase tracking-wider', labelCls)}>{label}</span>
         <span className={cn('text-xs font-bold tabular-nums', labelCls)}>{dollar(total)}</span>
       </div>
-      <DealTable deals={deals} role={role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
+      <DealTable deals={deals} role={role} isAdmin={isAdmin} pending={pending} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} onRenverser={onRenverser} />
     </div>
   )
 }
@@ -613,8 +626,22 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
   onDelete:          (id: string) => void
   myCsmCommissions:  CsmCommission[]
 }) {
-  const [ouvert, setOuvert]   = useState(false)
-  const [csmPending, startCsmT] = useTransition()
+  const [ouvert, setOuvert]         = useState(false)
+  const [csmPending, startCsmT]     = useTransition()
+  const [renverserTarget, setRenverserTarget] = useState<{ id: string; nom: string } | null>(null)
+  const [renverserPending, startRenverserT]   = useTransition()
+
+  function handleRenverser(id: string) {
+    const deal = group.deals.find(d => d.id === id)
+    setRenverserTarget({ id, nom: deal?.client_name ?? '' })
+  }
+
+  function confirmRenverser(restaurer: boolean) {
+    if (!renverserTarget) return
+    const id = renverserTarget.id
+    setRenverserTarget(null)
+    startRenverserT(async () => { await renverserRemboursement(id, restaurer) })
+  }
 
   const csmTotal   = myCsmCommissions.reduce((s, c) => s + (c.amount ?? 0), 0)
   const csmUnpaid  = myCsmCommissions.filter(c => !c.paid).reduce((s, c) => s + (c.amount ?? 0), 0)
@@ -719,9 +746,42 @@ function CarteEmploye({ group, isAdmin, pending, onApprouver, onToggle, onEdit, 
           />
           <SectionDeals
             label="Remboursements" labelCls="text-red-600" headerCls="bg-red-50/40"
-            deals={refunds} role={group.role} isAdmin={isAdmin} pending={pending}
-            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete}
+            deals={refunds} role={group.role} isAdmin={isAdmin} pending={renverserPending || pending}
+            onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} onRenverser={isAdmin ? handleRenverser : undefined}
           />
+
+          {/* Popup confirmation renverser remboursement */}
+          {renverserTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">Renverser ce remboursement?</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Remboursement de <span className="font-semibold text-gray-800">{renverserTarget.nom}</span> sera supprimé.
+                </p>
+                <p className="text-xs font-medium text-gray-700 mb-2">Remettre la cliente à &quot;Active&quot; dans le suivi?</p>
+                <div className="flex flex-col gap-2 mb-4">
+                  <button
+                    onClick={() => confirmRenverser(true)}
+                    disabled={renverserPending}
+                    className="w-full px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Oui — supprimer le remboursement et remettre active
+                  </button>
+                  <button
+                    onClick={() => confirmRenverser(false)}
+                    disabled={renverserPending}
+                    className="w-full px-4 py-2.5 border border-gray-200 text-sm text-gray-600 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    Non — supprimer seulement l&apos;entrée de paie
+                  </button>
+                </div>
+                <button onClick={() => setRenverserTarget(null)} className="w-full text-xs text-gray-400 hover:text-gray-600">
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
+
           {myCsmCommissions.length > 0 && (
             <div className="border-t border-gray-100">
               <div className="px-5 py-2.5 flex items-center justify-between bg-gray-50/40">
