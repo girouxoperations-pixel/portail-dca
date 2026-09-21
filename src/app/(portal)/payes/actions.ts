@@ -295,7 +295,7 @@ export async function creerRemboursement(data: {
         if (newCollected === 0) {
           await db.from('cash_entries').update({ is_refunded: true, collected: 0 }).eq('id', csmClient.cash_entry_id)
         } else {
-          await db.from('cash_entries').update({ collected: newCollected }).eq('id', csmClient.cash_entry_id)
+          await db.from('cash_entries').update({ collected: newCollected, notes: '[REMB_PARTIEL]' }).eq('id', csmClient.cash_entry_id)
         }
       }
     } else {
@@ -314,7 +314,7 @@ export async function creerRemboursement(data: {
         if (newCollected === 0) {
           await db.from('cash_entries').update({ is_refunded: true, collected: 0 }).eq('id', entry.id)
         } else {
-          await db.from('cash_entries').update({ collected: newCollected }).eq('id', entry.id)
+          await db.from('cash_entries').update({ collected: newCollected, notes: '[REMB_PARTIEL]' }).eq('id', entry.id)
         }
       }
       await Promise.all([

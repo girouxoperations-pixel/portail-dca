@@ -714,8 +714,9 @@ function EntryRow({ e, profileMap, csmByEntryId, recurringIds, occurrenceId, isA
   onRefund: (e: CashEntry) => void
   pending: boolean
 }) {
-  const type = getSourceType(e, recurringIds)
-  const isRefunded = !!e.is_refunded
+  const type              = getSourceType(e, recurringIds)
+  const isRefunded        = !!e.is_refunded
+  const isPartialRefund   = !isRefunded && !!e.notes?.includes('[REMB_PARTIEL]')
 
   if (isRefunded) {
     return (
@@ -749,6 +750,41 @@ function EntryRow({ e, profileMap, csmByEntryId, recurringIds, occurrenceId, isA
     )
   }
 
+  if (isPartialRefund) {
+    return (
+      <tr className="bg-red-50 border-l-4 border-red-300">
+        <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{formatDate(e.entry_date)}</td>
+        <td className="px-4 py-3 font-medium text-gray-600 max-w-[160px] truncate">{e.client_name ?? '—'}</td>
+        <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-sm">{e.closed_by ? (profileMap.get(e.closed_by) ?? '—') : '—'}</td>
+        <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-sm">{e.set_by ? (profileMap.get(e.set_by) ?? '—') : '—'}</td>
+        <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-sm">{csmByEntryId.get(e.id) ?? '—'}</td>
+        <td className="px-4 py-3">
+          <span className="text-xs font-bold text-red-500 uppercase tracking-widest">Remb. partiel</span>
+        </td>
+        <td className="px-4 py-3"><SourceBadge source={e.source_type} /></td>
+        <td className="px-4 py-3 text-right tabular-nums text-gray-400 line-through text-xs whitespace-nowrap">{dollar(e.montant_courant)}</td>
+        <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+          <span className="text-sm font-bold text-blue-700">{dollar(e.collected)}</span>
+        </td>
+        <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+          <span className={cn('font-medium', (e.a_collecter ?? 0) > 0 ? 'text-red-600' : 'text-gray-300')}>
+            {dollar(e.a_collecter ?? 0)}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-xs text-gray-400">{e.methode ?? '—'}</td>
+        <td className="px-4 py-3">
+          <div className="flex items-center justify-end gap-1.5">
+            {isAdmin && (
+              <button onClick={() => onDelete(e.id)} disabled={pending} title="Supprimer"
+                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40">
+                <Trash2 size={13} />
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    )
+  }
 
   return (
     <tr className="hover:bg-gray-50/50 transition-colors">
