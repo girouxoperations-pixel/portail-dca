@@ -42,7 +42,7 @@ function fmtDate(d: string) {
   return new Date(d + 'T00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-function OccRow({ occ }: { occ: RecurrentsOcc }) {
+function OccRow({ occ, onPerdu }: { occ: RecurrentsOcc; onPerdu?: () => void }) {
   type SoldeLine = { montant: string; date: string }
 
   const [pending, start]              = useTransition()
@@ -248,6 +248,14 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
             <button onClick={() => setShowCancel(true)} className="text-[11px] text-red-400 hover:text-red-600 transition-colors">
               Annuler le récurrent ✕
             </button>
+            {onPerdu && (
+              <button
+                onClick={() => { if (confirm('Marquer ce récurrent comme perdu ?')) onPerdu() }}
+                className="text-[11px] font-semibold text-gray-500 hover:text-red-700 bg-gray-100 hover:bg-red-50 px-2 py-0.5 rounded transition-colors"
+              >
+                Perdu
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-end gap-1.5">
@@ -270,7 +278,7 @@ function OccRow({ occ }: { occ: RecurrentsOcc }) {
   )
 }
 
-function OccTable({ occs, headerCls }: { occs: RecurrentsOcc[]; headerCls: string }) {
+function OccTable({ occs, headerCls, onPerdu }: { occs: RecurrentsOcc[]; headerCls: string; onPerdu?: (dealId: string) => void }) {
   if (occs.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-6">Aucun versement</p>
   }
@@ -290,7 +298,9 @@ function OccTable({ occs, headerCls }: { occs: RecurrentsOcc[]; headerCls: strin
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {sorted.map(o => <OccRow key={o.id} occ={o} />)}
+          {sorted.map(o => (
+            <OccRow key={o.id} occ={o} onPerdu={onPerdu ? () => onPerdu(o.dealId) : undefined} />
+          ))}
         </tbody>
         <tfoot>
           <tr className="border-t border-gray-100 bg-gray-50">
@@ -306,7 +316,9 @@ function OccTable({ occs, headerCls }: { occs: RecurrentsOcc[]; headerCls: strin
 }
 
 export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, occsSemaine, occsMois, perduDeals }: Props) {
-  const [open, setOpen] = useState<Filtre | null>(null)
+  const [open, setOpen]         = useState<Filtre | null>(null)
+  const [showPerdus, setShowPerdus] = useState(false)
+  const [perduPending, startPerduT] = useTransition()
 
   function toggle(f: Filtre) { setOpen(prev => prev === f ? null : f) }
 
@@ -407,6 +419,27 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
             </button>
           )
         })}
+
+        {/* Carte Perdus */}
+        <button
+          onClick={() => setShowPerdus(v => !v)}
+          className={cn(
+            'rounded-2xl border shadow-sm p-4 text-left transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer',
+            showPerdus ? 'bg-gray-100 border-gray-300 ring-1 ring-gray-200' : 'bg-white border-gray-150',
+          )}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <XCircle size={13} className={perduDeals.length > 0 ? 'text-gray-600' : 'text-gray-300'} />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Perdus</p>
+            </div>
+            <ChevronRight size={12} className={cn('text-gray-400 transition-transform', showPerdus && 'rotate-90')} />
+          </div>
+          <p className={cn('text-2xl font-bold tabular-nums tracking-tight', perduDeals.length > 0 ? 'text-gray-700' : 'text-gray-300')}>
+            {perduDeals.length === 0 ? '—' : dollar(perduDeals.reduce((s, d) => s + d.montant_mensuel, 0))}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">{perduDeals.length} récurrent{perduDeals.length !== 1 ? 's' : ''} perdu{perduDeals.length !== 1 ? 's' : ''}</p>
+        </button>
       </div>
 
       {activeCard && (
@@ -423,30 +456,32 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
               Gérer <ChevronRight size={12} />
             </Link>
           </div>
-          <OccTable occs={activeCard.occs} headerCls={activeCard.headerCls} />
+          <OccTable
+            occs={activeCard.occs}
+            headerCls={activeCard.headerCls}
+            onPerdu={activeCard.key === 'retard' ? (dealId) => {
+              startPerduT(async () => { await annulerDealAvecRaison(dealId, '__PERDU__') })
+            } : undefined}
+          />
         </div>
       )}
 
-      {/* ── Perdus ── */}
-      {perduDeals.length > 0 && (
-        <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 flex items-center justify-between border-b border-gray-700">
-            <span className="text-xs font-bold text-gray-300 uppercase tracking-wide">
-              Récurrents perdus — {perduDeals.length}
-            </span>
-            <span className="text-xs font-bold text-gray-400 tabular-nums">
-              {dollar(perduDeals.reduce((s, d) => s + d.montant_mensuel, 0))} /mois perdu
-            </span>
+      {/* Perdus expandable */}
+      {showPerdus && perduDeals.length > 0 && (
+        <div className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-700">Perdus — {perduDeals.length}</p>
+            <span className="text-xs text-gray-400 tabular-nums">{dollar(perduDeals.reduce((s, d) => s + d.montant_mensuel, 0))} /mois</span>
           </div>
-          <div className="divide-y divide-gray-800">
+          <div className="divide-y divide-gray-50">
             {perduDeals.map(d => (
-              <div key={d.id} className="flex items-center gap-3 px-4 py-2.5">
-                <XCircle size={13} className="text-red-400 shrink-0" />
-                <span className="flex-1 text-sm text-gray-300">{d.client_name}</span>
-                <span className="text-xs text-gray-500 whitespace-nowrap">
+              <div key={d.id} className="flex items-center gap-3 px-5 py-3">
+                <XCircle size={13} className="text-gray-400 shrink-0" />
+                <span className="flex-1 text-sm font-medium text-gray-700">{d.client_name}</span>
+                <span className="text-xs text-gray-400 whitespace-nowrap">
                   {d.annule_le ? new Date(d.annule_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}
                 </span>
-                <span className="text-sm font-semibold text-gray-400 tabular-nums">{dollar(d.montant_mensuel)}</span>
+                <span className="text-sm font-bold text-gray-600 tabular-nums">{dollar(d.montant_mensuel)}</span>
               </div>
             ))}
           </div>
