@@ -392,7 +392,7 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {CARDS.map(card => {
           const Icon   = card.icon
           const isOpen = open === card.key
