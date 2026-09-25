@@ -909,6 +909,18 @@ function DealCard({ deal, profileMap, profiles, isAdmin }: {
               Annuler
             </button>
           )}
+          {isAdmin && deal.actif && (
+            <button
+              onClick={() => {
+                if (!confirm('Marquer cette entente comme perdue ?')) return
+                startTransition(async () => { await annulerDealAvecRaison(deal.id, '__PERDU__') })
+              }}
+              disabled={pending}
+              className="px-2.5 py-1 rounded text-[11px] font-medium bg-red-50 text-red-500 hover:bg-red-100 transition-colors disabled:opacity-40"
+            >
+              Perdu
+            </button>
+          )}
           {isAdmin && !deal.actif && (
             <button
               onClick={handleToggleActif} disabled={pending}
@@ -1211,7 +1223,8 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
   }, [filteredDeals])
 
   const actifsDeals   = filteredDeals.filter(d => d.actif)
-  const annulésDeals  = filteredDeals.filter(d => !d.actif && d.raison_annulation)
+  const perdusDeals   = filteredDeals.filter(d => !d.actif && d.raison_annulation === '__PERDU__')
+  const annulésDeals  = filteredDeals.filter(d => !d.actif && d.raison_annulation && d.raison_annulation !== '__PERDU__')
   const inactifsDeals = filteredDeals.filter(d => !d.actif && !d.raison_annulation)
 
   // Detect clients with multiple active deals (likely duplicates)
@@ -1776,6 +1789,76 @@ export default function RecurrentsView({ deals, profiles, isAdmin, initialFiltre
           </div>
         )}
       </div>
+
+      {/* ── Deals perdus ── */}
+      {perdusDeals.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowInactifs(v => !v)}
+            className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 font-medium transition-colors mb-3"
+          >
+            {showInactifs ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            Ententes perdues ({perdusDeals.length})
+          </button>
+          {showInactifs && (
+            <div className="rounded-xl border border-red-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-red-600 flex items-center justify-between">
+                <span className="text-xs font-bold text-white uppercase tracking-wide">Récurrents perdus</span>
+                <span className="text-xs font-bold text-white tabular-nums">
+                  {dollar(perdusDeals.reduce((s, d) => s + d.montant_mensuel * (d.versements_total ?? d.recurring_occurrences.length), 0))} attendu total
+                </span>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] font-semibold uppercase tracking-wide text-red-400 bg-red-50 border-b border-red-100">
+                    <th className="px-4 py-2.5 text-left">Cliente</th>
+                    <th className="px-4 py-2.5 text-left">Perdu le</th>
+                    <th className="px-4 py-2.5 text-right">Reçu</th>
+                    <th className="px-4 py-2.5 text-right">Attendu</th>
+                    <th className="px-4 py-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-red-50">
+                  {perdusDeals.map(d => {
+                    const reçu   = d.recurring_occurrences.filter(o => o.recu).reduce((s, o) => s + (o.montant_recu ?? 0), 0)
+                    const attendu = (d.versements_total ?? d.recurring_occurrences.length) * d.montant_mensuel
+                    return (
+                      <tr key={d.id} className="hover:bg-red-50/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <Link href={`/recurrents/${d.id}`} className="font-medium text-gray-700 hover:text-violet-600 transition-colors">
+                            {d.client_name}
+                          </Link>
+                          <div className="text-[11px] text-gray-400 mt-0.5">
+                            {d.closer_id ? profileMap.get(d.closer_id) : '—'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                          {d.annule_le
+                            ? new Date(d.annule_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-xs font-semibold text-green-700 tabular-nums">{dollar(reçu)}</td>
+                        <td className="px-4 py-3 text-right text-xs text-gray-400 tabular-nums">{dollar(attendu)}</td>
+                        <td className="px-4 py-3 text-right">
+                          {isAdmin && (
+                            <button
+                              onClick={() => { startTransition(async () => { await reactiverDeal(d.id) }) }}
+                              disabled={pending}
+                              className="text-[11px] px-2 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100 font-medium transition-colors disabled:opacity-40"
+                            >
+                              Réactiver
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Deals annulés ── */}
       {annulésDeals.length > 0 && (

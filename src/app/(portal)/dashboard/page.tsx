@@ -589,6 +589,7 @@ export default async function DashboardPage({
     { data: allCloserEntries },
     { data: setterEntriesMois },
     { data: recurringOccs },
+    { data: recurringPerduDeals },
     { data: recurringCashOccs },
     { data: allCashEntries },
     { data: csmMembers },
@@ -627,6 +628,10 @@ export default async function DashboardPage({
     db.from('recurring_occurrences')
       .select('id, recurring_deal_id, date_attendue, montant_attendu, recu, mois, annee, recurring_deals(client_name, closer_id, csm_id, methode_paiement, actif, notes)')
       .eq('recu', false),
+    db.from('recurring_deals')
+      .select('id, client_name, montant_mensuel, annule_le')
+      .eq('actif', false)
+      .eq('raison_annulation', '__PERDU__'),
     db.from('recurring_occurrences')
       .select('cash_entry_id')
       .eq('recu', true)
@@ -1248,6 +1253,7 @@ export default async function DashboardPage({
           occsRetard={occsRetardHealth}
           occsSemaine={occsSemaineHealth}
           occsMois={occsMoisHealth}
+          perduDeals={recurringPerduDeals ?? []}
         />
       </div>
 

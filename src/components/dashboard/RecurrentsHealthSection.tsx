@@ -21,11 +21,19 @@ export interface RecurrentsOcc {
   dealNotes?:       string | null
 }
 
+export interface PerduDeal {
+  id:            string
+  client_name:   string
+  montant_mensuel: number
+  annule_le:     string | null
+}
+
 interface Props {
   occsAujourdhui: RecurrentsOcc[]
   occsRetard:     RecurrentsOcc[]
   occsSemaine:    RecurrentsOcc[]
   occsMois:       RecurrentsOcc[]
+  perduDeals:     PerduDeal[]
 }
 
 type Filtre = 'aujourd_hui' | 'semaine' | 'mois' | 'retard'
@@ -297,7 +305,7 @@ function OccTable({ occs, headerCls }: { occs: RecurrentsOcc[]; headerCls: strin
   )
 }
 
-export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, occsSemaine, occsMois }: Props) {
+export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, occsSemaine, occsMois, perduDeals }: Props) {
   const [open, setOpen] = useState<Filtre | null>(null)
 
   function toggle(f: Filtre) { setOpen(prev => prev === f ? null : f) }
@@ -372,7 +380,7 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {CARDS.map(card => {
           const Icon   = card.icon
           const isOpen = open === card.key
@@ -416,6 +424,32 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
             </Link>
           </div>
           <OccTable occs={activeCard.occs} headerCls={activeCard.headerCls} />
+        </div>
+      )}
+
+      {/* ── Perdus ── */}
+      {perduDeals.length > 0 && (
+        <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 flex items-center justify-between border-b border-gray-700">
+            <span className="text-xs font-bold text-gray-300 uppercase tracking-wide">
+              Récurrents perdus — {perduDeals.length}
+            </span>
+            <span className="text-xs font-bold text-gray-400 tabular-nums">
+              {dollar(perduDeals.reduce((s, d) => s + d.montant_mensuel, 0))} /mois perdu
+            </span>
+          </div>
+          <div className="divide-y divide-gray-800">
+            {perduDeals.map(d => (
+              <div key={d.id} className="flex items-center gap-3 px-4 py-2.5">
+                <XCircle size={13} className="text-red-400 shrink-0" />
+                <span className="flex-1 text-sm text-gray-300">{d.client_name}</span>
+                <span className="text-xs text-gray-500 whitespace-nowrap">
+                  {d.annule_le ? new Date(d.annule_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}
+                </span>
+                <span className="text-sm font-semibold text-gray-400 tabular-nums">{dollar(d.montant_mensuel)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
