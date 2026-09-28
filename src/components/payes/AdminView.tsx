@@ -255,11 +255,13 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
       .slice(0, 6)
   }, [entrees, query])
 
-  const amount = parseFloat(montantInput) || 0
+  const amount = montantInput === '' ? NaN : parseFloat(montantInput)
+  const amountValid = !isNaN(amount) && amount >= 0
 
   // Auto-fill commission splits: closer = 10%, setter = 5% of refund amount
   useEffect(() => {
-    if (!selected || !amount) { setCommCloserIn(''); setCommSetterIn(''); return }
+    if (!selected || isNaN(amount)) { setCommCloserIn(''); setCommSetterIn(''); return }
+    if (amount === 0) { setCommCloserIn('0'); setCommSetterIn('0'); return }
     setCommCloserIn(selected.closer_id ? String(Math.round(amount * 0.10 * 100) / 100) : '0')
     setCommSetterIn(selected.setter_id ? String(Math.round(amount * 0.05 * 100) / 100) : '0')
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,13 +276,13 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
 
   function handleSubmit() {
     const periode = periodes[periodeIdx]
-    if (!selected || !amount || !periode) return
+    if (!selected || !amountValid || !periode) return
     setShowConfirm(true)
   }
 
   function doSubmit(propagate: boolean) {
     const periode = periodes[periodeIdx]
-    if (!selected || !amount || !periode) return
+    if (!selected || !amountValid || !periode) return
     setShowConfirm(false)
     startT(async () => {
       try {
@@ -351,7 +353,7 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">Montant remboursé ($)</label>
             <input
-              type="number" min="0.01" step="0.01" placeholder="ex. 1 500"
+              type="number" min="0" step="0.01" placeholder="ex. 1 500 (0 pour remboursement sans impact cash)"
               value={montantInput}
               onChange={e => setMontantInput(e.target.value)}
               disabled={!selected}
@@ -363,7 +365,7 @@ function SectionRefund({ isAdmin, entrees, allProfiles, periodes }: {
           <div className="flex flex-col gap-1 justify-end">
             <button
               onClick={handleSubmit}
-              disabled={pending || !selected || !amount}
+              disabled={pending || !selected || !amountValid}
               className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40"
             >
               {pending ? 'Enregistrement…' : 'Créer le remboursement'}
