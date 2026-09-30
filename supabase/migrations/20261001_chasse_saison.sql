@@ -91,7 +91,7 @@ INSERT INTO chasse_config DEFAULT VALUES;
 
 -- Semaines
 INSERT INTO chasse_weeks (week_number, week_start, week_end, month, status) VALUES
-  (1,  '2026-10-05', '2026-10-09', 10, 'pending'),
+  (1,  '2026-10-05', '2026-10-09', 10, 'active'),
   (2,  '2026-10-12', '2026-10-16', 10, 'pending'),
   (3,  '2026-10-19', '2026-10-23', 10, 'pending'),
   (4,  '2026-10-26', '2026-10-30', 10, 'pending'),
