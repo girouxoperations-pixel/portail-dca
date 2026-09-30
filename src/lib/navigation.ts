@@ -16,6 +16,7 @@ import {
   Trophy,
   Archive,
   Mic,
+  Crosshair,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -33,6 +34,7 @@ export interface NavItem {
 export const NAV_ITEMS: Record<string, NavItem[]> = {
   admin: [
     { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard },
+    { label: 'La Chasse 🏹', href: '/chasse',      icon: Crosshair       },
     { label: 'Équipe',      href: '/equipe',       icon: Trophy          },
     { label: 'Todo',        href: '/todo',         icon: ListTodo        },
     { label: 'Closers',     href: '/closer',       icon: Phone           },
@@ -81,6 +83,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
   closer: [
     { label: 'Todo',         href: '/todo',         icon: ListTodo        },
     { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
+    { label: 'La Chasse 🏹', href: '/chasse',       icon: Crosshair       },
     { label: 'Équipe',       href: '/equipe',        icon: Trophy          },
     { label: 'Mon Suivi',    href: '/closer',       icon: Phone           },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
@@ -90,8 +93,9 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Documents',    href: '/documents',    icon: FolderOpen      },
   ],
   setter: [
-    { label: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard },
-    { label: 'Équipe',     href: '/equipe',      icon: Trophy          },
+    { label: 'Dashboard',   href: '/dashboard',  icon: LayoutDashboard },
+    { label: 'La Chasse 🏹', href: '/chasse',    icon: Crosshair       },
+    { label: 'Équipe',      href: '/equipe',      icon: Trophy          },
     { label: 'Mon Suivi',  href: '/setter',      icon: Users           },
     { label: 'Analyseur',  href: '/analyseur',   icon: Mic             },
     { label: 'Feedback',   href: '/feedback',    icon: MessageSquare   },
