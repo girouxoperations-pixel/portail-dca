@@ -53,15 +53,20 @@ export async function getCashJoueuses(weekStart: string, weekEnd: string) {
 
   const { data: entries } = await db
     .from('cash_entries')
-    .select('closed_by, set_by, collected')
+    .select('closed_by, set_by, collected, close_type, notes')
     .gte('entry_date', weekStart)
     .lte('entry_date', weekEnd)
     .eq('is_refunded', false)
+    .neq('close_type', 'recurring')
 
   const closerCash = new Map<string, number>()
   const setterCash = new Map<string, number>()
 
   for (const e of entries ?? []) {
+    // Exclure tout ce qui ressemble à un récurrent (ancien mois ou versement)
+    if (e.notes?.startsWith('Récurrent') || e.notes?.startsWith('Versement récurrent')) continue
+    if (e.close_type === 'recurring') continue
+
     if (e.closed_by) closerCash.set(e.closed_by, (closerCash.get(e.closed_by) ?? 0) + (e.collected ?? 0))
     if (e.set_by)    setterCash.set(e.set_by,    (setterCash.get(e.set_by)    ?? 0) + (e.collected ?? 0))
   }
