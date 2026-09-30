@@ -15,12 +15,22 @@ export default async function ChassePage() {
       ? await getCashJoueuses(currentWeek.week_start, currentWeek.week_end)
       : { closerCash: new Map<string, number>(), setterCash: new Map<string, number>() }
 
+    const allWeeks = data.weeks ?? []
+    const confirmedAndActiveIds = new Set(
+      allWeeks.filter(w => w.status === 'confirmed' || w.status === 'active').map(w => w.id)
+    )
+
+    // Pour les non-admins : ne transmettre que les duels des semaines actives/confirmées
+    const filteredDuels = data.isAdmin
+      ? (data.duels ?? [])
+      : (data.duels ?? []).filter(d => confirmedAndActiveIds.has(d.week_id))
+
     return (
       <ChassView
         config={data.config}
         players={data.players ?? []}
-        weeks={data.weeks ?? []}
-        duels={data.duels ?? []}
+        weeks={allWeeks}
+        duels={filteredDuels}
         monthlyResults={data.monthlyResults ?? []}
         isAdmin={data.isAdmin}
         userId={data.userId}

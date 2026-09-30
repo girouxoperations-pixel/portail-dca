@@ -303,25 +303,31 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                   {MONTH_LABELS[month]}
                 </p>
                 <div className="space-y-1.5">
-                  {monthWeeks.map(w => (
-                    <div key={w.id} className={cn(
-                      'flex items-center gap-3 px-3 py-2 rounded-lg',
-                      w.status === 'confirmed' ? 'bg-emerald-900/30 border border-emerald-800' :
-                      w.status === 'active'    ? 'bg-amber-900/30 border border-amber-700' :
-                      'bg-stone-800/30 border border-stone-700',
-                    )}>
-                      <span className="text-xs font-bold text-stone-400 w-6">S{w.week_number}</span>
-                      <span className="text-xs text-stone-300 flex-1">{w.week_start} → {w.week_end}</span>
-                      <span className={cn(
-                        'text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                        w.status === 'confirmed' ? 'bg-emerald-900 text-emerald-400' :
-                        w.status === 'active'    ? 'bg-amber-900 text-amber-400' :
-                        'bg-stone-700 text-stone-400',
+                  {monthWeeks.map(w => {
+                    const isFuture = w.status === 'pending'
+                    const isHidden = isFuture && !isAdmin
+                    return (
+                      <div key={w.id} className={cn(
+                        'flex items-center gap-3 px-3 py-2 rounded-lg',
+                        w.status === 'confirmed' ? 'bg-emerald-900/30 border border-emerald-800' :
+                        w.status === 'active'    ? 'bg-amber-900/30 border border-amber-700' :
+                        'bg-stone-800/30 border border-stone-700',
                       )}>
-                        {w.status === 'confirmed' ? '✓ Confirmée' : w.status === 'active' ? '● En cours' : 'À venir'}
-                      </span>
-                    </div>
-                  ))}
+                        <span className="text-xs font-bold text-stone-400 w-6">S{w.week_number}</span>
+                        <span className="text-xs text-stone-300 flex-1">
+                          {isHidden ? '??? → ???' : `${w.week_start} → ${w.week_end}`}
+                        </span>
+                        <span className={cn(
+                          'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                          w.status === 'confirmed' ? 'bg-emerald-900 text-emerald-400' :
+                          w.status === 'active'    ? 'bg-amber-900 text-amber-400' :
+                          'bg-stone-700 text-stone-400',
+                        )}>
+                          {w.status === 'confirmed' ? '✓ Confirmée' : w.status === 'active' ? '● En cours' : '🔒 À venir'}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
                 {month < 12 && (
                   <div className="mt-2 flex items-center gap-2">
