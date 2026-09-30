@@ -33,46 +33,22 @@ export default function DuelCard({ duel, player1, player2, cash1, cash2, showCas
   const draw = isConfirmed && !duel.winner_id && !duel.is_cerf
 
   if (duel.is_cerf) {
-    const cerfWon = isConfirmed && duel.winner_id === player1.id
-    const progressPct = duel.cerf_target ? Math.min(100, Math.round((cash1 / duel.cerf_target) * 100)) : 0
-
+    // Semaine libre — joueuse sans duel, affichée avec son cash uniquement
     return (
-      <div className={cn(
-        'rounded-xl border p-4 space-y-3',
-        cerfWon ? 'bg-amber-50 border-amber-300' : 'bg-stone-50 border-stone-200',
-      )}>
-        <div className="flex items-center gap-2">
-          <span className="text-base">🦌</span>
-          <span className="text-xs font-bold text-stone-500 uppercase tracking-wide">Chasse au Cerf</span>
-          {cerfWon && <span className="ml-auto text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Abattue 🏹</span>}
+      <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 flex items-center gap-3">
+        <div className={cn(
+          'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0',
+          'bg-stone-200 text-stone-500',
+        )}>
+          {player1.position}
         </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-bold text-stone-800">{player1.nom}</p>
-            {showCash || isAdmin ? (
-              <p className="text-xs text-stone-500 tabular-nums">{dollar(cash1)}</p>
-            ) : null}
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-stone-400">Cible</p>
-            <p className="text-sm font-bold text-stone-700 tabular-nums">
-              {duel.cerf_target ? dollar(duel.cerf_target) : '—'}
-            </p>
-          </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-stone-700">{player1.nom}</p>
+          <p className="text-[10px] text-stone-400 uppercase tracking-wide">Semaine libre</p>
         </div>
-
-        {duel.cerf_target ? (
-          <div className="space-y-1">
-            <div className="h-2 rounded-full bg-stone-200 overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all', cerfWon ? 'bg-amber-500' : 'bg-stone-400')}
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <p className="text-[10px] text-stone-400 text-right">{progressPct}%</p>
-          </div>
-        ) : null}
+        {(showCash || isAdmin) && (
+          <p className="text-sm font-bold tabular-nums text-stone-600">{dollar(cash1)}</p>
+        )}
       </div>
     )
   }
