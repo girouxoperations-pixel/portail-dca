@@ -147,7 +147,7 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xl">🏹</span>
-                <h1 className="text-xl font-bold text-amber-100 tracking-tight">Saison de la Chasse</h1>
+                <h1 className="text-xl font-bold text-amber-100 tracking-tight">Hunting Season</h1>
                 <span className="text-xl">🦌</span>
               </div>
               <p className="text-sm text-amber-300">
