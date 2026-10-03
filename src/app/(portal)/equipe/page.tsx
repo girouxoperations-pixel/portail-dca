@@ -77,13 +77,13 @@ export default async function EquipePage({
       .lt('entry_date', dateMax),
     db.from('cash_entries')
       .select('closed_by, set_by, collected')
-      .gte('entry_date', '2026-07-01')
-      .lt('entry_date', '2026-10-01'),
+      .gte('entry_date', '2026-10-01')
+      .lt('entry_date', '2027-01-01'),
   ])
 
   const goalMap = new Map((goals ?? []).map(g => [g.user_id, g]))
 
-  // ── Q3 2026 bonus trimestriel ────────────────────────────────────────
+  // ── Q4 2026 bonus trimestriel ────────────────────────────────────────
   const CLOSER_PALIERS = [215_000, 270_000] as const
   const SETTER_PALIERS = [270_000, 325_000] as const
 
@@ -95,7 +95,7 @@ export default async function EquipePage({
   }
 
   const q3Closers = (profiles ?? [])
-    .filter(p => p.role === 'closer')
+    .filter(p => p.role === 'closer' && !p.full_name?.toLowerCase().startsWith('jacinthe'))
     .map(p => ({ id: p.id, nom: p.full_name ?? '?', cash: closerQ3.get(p.id) ?? 0 }))
     .sort((a, b) => b.cash - a.cash)
 
@@ -240,8 +240,8 @@ export default async function EquipePage({
       {/* ── Bonus Trimestriel Q3 2026 ─────────────────────────────────── */}
       <section>
         <div className="flex items-center gap-3 mb-4">
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Bonus Trimestriel — Q3 2026</h2>
-          <span className="text-xs bg-amber-50 text-amber-600 ring-1 ring-amber-100 px-2 py-0.5 rounded-full font-medium">Juil – Sep</span>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Bonus Trimestriel — Q4 2026</h2>
+          <span className="text-xs bg-amber-50 text-amber-600 ring-1 ring-amber-100 px-2 py-0.5 rounded-full font-medium">Oct – Déc</span>
         </div>
 
         <div className="bg-white border border-gray-150 rounded-2xl shadow-sm overflow-hidden">
