@@ -739,6 +739,12 @@ function EntryRow({ e, profileMap, csmByEntryId, recurringIds, occurrenceId, isA
         <td className="px-4 py-3">
           <div className="flex items-center justify-end gap-1.5">
             {isAdmin && (
+              <button onClick={() => onEdit(e)} disabled={pending} title="Modifier"
+                className="p-1.5 text-gray-300 hover:text-violet-500 hover:bg-violet-50 rounded transition-colors disabled:opacity-40">
+                <Pencil size={13} />
+              </button>
+            )}
+            {isAdmin && (
               <button onClick={() => onDelete(e.id)} disabled={pending} title="Supprimer"
                 className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40">
                 <Trash2 size={13} />
