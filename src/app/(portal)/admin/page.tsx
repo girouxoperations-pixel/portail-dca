@@ -31,6 +31,7 @@ export default async function AdminPage() {
   ] = await Promise.all([
     db.from('profiles')
       .select('id, full_name, email, role, roles, avatar_url, created_at')
+      .not('roles', 'eq', '{}')
       .order('created_at', { ascending: true }),
     db.from('org_chart').select('data').eq('id', 'main').single(),
     db.from('pl_months').select('id, year, month, data').order('year').order('month'),
