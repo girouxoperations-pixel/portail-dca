@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Crown, Skull, Clock } from 'lucide-react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { Crown, Skull, Clock, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import DuelCard   from './DuelCard'
 import Standings  from './Standings'
@@ -59,6 +60,24 @@ const dollar = (n: number) =>
 export default function ChassView({ config, players, weeks, duels, monthlyResults, isAdmin, userId, closerCashMap, setterCashMap }: Props) {
   const showCash   = config?.show_cash ?? false
   const [tab, setTab] = useState<'duels' | 'classement' | 'bracket' | 'historique'>('duels')
+
+  const router = useRouter()
+  const [lastRefresh, setLastRefresh] = useState(new Date())
+  const [refreshing, setRefreshing]   = useState(false)
+
+  const refresh = useCallback(() => {
+    setRefreshing(true)
+    router.refresh()
+    setLastRefresh(new Date())
+    setTimeout(() => setRefreshing(false), 1000)
+  }, [router])
+
+  // Auto-refresh toutes les 60 secondes quand sur l'onglet duels
+  useEffect(() => {
+    if (tab !== 'duels') return
+    const interval = setInterval(refresh, 60_000)
+    return () => clearInterval(interval)
+  }, [tab, refresh])
 
   // Semaine courante / prochaine
   const now    = new Date()
@@ -154,14 +173,25 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                 {MONTH_LABELS[currentMonth]} · Semaine {currentWeek?.week_number ?? '—'}
               </p>
             </div>
-            {countdownLabel && (
-              <div className="shrink-0 text-right">
+            <div className="shrink-0 text-right flex flex-col items-end gap-2">
+              {countdownLabel && (
                 <div className="flex items-center gap-1.5 text-amber-200">
                   <Clock size={13} />
                   <span className="text-xs font-semibold">{countdownLabel}</span>
                 </div>
-              </div>
-            )}
+              )}
+              <button
+                onClick={refresh}
+                disabled={refreshing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-700/50 hover:bg-amber-600/60 text-amber-200 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >
+                <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+                {refreshing ? 'Mise à jour…' : `Actualiser`}
+              </button>
+              <span className="text-[10px] text-amber-500">
+                {lastRefresh.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
           </div>
 
           {/* Période */}
