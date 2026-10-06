@@ -578,6 +578,12 @@ function MonthSection({
   const totalCollected  = deals.reduce((s, d) => s + (d.cash_collected ?? d.collected), 0)
   const totalACollecter = totalMontant - totalCollected
 
+  // Commissions non payées (tous payments non paid de tous les deals du mois)
+  const commImpayees = deals.reduce((s, d) => {
+    const unpaid = d.payments.filter(p => !p.paid).reduce((ps, p) => ps + p.amount, 0)
+    return s + unpaid
+  }, 0)
+
   return (
     <>
       <tr className="bg-gray-100">
@@ -592,6 +598,9 @@ function MonthSection({
             Collecté : {dollar(totalCollected)}
             {totalACollecter > 0 && (
               <span className="text-red-500/80"> · À collecter : {dollar(totalACollecter)}</span>
+            )}
+            {commImpayees > 0 && (
+              <span className="text-amber-600/90"> · Comm. impayées : {dollar(commImpayees)}</span>
             )}
           </span>
         </td>
