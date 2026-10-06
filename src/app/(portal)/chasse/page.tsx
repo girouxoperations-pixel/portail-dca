@@ -3,6 +3,8 @@ import { createClient }   from '@/lib/supabase/server'
 import { getChassData, getCashJoueuses } from './actions'
 import ChassView          from '@/components/chasse/ChassView'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ChassePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -13,7 +15,7 @@ export default async function ChassePage() {
     const currentWeek = (data.weeks ?? []).find(w => w.status === 'active')
     const cashSemaine = currentWeek
       ? await getCashJoueuses(currentWeek.week_start, currentWeek.week_end)
-      : { closerCash: new Map<string, number>(), setterCash: new Map<string, number>() }
+      : { closerCash: {} as Record<string, number>, setterCash: {} as Record<string, number> }
 
     const allWeeks = data.weeks ?? []
     const confirmedAndActiveIds = new Set(
@@ -34,8 +36,8 @@ export default async function ChassePage() {
         monthlyResults={data.monthlyResults ?? []}
         isAdmin={data.isAdmin}
         userId={data.userId}
-        closerCashMap={Object.fromEntries(cashSemaine.closerCash)}
-        setterCashMap={Object.fromEntries(cashSemaine.setterCash)}
+        closerCashMap={cashSemaine.closerCash}
+        setterCashMap={cashSemaine.setterCash}
       />
     )
   } catch {

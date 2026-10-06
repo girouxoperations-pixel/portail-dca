@@ -48,7 +48,10 @@ export async function getChassData() {
 
 // ── Cash depuis cash_entries pour une semaine ─────────────────────────
 
-export async function getCashJoueuses(weekStart: string, weekEnd: string) {
+export async function getCashJoueuses(weekStart: string, weekEnd: string): Promise<{
+  closerCash: Record<string, number>
+  setterCash: Record<string, number>
+}> {
   const db = createAdminClient()
 
   const { data: entries } = await db
@@ -58,16 +61,15 @@ export async function getCashJoueuses(weekStart: string, weekEnd: string) {
     .lte('entry_date', weekEnd)
     .eq('is_refunded', false)
 
-  const closerCash = new Map<string, number>()
-  const setterCash = new Map<string, number>()
+  const closerCash: Record<string, number> = {}
+  const setterCash: Record<string, number> = {}
 
   for (const e of entries ?? []) {
-    // Exclure tout ce qui ressemble à un récurrent (ancien mois ou versement)
     if (e.notes?.startsWith('Récurrent') || e.notes?.startsWith('Versement récurrent')) continue
     if (e.close_type === 'recurring') continue
 
-    if (e.closed_by) closerCash.set(e.closed_by, (closerCash.get(e.closed_by) ?? 0) + (e.collected ?? 0))
-    if (e.set_by)    setterCash.set(e.set_by,    (setterCash.get(e.set_by)    ?? 0) + (e.collected ?? 0))
+    if (e.closed_by) closerCash[e.closed_by] = (closerCash[e.closed_by] ?? 0) + (e.collected ?? 0)
+    if (e.set_by)    setterCash[e.set_by]    = (setterCash[e.set_by]    ?? 0) + (e.collected ?? 0)
   }
 
   return { closerCash, setterCash }
@@ -122,10 +124,10 @@ export async function confirmerSemaine(weekId: string, weekStart: string, weekEn
     const p1Profile = players?.find(p => p.id === duel.player1_id)?.profile_id
     const p2Profile = players?.find(p => p.id === duel.player2_id)?.profile_id
 
-    const cash1 = cashEffectif(p1Profile ? (cashMap.get(p1Profile) ?? 0) : 0, duel.player1_cash_override)
+    const cash1 = cashEffectif(p1Profile ? (cashMap[p1Profile] ?? 0) : 0, duel.player1_cash_override)
     const cash2 = duel.is_cerf
       ? 0
-      : cashEffectif(p2Profile ? (cashMap.get(p2Profile) ?? 0) : 0, duel.player2_cash_override)
+      : cashEffectif(p2Profile ? (cashMap[p2Profile] ?? 0) : 0, duel.player2_cash_override)
 
     let result
     if (duel.is_cerf) {
