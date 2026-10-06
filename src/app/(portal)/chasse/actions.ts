@@ -57,7 +57,6 @@ export async function getCashJoueuses(weekStart: string, weekEnd: string) {
     .gte('entry_date', weekStart)
     .lte('entry_date', weekEnd)
     .eq('is_refunded', false)
-    .neq('close_type', 'recurring')
 
   const closerCash = new Map<string, number>()
   const setterCash = new Map<string, number>()
