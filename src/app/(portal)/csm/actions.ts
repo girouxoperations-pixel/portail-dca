@@ -343,6 +343,15 @@ export async function updateOnboardingDate(clientId: string, date: string | null
   revalidatePath('/csm')
 }
 
+// ── Notes deal perdu (recurring_deals) ──────────────────────────────
+export async function updateNotesPerdu(dealId: string, notes: string) {
+  await verifyAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('recurring_deals').update({ notes: notes || null }).eq('id', dealId)
+  if (error) throw error
+  revalidatePath('/csm')
+}
+
 // ── Notes ───────────────────────────────────────────────────────────
 export async function updateNotes(clientId: string, notes: string) {
   await verifyAdminOrCsm()

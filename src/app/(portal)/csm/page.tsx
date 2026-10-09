@@ -81,7 +81,7 @@ export default async function CsmPage() {
       .order('entry_date', { ascending: false }),
     tasksQuery,
     db.from('recurring_deals')
-      .select('id, client_name, montant_mensuel, annule_le, csm_id, closer_id, profiles!recurring_deals_closer_id_fkey(full_name)')
+      .select('id, client_name, montant_mensuel, annule_le, csm_id, closer_id, notes, profiles!recurring_deals_closer_id_fkey(full_name)')
       .eq('actif', false)
       .eq('raison_annulation', '__PERDU__')
       .order('annule_le', { ascending: false }),
@@ -141,14 +141,16 @@ export default async function CsmPage() {
     annule_le: string | null
     csm_id: string | null
     closer_name: string | null
+    notes: string | null
   }
   const perdusEnrichis: PerduDeal[] = (perdusDeals ?? []).map(d => ({
-    id:             d.id,
-    client_name:    d.client_name,
+    id:              d.id,
+    client_name:     d.client_name,
     montant_mensuel: d.montant_mensuel,
-    annule_le:      d.annule_le,
-    csm_id:         d.csm_id ?? nameToCsmId.get((d.client_name ?? '').toLowerCase().trim()) ?? null,
-    closer_name:    (d.profiles as { full_name: string | null } | null)?.full_name ?? null,
+    annule_le:       d.annule_le,
+    csm_id:          d.csm_id ?? nameToCsmId.get((d.client_name ?? '').toLowerCase().trim()) ?? null,
+    closer_name:     (d.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null,
+    notes:           d.notes ?? null,
   }))
 
   return (

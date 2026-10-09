@@ -67,8 +67,8 @@ export async function getCashJoueuses(weekStart: string, weekEnd: string): Promi
   for (const e of entries ?? []) {
     if (e.close_type === 'recurring') {
       // Include only if the deal started during this week (new sale installments)
-      const occ = (e.recurring_occurrences as { recurring_deals: { date_debut: string } | null }[] | null)?.[0]
-      const dealDateDebut = occ?.recurring_deals?.date_debut
+      const occ = (e.recurring_occurrences as unknown as { recurring_deals: { date_debut: string }[] | null }[] | null)?.[0]
+      const dealDateDebut = occ?.recurring_deals?.[0]?.date_debut
       if (!dealDateDebut || dealDateDebut < weekStart) continue
     } else {
       // Legacy note-based filter for non-recurring entries

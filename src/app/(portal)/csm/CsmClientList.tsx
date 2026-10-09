@@ -17,13 +17,14 @@ import {
   marquerRemboursementAvecMontant, updateOnboardingDate, updateEmailAvis, creerCsmClientManuel,
   updateCsmId, updatePaymentType, supprimerCsmClient,
   creerTache, toggleTache, supprimerTache, genererTachesVirement, toggleRefundDone,
+  updateNotesPerdu,
 } from './actions'
 import { definirObjectifCsm } from '@/app/(portal)/payes/actions'
 
 type StatusFilter =
   | 'tous' | 'active' | 'm2_missed' | 'm3_missed'
   | 'cert_setter' | 'cert_closer' | 'eval_failed' | 'paused' | 'dropped' | 'refund'
-  | 'j90_auto' | 'overdue_texts' | 'meetings_today' | 'tasks'
+  | 'j90_auto' | 'overdue_texts' | 'meetings_today' | 'tasks' | 'perdus'
 
 const STATUS_CONFIG: Record<CsmClient['status'], { label: string; cls: string }> = {
   active:      { label: 'Active',       cls: 'bg-green-100 text-green-700'  },
@@ -570,6 +571,7 @@ interface PerduDeal {
   annule_le:       string | null
   csm_id:          string | null
   closer_name:     string | null
+  notes:           string | null
 }
 
 interface Props {
@@ -748,6 +750,131 @@ function TasksPanel({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Perdus panel ──────────────────────────────────────────────────────
+
+function NotesPerduCell({ dealId, initialNotes }: { dealId: string; initialNotes: string | null }) {
+  const [editing, setEditing]  = useState(false)
+  const [val, setVal]          = useState(initialNotes ?? '')
+  const [pending, startT]      = useTransition()
+
+  function handleSave() {
+    startT(async () => {
+      await updateNotesPerdu(dealId, val)
+      setEditing(false)
+    })
+  }
+
+  if (editing) {
+    return (
+      <td className="px-4 py-2" colSpan={1}>
+        <div className="flex items-center gap-2">
+          <input
+            autoFocus
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false) }}
+            className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400"
+          />
+          <button onClick={handleSave} disabled={pending} className="text-xs px-2 py-1 bg-red-600 text-white rounded-lg disabled:opacity-50">✓</button>
+          <button onClick={() => setEditing(false)} className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">✕</button>
+        </div>
+      </td>
+    )
+  }
+
+  return (
+    <td
+      className="px-4 py-2 cursor-pointer group"
+      onClick={() => setEditing(true)}
+    >
+      {val
+        ? <span className="text-xs text-gray-600">{val}</span>
+        : <span className="text-xs text-gray-300 group-hover:text-gray-400">+ note</span>
+      }
+    </td>
+  )
+}
+
+function PerdusPanel({
+  deals, csmMembers, csmFilter,
+}: {
+  deals:      PerduDeal[]
+  csmMembers: { id: string; full_name: string | null }[]
+  csmFilter:  string
+}) {
+  const visible = csmFilter === 'tous' ? deals : deals.filter(d => d.csm_id === csmFilter)
+
+  if (visible.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 p-10 text-center">
+        <p className="text-sm text-gray-400">Aucun récurrent perdu pour l&apos;instant.</p>
+      </div>
+    )
+  }
+
+  const groups: { label: string; deals: PerduDeal[]; headerCls: string; borderCls: string }[] = []
+
+  for (const csm of csmMembers) {
+    const d = visible.filter(x => x.csm_id === csm.id)
+    if (d.length === 0) continue
+    groups.push({
+      label:     csm.full_name ?? '—',
+      deals:     d,
+      headerCls: 'bg-red-50 text-red-800',
+      borderCls: 'border-red-100',
+    })
+  }
+
+  const sans = visible.filter(d => !d.csm_id)
+  if (sans.length > 0) {
+    groups.push({ label: 'Sans CSM assignée', deals: sans, headerCls: 'bg-gray-50 text-gray-500', borderCls: 'border-gray-100' })
+  }
+
+  return (
+    <div className="space-y-4">
+      {groups.map(g => {
+        const total = g.deals.reduce((s, d) => s + d.montant_mensuel, 0)
+        return (
+          <div key={g.label} className={`bg-white rounded-xl border shadow-sm overflow-hidden ${g.borderCls}`}>
+            <div className={`px-5 py-3 border-b flex items-center justify-between ${g.headerCls} ${g.borderCls}`}>
+              <span className="text-sm font-semibold">{g.label}</span>
+              <span className="text-xs tabular-nums font-medium opacity-70">
+                {g.deals.length} perdu{g.deals.length !== 1 ? 's' : ''} · {total.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $/mois
+              </span>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-2 text-left">Cliente</th>
+                  <th className="px-4 py-2 text-left">Closer</th>
+                  <th className="px-4 py-2 text-right">Montant/mois</th>
+                  <th className="px-4 py-2 text-left">Perdu le</th>
+                  <th className="px-4 py-2 text-left">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {g.deals.map(d => (
+                  <tr key={d.id} className="hover:bg-red-50/20 transition-colors">
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{d.client_name ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">{d.closer_name ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700 font-semibold">
+                      {d.montant_mensuel.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400">
+                      {d.annule_le ? new Date(d.annule_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                    </td>
+                    <NotesPerduCell dealId={d.id} initialNotes={d.notes} />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1206,6 +1333,7 @@ export default function CsmClientList({
     { key: 'meetings_today', label: `Meeting du jour${meetingsToday > 0 ? ` (${meetingsToday})` : ''}`                  },
     { key: 'refund',         label: `Remboursé${refundCount > 0 ? ` (${refundCount})` : ''}`                             },
     { key: 'tasks',          label: `Tâches${tasksDueCount > 0 ? ` (${tasksDueCount})` : ''}`                            },
+    { key: 'perdus',         label: `Perdus${perdusDeals.length > 0 ? ` (${perdusDeals.length})` : ''}`                   },
   ]
 
   const csvData = filtered.map(c => ({
@@ -1608,67 +1736,12 @@ export default function CsmClientList({
       )}
 
       {/* Perdus panel */}
-      {statusFilter === ('perdus' as StatusFilter) ? (
-        <div className="space-y-4">
-          {csmMembers.filter(csm => perdusDeals.some(d => d.csm_id === csm.id)).map(csm => {
-            const deals = perdusDeals.filter(d => d.csm_id === csm.id)
-            const total = deals.reduce((s, d) => s + d.montant_mensuel, 0)
-            return (
-              <div key={csm.id} className="bg-white rounded-xl border border-red-100 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 bg-red-50 border-b border-red-100 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-red-800">{csm.full_name}</span>
-                  <span className="text-xs text-red-600 tabular-nums font-medium">
-                    {deals.length} perdu{deals.length !== 1 ? 's' : ''} · {total.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $/mois
-                  </span>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 bg-gray-50 border-b border-gray-100">
-                      <th className="px-4 py-2 text-left">Cliente</th>
-                      <th className="px-4 py-2 text-left">Closer</th>
-                      <th className="px-4 py-2 text-right">Montant/mois</th>
-                      <th className="px-4 py-2 text-left">Perdu le</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {deals.map(d => (
-                      <tr key={d.id} className="hover:bg-red-50/30 transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-gray-800">{d.client_name ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-gray-500 text-xs">{d.closer_name ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-gray-700 font-semibold">
-                          {d.montant_mensuel.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-gray-400">
-                          {d.annule_le ? new Date(d.annule_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          })}
-          {perdusDeals.filter(d => !d.csm_id).length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
-                <span className="text-sm font-semibold text-gray-500">Sans CSM assignée</span>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {perdusDeals.filter(d => !d.csm_id).map(d => (
-                  <div key={d.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="flex-1 text-sm text-gray-700">{d.client_name ?? '—'}</span>
-                    <span className="text-xs text-gray-400">{d.montant_mensuel.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $/mois</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {perdusDeals.length === 0 && (
-            <div className="bg-white rounded-xl border border-gray-100 p-10 text-center">
-              <p className="text-sm text-gray-400">Aucun récurrent perdu pour l&apos;instant.</p>
-            </div>
-          )}
-        </div>
+      {statusFilter === 'perdus' ? (
+        <PerdusPanel
+          deals={perdusDeals}
+          csmMembers={csmMembers}
+          csmFilter={csmFilter}
+        />
       ) : null}
 
       {/* Tasks panel or table */}
