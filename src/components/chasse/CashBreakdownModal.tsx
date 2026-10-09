@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { getCashBreakdown, type CashBreakdownEntry } from '@/app/(portal)/chasse/actions'
 
@@ -21,15 +21,15 @@ interface Props {
 }
 
 export default function CashBreakdownModal({ profileId, nom, groupe, weekStart, weekEnd, onClose }: Props) {
-  const [entries, setEntries]   = useState<CashBreakdownEntry[] | null>(null)
-  const [pending, startT]       = useTransition()
+  const [entries, setEntries] = useState<CashBreakdownEntry[] | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  if (entries === null && !pending) {
-    startT(async () => {
-      const data = await getCashBreakdown(profileId, groupe, weekStart, weekEnd)
-      setEntries(data)
-    })
-  }
+  useEffect(() => {
+    setLoading(true)
+    getCashBreakdown(profileId, groupe, weekStart, weekEnd)
+      .then(data => { setEntries(data); setLoading(false) })
+      .catch(() => { setEntries([]); setLoading(false) })
+  }, [profileId, groupe, weekStart, weekEnd])
 
   const total = (entries ?? []).reduce((s, e) => s + e.collected, 0)
 
@@ -52,11 +52,11 @@ export default function CashBreakdownModal({ profileId, nom, groupe, weekStart, 
 
         {/* Body */}
         <div className="max-h-96 overflow-y-auto">
-          {pending || entries === null ? (
+          {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 size={20} className="text-amber-500 animate-spin" />
             </div>
-          ) : entries.length === 0 ? (
+          ) : (entries ?? []).length === 0 ? (
             <p className="text-sm text-stone-500 text-center py-12">Aucune vente cette semaine</p>
           ) : (
             <table className="w-full text-sm">
@@ -68,7 +68,7 @@ export default function CashBreakdownModal({ profileId, nom, groupe, weekStart, 
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-800">
-                {entries.map(e => (
+                {(entries ?? []).map(e => (
                   <tr key={e.id} className="hover:bg-stone-800/40 transition-colors">
                     <td className="px-5 py-3">
                       <p className="font-medium text-stone-200">{e.client_name ?? '—'}</p>
