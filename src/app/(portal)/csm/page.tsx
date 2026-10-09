@@ -51,6 +51,7 @@ export default async function CsmPage() {
     { data: virementDeals },
     { data: cashEntries },
     { data: csmTasks },
+    { data: perdusDeals },
   ] = await Promise.all([
     db.from('recurring_deals').select('client_name, versements_total, recurring_occurrences(recu)'),
     db.from('profiles').select('id, full_name').or('roles.cs.{csm},roles.cs.{head_csm}'),
@@ -79,6 +80,11 @@ export default async function CsmPage() {
       .select('client_name, entry_date')
       .order('entry_date', { ascending: false }),
     tasksQuery,
+    db.from('recurring_deals')
+      .select('id, client_name, montant_mensuel, annule_le, csm_id, closer_id, profiles!recurring_deals_closer_id_fkey(full_name)')
+      .eq('actif', false)
+      .eq('raison_annulation', '__PERDU__')
+      .order('annule_le', { ascending: false }),
   ])
 
   // Build per-CSM virement stats (attendu / collecté) per month
@@ -127,6 +133,24 @@ export default async function CsmPage() {
     .map(d => (d.client_name ?? '').toLowerCase().trim())
     .filter(Boolean)
 
+  // Enrichir les perdus avec le nom de la CSM
+  type PerduDeal = {
+    id: string
+    client_name: string | null
+    montant_mensuel: number
+    annule_le: string | null
+    csm_id: string | null
+    closer_name: string | null
+  }
+  const perdusEnrichis: PerduDeal[] = (perdusDeals ?? []).map(d => ({
+    id:             d.id,
+    client_name:    d.client_name,
+    montant_mensuel: d.montant_mensuel,
+    annule_le:      d.annule_le,
+    csm_id:         d.csm_id ?? nameToCsmId.get((d.client_name ?? '').toLowerCase().trim()) ?? null,
+    closer_name:    (d.profiles as { full_name: string | null } | null)?.full_name ?? null,
+  }))
+
   return (
     <CsmClientList
       clients={clients ?? []}
@@ -137,6 +161,7 @@ export default async function CsmPage() {
       virementStats={virementStats}
       availableClients={availableClients}
       tasks={csmTasks ?? []}
+      perdusDeals={perdusEnrichis}
       currentYear={year}
       currentMonth={month}
       currentUserId={user.id}

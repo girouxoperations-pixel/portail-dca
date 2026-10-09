@@ -56,7 +56,7 @@ export async function getCashJoueuses(weekStart: string, weekEnd: string): Promi
 
   const { data: entries } = await db
     .from('cash_entries')
-    .select('closed_by, set_by, collected, close_type, notes')
+    .select('closed_by, set_by, collected, close_type, notes, recurring_occurrences(recurring_deals(date_debut))')
     .gte('entry_date', weekStart)
     .lte('entry_date', weekEnd)
     .eq('is_refunded', false)
@@ -65,8 +65,15 @@ export async function getCashJoueuses(weekStart: string, weekEnd: string): Promi
   const setterCash: Record<string, number> = {}
 
   for (const e of entries ?? []) {
-    if (e.notes?.startsWith('Récurrent') || e.notes?.startsWith('Versement récurrent')) continue
-    if (e.close_type === 'recurring') continue
+    if (e.close_type === 'recurring') {
+      // Include only if the deal started during this week (new sale installments)
+      const occ = (e.recurring_occurrences as { recurring_deals: { date_debut: string } | null }[] | null)?.[0]
+      const dealDateDebut = occ?.recurring_deals?.date_debut
+      if (!dealDateDebut || dealDateDebut < weekStart) continue
+    } else {
+      // Legacy note-based filter for non-recurring entries
+      if (e.notes?.startsWith('Récurrent') || e.notes?.startsWith('Versement récurrent')) continue
+    }
 
     if (e.closed_by) closerCash[e.closed_by] = (closerCash[e.closed_by] ?? 0) + (e.collected ?? 0)
     if (e.set_by)    setterCash[e.set_by]    = (setterCash[e.set_by]    ?? 0) + (e.collected ?? 0)
