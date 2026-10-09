@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AlertTriangle, Clock, Calendar, Zap, ChevronRight, CheckCircle2, Pencil, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dollar } from '@/lib/constants'
-import { marquerRecu, marquerRecuAvecSoldes, modifierDateOccurrence, annulerDealAvecRaison } from '@/app/(portal)/recurrents/actions'
+import { marquerRecu, marquerRecuAvecSoldes, modifierDateOccurrence, annulerDealAvecRaison, updateNotesRecurringDeal } from '@/app/(portal)/recurrents/actions'
 
 export interface RecurrentsOcc {
   id:               string
@@ -26,6 +26,7 @@ export interface PerduDeal {
   client_name:   string
   montant_mensuel: number
   annule_le:     string | null
+  notes:         string | null
 }
 
 interface Props {
@@ -315,6 +316,56 @@ function OccTable({ occs, headerCls, onPerdu }: { occs: RecurrentsOcc[]; headerC
   )
 }
 
+function PerduRow({ deal }: { deal: PerduDeal }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal]         = useState(deal.notes ?? '')
+  const [pending, startT]     = useTransition()
+
+  function handleSave() {
+    startT(async () => {
+      await updateNotesRecurringDeal(deal.id, val)
+      setEditing(false)
+    })
+  }
+
+  return (
+    <div className="px-5 py-3 space-y-1">
+      <div className="flex items-center gap-3">
+        <XCircle size={13} className="text-gray-400 shrink-0" />
+        <span className="flex-1 text-sm font-medium text-gray-700">{deal.client_name}</span>
+        <span className="text-xs text-gray-400 whitespace-nowrap">
+          {deal.annule_le ? new Date(deal.annule_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}
+        </span>
+        <span className="text-sm font-bold text-gray-600 tabular-nums">{dollar(deal.montant_mensuel)}</span>
+      </div>
+      {editing ? (
+        <div className="flex items-center gap-2 pl-5">
+          <input
+            autoFocus
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false) }}
+            className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
+            placeholder="Ajouter une note…"
+          />
+          <button onClick={handleSave} disabled={pending} className="text-xs px-2 py-1 bg-gray-700 text-white rounded-lg disabled:opacity-50">✓</button>
+          <button onClick={() => setEditing(false)} className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">✕</button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setEditing(true)}
+          className="pl-5 text-left w-full group"
+        >
+          {val
+            ? <span className="text-xs text-gray-500 italic">{val}</span>
+            : <span className="text-xs text-gray-300 group-hover:text-gray-400">+ note</span>
+          }
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, occsSemaine, occsMois, perduDeals }: Props) {
   const [open, setOpen]         = useState<Filtre | null>(null)
   const [showPerdus, setShowPerdus] = useState(false)
@@ -475,14 +526,7 @@ export default function RecurrentsHealthSection({ occsAujourdhui, occsRetard, oc
           </div>
           <div className="divide-y divide-gray-50">
             {perduDeals.map(d => (
-              <div key={d.id} className="flex items-center gap-3 px-5 py-3">
-                <XCircle size={13} className="text-gray-400 shrink-0" />
-                <span className="flex-1 text-sm font-medium text-gray-700">{d.client_name}</span>
-                <span className="text-xs text-gray-400 whitespace-nowrap">
-                  {d.annule_le ? new Date(d.annule_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}
-                </span>
-                <span className="text-sm font-bold text-gray-600 tabular-nums">{dollar(d.montant_mensuel)}</span>
-              </div>
+              <PerduRow key={d.id} deal={d} />
             ))}
           </div>
         </div>

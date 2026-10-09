@@ -886,3 +886,12 @@ export async function annulerDealAvecRaison(id: string, raison: string) {
   revalidatePath(`/recurrents/${id}`)
   revalidatePath('/dashboard')
 }
+
+export async function updateNotesRecurringDeal(dealId: string, notes: string) {
+  await requireRole(['admin', 'csm', 'head_csm'])
+  const db = createAdminClient()
+  const { error } = await db.from('recurring_deals').update({ notes: notes || null }).eq('id', dealId)
+  if (error) throw error
+  revalidatePath('/dashboard')
+  revalidatePath('/recurrents')
+}

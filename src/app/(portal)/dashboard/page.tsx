@@ -629,7 +629,7 @@ export default async function DashboardPage({
       .select('id, recurring_deal_id, date_attendue, montant_attendu, recu, mois, annee, recurring_deals(client_name, closer_id, csm_id, methode_paiement, actif, notes)')
       .eq('recu', false),
     db.from('recurring_deals')
-      .select('id, client_name, montant_mensuel, annule_le')
+      .select('id, client_name, montant_mensuel, annule_le, notes')
       .eq('actif', false)
       .eq('raison_annulation', '__PERDU__'),
     db.from('recurring_occurrences')
