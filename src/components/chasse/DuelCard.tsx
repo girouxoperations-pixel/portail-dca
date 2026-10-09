@@ -22,11 +22,12 @@ interface DuelCardProps {
   player2?: { id: string; nom: string; position: string } | null
   cash1:   number
   cash2:   number
-  showCash: boolean
-  isAdmin:  boolean
+  showCash:      boolean
+  isAdmin:       boolean
+  onPlayerClick?: (playerId: string) => void
 }
 
-export default function DuelCard({ duel, player1, player2, cash1, cash2, showCash, isAdmin }: DuelCardProps) {
+export default function DuelCard({ duel, player1, player2, cash1, cash2, showCash, isAdmin, onPlayerClick }: DuelCardProps) {
   const isConfirmed = duel.is_confirmed
   const w1 = isConfirmed && duel.winner_id === player1.id
   const w2 = isConfirmed && duel.winner_id === player2?.id
@@ -79,9 +80,11 @@ export default function DuelCard({ duel, player1, player2, cash1, cash2, showCas
         ].filter(r => r.player).map((row, i) => (
           <div
             key={row.player!.id}
+            onClick={() => onPlayerClick?.(row.player!.id)}
             className={cn(
               'flex items-center gap-3 px-4 py-3',
               row.isWinner && 'bg-emerald-50',
+              onPlayerClick && 'cursor-pointer hover:bg-stone-50 transition-colors',
             )}
           >
             <div className={cn(

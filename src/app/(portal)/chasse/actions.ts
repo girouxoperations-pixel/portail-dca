@@ -82,6 +82,54 @@ export async function getCashJoueuses(weekStart: string, weekEnd: string): Promi
   return { closerCash, setterCash }
 }
 
+// ── Breakdown détaillé du cash d'une joueuse pour une semaine ─────────
+
+export interface CashBreakdownEntry {
+  id:          string
+  client_name: string | null
+  entry_date:  string
+  collected:   number
+  close_type:  string | null
+  notes:       string | null
+}
+
+export async function getCashBreakdown(
+  profileId: string,
+  groupe:    'closer' | 'setter',
+  weekStart: string,
+  weekEnd:   string,
+): Promise<CashBreakdownEntry[]> {
+  const db = createAdminClient()
+
+  const col = groupe === 'closer' ? 'closed_by' : 'set_by'
+
+  const { data: entries } = await db
+    .from('cash_entries')
+    .select('id, client_name, entry_date, collected, close_type, notes, recurring_occurrences(recurring_deals(date_debut))')
+    .eq(col, profileId)
+    .gte('entry_date', weekStart)
+    .lte('entry_date', weekEnd)
+    .eq('is_refunded', false)
+    .order('entry_date', { ascending: true })
+
+  return (entries ?? []).filter(e => {
+    if (e.close_type === 'recurring') {
+      const occ = (e.recurring_occurrences as unknown as { recurring_deals: { date_debut: string }[] | null }[] | null)?.[0]
+      const dealDateDebut = occ?.recurring_deals?.[0]?.date_debut
+      return !!dealDateDebut && dealDateDebut >= weekStart
+    }
+    if (e.notes?.startsWith('Récurrent') || e.notes?.startsWith('Versement récurrent')) return false
+    return true
+  }).map(e => ({
+    id:          e.id,
+    client_name: e.client_name,
+    entry_date:  e.entry_date,
+    collected:   e.collected ?? 0,
+    close_type:  e.close_type,
+    notes:       e.notes,
+  }))
+}
+
 // ── Sauvegarder override de cash ──────────────────────────────────────
 
 export async function sauvegarderOverride(

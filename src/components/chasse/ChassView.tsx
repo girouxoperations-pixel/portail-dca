@@ -4,9 +4,10 @@ import { useMemo, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Crown, Skull, Clock, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import DuelCard   from './DuelCard'
-import Standings  from './Standings'
-import AdminPanel from './AdminPanel'
+import DuelCard            from './DuelCard'
+import Standings           from './Standings'
+import AdminPanel          from './AdminPanel'
+import CashBreakdownModal  from './CashBreakdownModal'
 import type { WEEKS } from '@/lib/chasse/types'
 import { classerJoueuses, cashEffectif, type PlayerScore } from '@/lib/chasse/engine'
 
@@ -60,6 +61,10 @@ const dollar = (n: number) =>
 export default function ChassView({ config, players, weeks, duels, monthlyResults, isAdmin, userId, closerCashMap, setterCashMap }: Props) {
   const showCash   = config?.show_cash ?? false
   const [tab, setTab] = useState<'duels' | 'classement' | 'bracket' | 'historique'>('duels')
+
+  const [breakdown, setBreakdown] = useState<{
+    profileId: string; nom: string; groupe: 'closer' | 'setter'
+  } | null>(null)
 
   const router = useRouter()
   const [lastRefresh, setLastRefresh] = useState(new Date())
@@ -265,6 +270,15 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                             cash2={cash2}
                             showCash={showCash || isAdmin}
                             isAdmin={isAdmin}
+                            onPlayerClick={playerId => {
+                              const player = playerMap.get(playerId)
+                              if (!player) return
+                              setBreakdown({
+                                profileId: player.profile_id,
+                                nom:       player.profiles?.full_name?.split(' ')[0] ?? '?',
+                                groupe,
+                              })
+                            }}
                           />
                         )
                       })}
@@ -459,6 +473,19 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
       )}
 
     </div>
+
+    {/* Modal breakdown cash */}
+    {breakdown && currentWeek && (
+      <CashBreakdownModal
+        profileId={breakdown.profileId}
+        nom={breakdown.nom}
+        groupe={breakdown.groupe}
+        weekStart={currentWeek.week_start}
+        weekEnd={currentWeek.week_end}
+        onClose={() => setBreakdown(null)}
+      />
+    )}
+
     </div>
   )
 }
