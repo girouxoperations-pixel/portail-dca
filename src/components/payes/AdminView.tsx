@@ -1275,6 +1275,11 @@ const PAYROLL_SALAIRES: Record<string, number> = {
 // Hors payroll — toujours affichées même sans entrées de paie
 const HORS_PAYROLL_TOUJOURS = ['alexandra lizotte', 'charlie favreau']
 
+// Salaires de base hors payroll (par prénom)
+const HORS_PAYROLL_SALAIRES: Record<string, number> = {
+  charlie: 1375,
+}
+
 function isPayroll(nom: string): boolean {
   const prenom = nom.trim().toLowerCase().split(' ')[0]
   return PAYROLL_PRENOMS.includes(prenom)
@@ -1282,7 +1287,7 @@ function isPayroll(nom: string): boolean {
 
 function getSalaire(nom: string): number {
   const prenom = nom.trim().toLowerCase().split(' ')[0]
-  return PAYROLL_SALAIRES[prenom] ?? 0
+  return PAYROLL_SALAIRES[prenom] ?? HORS_PAYROLL_SALAIRES[prenom] ?? 0
 }
 
 function SectionSalaire({ montant, isAdmin }: { montant: number; isAdmin: boolean }) {
