@@ -1264,14 +1264,16 @@ function HistGroupSection({ label, totalComm, payeComm, employees }: {
 
 const EXCLUDED_FROM_PAYES = ['samuel giroux']
 
-const PAYROLL_PRENOMS = ['emma', 'kalianna', 'jacinthe', 'charlie']
+const PAYROLL_PRENOMS = ['emma', 'kalianna', 'jacinthe']
 
 const PAYROLL_SALAIRES: Record<string, number> = {
   emma:     750,
   kalianna: 500,
   jacinthe: 2000,
-  charlie:  1375,
 }
+
+// Hors payroll — toujours affichées même sans entrées de paie
+const HORS_PAYROLL_TOUJOURS = ['alexandra lizotte', 'charlie favreau']
 
 function isPayroll(nom: string): boolean {
   const prenom = nom.trim().toLowerCase().split(' ')[0]
@@ -1520,8 +1522,10 @@ export default function AdminView({
     }
 
     // Always show payroll employees even if they have no deals this period (salary-only)
+    // Also always show hors-payroll people in HORS_PAYROLL_TOUJOURS
     for (const [uid, nom] of profileMap) {
-      if (!map.has(uid) && isPayroll(nom)) {
+      const nomLower = nom.trim().toLowerCase()
+      if (!map.has(uid) && (isPayroll(nom) || HORS_PAYROLL_TOUJOURS.includes(nomLower))) {
         const profile = allProfiles.find(p => p.id === uid)
         map.set(uid, {
           uid, nom,
