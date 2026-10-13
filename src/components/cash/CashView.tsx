@@ -1362,7 +1362,12 @@ export default function CashView({
 
   // ── Refund stats ──────────────────────────────────────────────
   const refundStats = useMemo(() => {
-    const allDeals = filtrees.filter(e => getSourceType(e, recurringIds) === 'deal' && e.entry_date >= '2026-08-01')
+    const allDeals = filtrees.filter(e => {
+      if (getSourceType(e, recurringIds) !== 'deal') return false
+      if (!e.month || !e.year) return false
+      const key = `${e.year}-${String(e.month).padStart(2, '0')}`
+      return key >= '2026-08'
+    })
     const refunded = allDeals.filter(e => e.is_refunded)
     const totalCount  = allDeals.length
     const refundCount = refunded.length
