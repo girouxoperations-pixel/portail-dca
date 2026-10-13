@@ -1362,7 +1362,7 @@ export default function CashView({
 
   // ── Refund stats ──────────────────────────────────────────────
   const refundStats = useMemo(() => {
-    const allDeals = filtrees.filter(e => getSourceType(e, recurringIds) === 'deal')
+    const allDeals = filtrees.filter(e => getSourceType(e, recurringIds) === 'deal' && e.entry_date >= '2026-08-01')
     const refunded = allDeals.filter(e => e.is_refunded)
     const totalCount  = allDeals.length
     const refundCount = refunded.length
@@ -1928,7 +1928,7 @@ export default function CashView({
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900">Remboursements</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Deals uniquement (hors récurrents)</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Deals uniquement · depuis août 2026</p>
                 </div>
                 <div className="ml-auto flex items-center gap-4">
                   <div className="text-right">
