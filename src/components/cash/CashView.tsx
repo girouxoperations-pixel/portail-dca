@@ -1366,8 +1366,8 @@ export default function CashView({
     const refunded = allDeals.filter(e => e.is_refunded)
     const totalCount  = allDeals.length
     const refundCount = refunded.length
-    const refundAmount = refunded.reduce((s, e) => s + (e.montant_courant ?? 0), 0)
-    const totalAmount  = allDeals.reduce((s, e) => s + (e.montant_courant ?? 0), 0)
+    const refundAmount = refunded.reduce((s, e) => s + (e.collected ?? 0), 0)
+    const totalAmount  = allDeals.reduce((s, e) => s + (e.collected ?? 0), 0)
 
     const monthMap = new Map<string, { count: number; refundCount: number; amount: number; refundAmount: number }>()
     for (const e of allDeals) {
@@ -1376,8 +1376,8 @@ export default function CashView({
         : 'autre'
       const cur = monthMap.get(key) ?? { count: 0, refundCount: 0, amount: 0, refundAmount: 0 }
       cur.count++
-      cur.amount += e.montant_courant ?? 0
-      if (e.is_refunded) { cur.refundCount++; cur.refundAmount += e.montant_courant ?? 0 }
+      cur.amount += e.collected ?? 0
+      if (e.is_refunded) { cur.refundCount++; cur.refundAmount += e.collected ?? 0 }
       monthMap.set(key, cur)
     }
     const byMonth = Array.from(monthMap.entries())
@@ -1939,7 +1939,7 @@ export default function CashView({
                     <p className="text-xs text-gray-400">{refundStats.refundCount} / {refundStats.totalCount} deals</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-400">Global — par montant</p>
+                    <p className="text-xs text-gray-400">Global — par cash collecté</p>
                     <p className={cn('text-lg font-bold tabular-nums', refundStats.refundCount > 0 ? 'text-red-600' : 'text-gray-300')}>
                       {refundStats.refundPctAmount.toFixed(1)} %
                     </p>
@@ -1955,9 +1955,9 @@ export default function CashView({
                         <th className="px-5 py-2.5 text-left">Mois</th>
                         <th className="px-5 py-2.5 text-right">Deals</th>
                         <th className="px-5 py-2.5 text-right">Remboursements</th>
-                        <th className="px-5 py-2.5 text-right">Montant remboursé</th>
+                        <th className="px-5 py-2.5 text-right">Cash remboursé</th>
                         <th className="px-5 py-2.5 text-right">% (nb)</th>
-                        <th className="px-5 py-2.5 text-right">% (montant)</th>
+                        <th className="px-5 py-2.5 text-right">% (cash)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
