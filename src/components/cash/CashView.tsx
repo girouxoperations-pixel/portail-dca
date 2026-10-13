@@ -1360,6 +1360,42 @@ export default function CashView({
     return Array.from(map.values()).sort((a, b) => b.total - a.total)
   }, [filtrees, recurringIds, profileMap])
 
+  // ── Refund stats ──────────────────────────────────────────────
+  const refundStats = useMemo(() => {
+    const allDeals = filtrees.filter(e => getSourceType(e, recurringIds) === 'deal')
+    const refunded = allDeals.filter(e => e.is_refunded)
+    const totalCount  = allDeals.length
+    const refundCount = refunded.length
+    const refundAmount = refunded.reduce((s, e) => s + (e.montant_courant ?? 0), 0)
+    const totalAmount  = allDeals.reduce((s, e) => s + (e.montant_courant ?? 0), 0)
+
+    const monthMap = new Map<string, { count: number; refundCount: number; amount: number; refundAmount: number }>()
+    for (const e of allDeals) {
+      const key = e.month && e.year
+        ? `${e.year}-${String(e.month).padStart(2, '0')}`
+        : 'autre'
+      const cur = monthMap.get(key) ?? { count: 0, refundCount: 0, amount: 0, refundAmount: 0 }
+      cur.count++
+      cur.amount += e.montant_courant ?? 0
+      if (e.is_refunded) { cur.refundCount++; cur.refundAmount += e.montant_courant ?? 0 }
+      monthMap.set(key, cur)
+    }
+    const byMonth = Array.from(monthMap.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, v]) => {
+        const parts = key.split('-').map(Number)
+        const label = key === 'autre' ? 'Autre' : `${MOIS_FR[parts[1] - 1]} ${parts[0]}`
+        return { label, ...v }
+      })
+
+    return {
+      totalCount, refundCount, refundAmount, totalAmount,
+      refundPctCount:  totalCount  > 0 ? refundCount  / totalCount  * 100 : 0,
+      refundPctAmount: totalAmount > 0 ? refundAmount / totalAmount * 100 : 0,
+      byMonth,
+    }
+  }, [filtrees, recurringIds])
+
   function handleDelete(id: string) {
     if (!confirm('Supprimer cette entrée cash ?')) return
     startTransition(async () => { await supprimerCash(id) })
@@ -1880,6 +1916,81 @@ export default function CashView({
                   <p className="text-[10px] text-gray-400">{csmFinancement} cliente{csmFinancement !== 1 ? 's' : ''}</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Refund stats */}
+          {refundStats.totalCount > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-red-50">
+                  <RotateCcw size={16} className="text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Remboursements</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Deals uniquement (hors récurrents)</p>
+                </div>
+                <div className="ml-auto flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">Global — par nombre</p>
+                    <p className={cn('text-lg font-bold tabular-nums', refundStats.refundCount > 0 ? 'text-red-600' : 'text-gray-300')}>
+                      {refundStats.refundPctCount.toFixed(1)} %
+                    </p>
+                    <p className="text-xs text-gray-400">{refundStats.refundCount} / {refundStats.totalCount} deals</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">Global — par montant</p>
+                    <p className={cn('text-lg font-bold tabular-nums', refundStats.refundCount > 0 ? 'text-red-600' : 'text-gray-300')}>
+                      {refundStats.refundPctAmount.toFixed(1)} %
+                    </p>
+                    <p className="text-xs text-gray-400">{dollar(refundStats.refundAmount)} / {dollar(refundStats.totalAmount)}</p>
+                  </div>
+                </div>
+              </div>
+              {refundStats.byMonth.some(m => m.refundCount > 0) && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-xs font-medium text-gray-400 border-b border-gray-50">
+                        <th className="px-5 py-2.5 text-left">Mois</th>
+                        <th className="px-5 py-2.5 text-right">Deals</th>
+                        <th className="px-5 py-2.5 text-right">Remboursements</th>
+                        <th className="px-5 py-2.5 text-right">Montant remboursé</th>
+                        <th className="px-5 py-2.5 text-right">% (nb)</th>
+                        <th className="px-5 py-2.5 text-right">% (montant)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {refundStats.byMonth.map(m => (
+                        <tr key={m.label} className={cn('transition-colors', m.refundCount > 0 ? 'hover:bg-red-50/30' : 'hover:bg-gray-50/50')}>
+                          <td className="px-5 py-3 font-medium text-gray-800">{m.label}</td>
+                          <td className="px-5 py-3 text-right tabular-nums text-gray-500">{m.count}</td>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {m.refundCount > 0
+                              ? <span className="font-semibold text-red-600">{m.refundCount}</span>
+                              : <span className="text-gray-200">—</span>}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {m.refundCount > 0
+                              ? <span className="font-semibold text-red-600">{dollar(m.refundAmount)}</span>
+                              : <span className="text-gray-200">—</span>}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {m.refundCount > 0
+                              ? <span className="font-semibold text-red-500">{(m.refundCount / m.count * 100).toFixed(1)}%</span>
+                              : <span className="text-gray-200">—</span>}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {m.refundCount > 0
+                              ? <span className="font-semibold text-red-500">{(m.refundAmount / m.amount * 100).toFixed(1)}%</span>
+                              : <span className="text-gray-200">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
