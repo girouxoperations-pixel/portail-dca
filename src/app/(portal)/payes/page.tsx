@@ -48,9 +48,9 @@ export default async function PayesPage() {
         .select('id, period_label, month, year, client_name, closer_id, setter_id, montant, commission, commission_setter, statut, notes, cash_entries(collected)')
         .gte('year', annee - 1)
         .order('created_at', { ascending: false }),
-      db.from('profiles').select('id, full_name, role').eq('role', 'closer'),
-      db.from('profiles').select('id, full_name, role').eq('role', 'setter'),
-      db.from('profiles').select('id, full_name, role').in('role', ['closer', 'setter', 'csm', 'head_csm']),
+      db.from('profiles').select('id, full_name, role').eq('role', 'closer').eq('active', true),
+      db.from('profiles').select('id, full_name, role').eq('role', 'setter').eq('active', true),
+      db.from('profiles').select('id, full_name, role').in('role', ['closer', 'setter', 'csm', 'head_csm']).eq('active', true),
       db.from('csm_commissions')
         .select('id, csm_id, client_name, type, amount, paid, paid_at, month, year, description, created_at')
         .order('created_at', { ascending: false }),

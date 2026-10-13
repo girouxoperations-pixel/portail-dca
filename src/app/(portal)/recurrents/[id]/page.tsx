@@ -26,7 +26,7 @@ export default async function RecurringClientPage({
       .select('*, recurring_occurrences(*)')
       .eq('id', id)
       .single(),
-    db.from('profiles').select('id, full_name, roles'),
+    db.from('profiles').select('id, full_name, roles').eq('active', true),
   ])
 
   if (!deal) notFound()

@@ -30,7 +30,8 @@ export default async function CloserPage() {
         .order('entry_date', { ascending: false }),
       db.from('profiles')
         .select('id, full_name')
-        .eq('role', 'closer'),
+        .eq('role', 'closer')
+        .eq('active', true),
       db.from('cash_entries')
         .select('id, entry_date, closed_by, montant_courant, collected, close_type, notes')
         .order('entry_date', { ascending: false }),
@@ -71,7 +72,8 @@ export default async function CloserPage() {
       .order('entry_date', { ascending: false }),
     db.from('profiles')
       .select('id, full_name')
-      .eq('role', 'setter'),
+      .eq('role', 'setter')
+      .eq('active', true),
     db.from('recurring_deals')
       .select('id, client_name, montant_mensuel, date_debut, actif, notes, recurring_occurrences(id, mois, annee, date_attendue, montant_attendu, recu, date_recue, montant_recu)')
       .eq('closer_id', user.id)

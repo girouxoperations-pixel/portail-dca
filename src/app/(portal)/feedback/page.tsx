@@ -25,7 +25,8 @@ export default async function FeedbackPage() {
       .order('call_date', { ascending: false }),
     db.from('profiles')
       .select('id, full_name')
-      .eq('role', 'closer'),
+      .eq('role', 'closer')
+      .eq('active', true),
   ])
 
   return (

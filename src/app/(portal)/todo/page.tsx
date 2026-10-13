@@ -65,7 +65,7 @@ export default async function TodoPage() {
       .select('*, recurring_deals!inner(client_name, closer_id, profiles!closer_id(full_name))')
       .gte('date_attendue', cutoff)
       .order('date_attendue', { ascending: true }),
-    db.from('profiles').select('id, full_name').eq('role', 'closer'),
+    db.from('profiles').select('id, full_name').eq('role', 'closer').eq('active', true),
     db.from('prospect_followups')
       .select('*, profiles!closer_id(full_name)')
       .order('followup_date', { ascending: true }),

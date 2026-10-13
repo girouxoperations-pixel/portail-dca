@@ -56,7 +56,7 @@ export default async function SetterPage() {
     db.from('setter_entries')
       .select('*')
       .order('entry_date', { ascending: false }),
-    db.from('profiles').select('id, full_name').eq('role', 'setter'),
+    db.from('profiles').select('id, full_name').eq('role', 'setter').eq('active', true),
     db.from('cash_entries')
       .select('id, entry_date, set_by, montant_courant, collected, close_type, notes')
       .order('entry_date', { ascending: false }),

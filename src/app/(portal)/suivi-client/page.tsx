@@ -74,7 +74,8 @@ export default async function SuiviClientPage() {
       .order('close_date', { ascending: false }),
     db.from('profiles')
       .select('id, full_name')
-      .eq('role', 'closer'),
+      .eq('role', 'closer')
+      .eq('active', true),
     db.from('prospect_followups')
       .select('id, closer_id, prospect_name, followup_date, notes, done, done_date, statut')
       .order('followup_date', { ascending: false }),

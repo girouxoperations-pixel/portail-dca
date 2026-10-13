@@ -62,6 +62,7 @@ export default async function EquipePage({
     db.from('profiles')
       .select('id, full_name, role')
       .in('role', ['closer', 'setter'])
+      .eq('active', true)
       .order('full_name'),
     db.from('user_goals')
       .select('user_id, target_cash, target_closes, target_rdv, target_calls')

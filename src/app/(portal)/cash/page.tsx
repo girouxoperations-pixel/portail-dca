@@ -27,7 +27,8 @@ export default async function CashPage() {
       .order('entry_date', { ascending: false }),
     db.from('profiles')
       .select('id, full_name, role')
-      .in('role', ['closer', 'setter']),
+      .in('role', ['closer', 'setter'])
+      .eq('active', true),
     db.from('recurring_occurrences')
       .select('id, cash_entry_id')
       .not('cash_entry_id', 'is', null),
