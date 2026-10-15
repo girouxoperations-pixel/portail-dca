@@ -307,7 +307,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
 
 // ── Deal row ──────────────────────────────────────────────────────────
 
-function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
+function DealRow({ deal, isAdmin, onRefund }: { deal: Deal; isAdmin: boolean; onRefund: (id: string, name: string) => void }) {
   const [expanded, setExpanded]       = useState(false)
   const [editCollected, setEditCollected] = useState(false)
   const [collectedVal, setCollectedVal]   = useState(String(deal.collected))
@@ -519,11 +519,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
               {!isCancelled && !isRefunded && (
                 <button
                   disabled={pending}
-                  onClick={() => {
-                    if (confirm(`Rembourser le deal "${deal.client_name}" ?\n\nLes commissions déjà payées au setter/closer seront déduites dans la période courante.`)) {
-                      startTransition(() => rembourserDeal(deal.id))
-                    }
-                  }}
+                  onClick={() => onRefund(deal.id, deal.client_name)}
                   title="Marquer comme remboursé"
                   className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 rounded transition-colors"
                 >
@@ -589,10 +585,12 @@ function MonthSection({
   label,
   deals,
   isAdmin,
+  onRefund,
 }: {
-  label:   string
-  deals:   Deal[]
-  isAdmin: boolean
+  label:    string
+  deals:    Deal[]
+  isAdmin:  boolean
+  onRefund: (id: string, name: string) => void
 }) {
   const totalMontant    = deals.reduce((s, d) => s + (d.cash_montant ?? d.montant), 0)
   const totalCollected  = deals.reduce((s, d) => s + (d.cash_collected ?? d.collected), 0)
@@ -626,7 +624,7 @@ function MonthSection({
         </td>
       </tr>
       {deals.map(d => (
-        <DealRow key={d.id} deal={d} isAdmin={isAdmin} />
+        <DealRow key={d.id} deal={d} isAdmin={isAdmin} onRefund={onRefund} />
       ))}
     </>
   )
@@ -640,6 +638,9 @@ export default function AlveoView({ deals, isAdmin }: Props) {
   const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'annulé' | 'remboursé'>('actif')
   const [filterPerson, setFilterPerson] = useState('tous')
   const [search, setSearch]             = useState('')
+  const [refundTarget, setRefundTarget]   = useState<{ id: string; name: string } | null>(null)
+  const [refundMontant, setRefundMontant] = useState('')
+  const [, startRefundTrans] = useTransition()
 
   const TEAM_NAMES = new Set(['shanny', 'jacinthe', 'kalianna', 'kim', 'melika', 'audrey'])
   const norm = (s: string) =>
@@ -884,6 +885,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
                       label={label}
                       deals={monthDeals}
                       isAdmin={isAdmin}
+                      onRefund={(id, name) => { setRefundTarget({ id, name }); setRefundMontant('') }}
                     />
                   ))
                 )}
@@ -899,6 +901,74 @@ export default function AlveoView({ deals, isAdmin }: Props) {
           {isAdmin && <span>· Cliquer sur le montant collecté pour le modifier</span>}
         </div>
       </div>
+
+      {/* ── Modal remboursement ──────────────────────────────────── */}
+      {refundTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-red-100"><RotateCcw size={16} className="text-red-600" /></div>
+              <div>
+                <h2 className="text-sm font-bold text-gray-900">Remboursement Alveo</h2>
+                <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[220px]">{refundTarget.name}</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Montant remboursé ($)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={refundMontant}
+                onChange={e => setRefundMontant(e.target.value)}
+                placeholder="0.00"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-400"
+                autoFocus
+              />
+            </div>
+
+            {refundMontant && parseFloat(refundMontant) > 0 && (
+              <div className="bg-red-50 rounded-lg p-3 text-xs space-y-1.5">
+                <p className="text-gray-500">Déductions dans la paie courante :</p>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Closer (10%)</span>
+                  <span className="font-semibold text-red-600">
+                    -{(parseFloat(refundMontant) * 0.10).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Setter (5%)</span>
+                  <span className="font-semibold text-red-600">
+                    -{(parseFloat(refundMontant) * 0.05).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setRefundTarget(null)}
+                className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                disabled={!refundMontant || parseFloat(refundMontant) <= 0}
+                onClick={() => {
+                  const montant = parseFloat(refundMontant)
+                  if (!montant || montant <= 0) return
+                  setRefundTarget(null)
+                  startRefundTrans(() => rembourserDeal(refundTarget.id, montant))
+                }}
+                className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
