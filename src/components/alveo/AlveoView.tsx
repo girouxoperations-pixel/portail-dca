@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
-import { Plus, ChevronDown, ChevronUp, X, Check, Ban, Trash2, CheckCircle2, Circle, AlertTriangle, Search } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, X, Check, Ban, Trash2, CheckCircle2, Circle, AlertTriangle, Search, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   ajouterDeal,
@@ -11,6 +11,7 @@ import {
   toggleFondsCollectes,
   toggleEnCollection,
   annulerDeal,
+  rembourserDeal,
   supprimerDeal,
 } from '@/app/(portal)/alveo/actions'
 
@@ -326,7 +327,8 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
     : deal.commission_closer
 
   const aCollecter = montantEffectif - collectedEffectif
-  const isCancelled = deal.statut === 'annulé'
+  const isCancelled  = deal.statut === 'annulé'
+  const isRefunded   = deal.statut === 'remboursé'
   const isEnCollection = deal.en_collection
 
   const effectiveDeal = {
@@ -353,6 +355,7 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
       <tr className={cn(
         'border-b transition-colors',
         isCancelled       ? 'opacity-40 bg-gray-50 border-gray-100' :
+        isRefunded        ? 'opacity-50 bg-red-50 border-red-100' :
         isEnCollection    ? 'bg-red-50 border-red-200 hover:bg-red-100' :
                             'border-gray-100 hover:bg-gray-50',
       )}>
@@ -367,6 +370,9 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
             <span className="text-sm text-gray-900 font-medium">{deal.client_name}</span>
             {isCancelled && (
               <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Annulé</span>
+            )}
+            {isRefunded && (
+              <span className="text-xs bg-red-200 text-red-700 px-1.5 py-0.5 rounded font-semibold">Remboursé</span>
             )}
             {isEnCollection && (
               <span className="flex items-center gap-1 text-[10px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded uppercase tracking-wide">
@@ -477,12 +483,12 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
 
         {/* Setter commission */}
         <td className="px-3 py-2.5">
-          <RoleBadge deal={effectiveDeal} role="setter" disabled={isCancelled} />
+          <RoleBadge deal={effectiveDeal} role="setter" disabled={isCancelled || isRefunded} />
         </td>
 
         {/* Closer commission */}
         <td className="px-3 py-2.5">
-          <RoleBadge deal={effectiveDeal} role="closer" disabled={isCancelled} />
+          <RoleBadge deal={effectiveDeal} role="closer" disabled={isCancelled || isRefunded} />
         </td>
 
         {/* Actions */}
@@ -510,7 +516,21 @@ function DealRow({ deal, isAdmin }: { deal: Deal; isAdmin: boolean }) {
                   <AlertTriangle size={12} />
                 </button>
               )}
-              {!isCancelled && (
+              {!isCancelled && !isRefunded && (
+                <button
+                  disabled={pending}
+                  onClick={() => {
+                    if (confirm(`Rembourser le deal "${deal.client_name}" ?\n\nLes commissions déjà payées au setter/closer seront déduites dans la période courante.`)) {
+                      startTransition(() => rembourserDeal(deal.id))
+                    }
+                  }}
+                  title="Marquer comme remboursé"
+                  className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 rounded transition-colors"
+                >
+                  <RotateCcw size={12} />
+                </button>
+              )}
+              {!isCancelled && !isRefunded && (
                 <button
                   disabled={pending}
                   onClick={() => startTransition(() => annulerDeal(deal.id))}
@@ -617,7 +637,7 @@ function MonthSection({
 export default function AlveoView({ deals, isAdmin }: Props) {
   const [showForm, setShowForm]   = useState(false)
   const [filterYear, setFilterYear]     = useState('2026')
-  const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'annulé'>('actif')
+  const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'annulé' | 'remboursé'>('actif')
   const [filterPerson, setFilterPerson] = useState('tous')
   const [search, setSearch]             = useState('')
 
@@ -799,7 +819,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
             />
           </div>
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-            {(['actif', 'tous', 'annulé'] as const).map(s => (
+            {(['actif', 'tous', 'annulé', 'remboursé'] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setFilterStatut(s)}

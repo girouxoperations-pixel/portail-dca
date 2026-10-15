@@ -274,6 +274,83 @@ export async function toggleRoleComplet(dealId: string, role: 'setter' | 'closer
   revalidatePath('/payes')
 }
 
+export async function rembourserDeal(dealId: string) {
+  const { userId } = await requireAdminOrCsm()
+  const db = createAdminClient()
+
+  const { data: deal } = await db.from('alveo_deals').select('*').eq('id', dealId).single()
+  if (!deal) throw new Error('Deal introuvable')
+
+  // Sommes déjà payées par rôle
+  const { data: paidPayments } = await db
+    .from('alveo_payments')
+    .select('person_role, amount')
+    .eq('deal_id', dealId)
+    .eq('paid', true)
+
+  const paidCloser = (paidPayments ?? [])
+    .filter(p => p.person_role === 'closer')
+    .reduce((s, p) => s + (p.amount as number), 0)
+  const paidSetter = (paidPayments ?? [])
+    .filter(p => p.person_role === 'setter')
+    .reduce((s, p) => s + (p.amount as number), 0)
+
+  const { data: profiles } = await db.from('profiles').select('id, full_name')
+  const periode = currentPeriode(new Date())
+
+  function resolveProfile(name: string | null) {
+    if (!name) return null
+    const needle = name.toLowerCase().trim()
+    const firstName = needle.split(/[\s\-–]/)[0]
+    return (profiles ?? []).find(p => {
+      const hay = (p.full_name ?? '').toLowerCase().trim()
+      return hay === needle || hay.startsWith(firstName + ' ')
+    })?.id ?? null
+  }
+
+  const closerId = resolveProfile(deal.closer_name as string | null)
+  const setterId = resolveProfile(deal.setter_name as string | null)
+
+  // Créer des paye_entries négatives pour ce qui a été payé
+  if (paidCloser > 0) {
+    await db.from('paye_entries').insert({
+      period_label:      periode.label,
+      month:             periode.month,
+      year:              periode.year,
+      client_name:       `${deal.client_name as string} — Alveo (Remboursement)`,
+      closer_id:         closerId,
+      setter_id:         null,
+      montant:           deal.montant as number,
+      commission:        -paidCloser,
+      commission_setter: 0,
+      statut:            'Remboursement',
+      notes:             `Remboursement Alveo|${dealId}|closer`,
+      created_by:        userId,
+    })
+  }
+  if (paidSetter > 0) {
+    await db.from('paye_entries').insert({
+      period_label:      periode.label,
+      month:             periode.month,
+      year:              periode.year,
+      client_name:       `${deal.client_name as string} — Alveo (Remboursement)`,
+      closer_id:         null,
+      setter_id:         setterId,
+      montant:           deal.montant as number,
+      commission:        0,
+      commission_setter: -paidSetter,
+      statut:            'Remboursement',
+      notes:             `Remboursement Alveo|${dealId}|setter`,
+      created_by:        userId,
+    })
+  }
+
+  await db.from('alveo_deals').update({ statut: 'remboursé' }).eq('id', dealId)
+
+  revalidatePath('/alveo')
+  revalidatePath('/payes')
+}
+
 export async function annulerDeal(dealId: string) {
   await requireAdminOrCsm()
   const db = createAdminClient()
