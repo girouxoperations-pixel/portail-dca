@@ -274,51 +274,15 @@ export async function toggleRoleComplet(dealId: string, role: 'setter' | 'closer
   revalidatePath('/payes')
 }
 
-export async function rembourserDeal(dealId: string, montantRembourse: number) {
+export async function rembourserDeal(dealId: string, montantRembourse: number, closerId: string | null, setterId: string | null) {
   const { userId } = await requireAdminOrCsm()
   const db = createAdminClient()
 
-  const { data: deal } = await db.from('alveo_deals').select('*').eq('id', dealId).single()
+  const { data: deal } = await db.from('alveo_deals').select('client_name').eq('id', dealId).single()
   if (!deal) throw new Error('Deal introuvable')
 
   const deductCloser = Math.round(montantRembourse * 0.10 * 100) / 100
   const deductSetter = Math.round(montantRembourse * 0.05 * 100) / 100
-
-  // 1. Cherche les IDs dans les paye_entries existantes
-  //    — via toggleRoleComplet : notes = 'Alveo|{dealId}|closer'
-  //    — via togglePaiement    : notes = 'Alveo|{paymentId}'
-  const { data: dealPayments } = await db.from('alveo_payments')
-    .select('id, person_role')
-    .eq('deal_id', dealId)
-    .eq('paid', true)
-
-  const paymentNotes = (dealPayments ?? []).map(p => `Alveo|${p.id}`)
-  const roleNotes    = [`Alveo|${dealId}|closer`, `Alveo|${dealId}|setter`]
-  const allNotes     = [...paymentNotes, ...roleNotes]
-
-  const { data: existingEntries } = allNotes.length > 0
-    ? await db.from('paye_entries').select('closer_id, setter_id').in('notes', allNotes)
-    : { data: [] }
-
-  let closerId = (existingEntries ?? []).map(e => e.closer_id).find(Boolean) ?? null
-  let setterId = (existingEntries ?? []).map(e => e.setter_id).find(Boolean) ?? null
-
-  // 2. Fallback par nom si aucune paye_entry existante
-  if (!closerId || !setterId) {
-    const { data: profiles } = await db.from('profiles').select('id, full_name')
-    function resolveProfile(name: string | null) {
-      if (!name) return null
-      const needle = name.toLowerCase().trim()
-      const firstName = needle.split(/[\s\-–]/)[0]
-      return (profiles ?? []).find(p => {
-        const hay = (p.full_name ?? '').toLowerCase().trim()
-        return hay === needle || hay.startsWith(firstName + ' ')
-      })?.id ?? null
-    }
-    if (!closerId) closerId = resolveProfile(deal.closer_name as string | null)
-    if (!setterId) setterId = resolveProfile(deal.setter_name as string | null)
-  }
-
   const periode = currentPeriode(new Date())
 
   if (deductCloser > 0 && closerId) {
