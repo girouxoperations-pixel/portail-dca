@@ -284,21 +284,15 @@ export async function rembourserDeal(dealId: string, montantRembourse: number) {
   const deductCloser = Math.round(montantRembourse * 0.10 * 100) / 100
   const deductSetter = Math.round(montantRembourse * 0.05 * 100) / 100
 
-  const { data: profiles } = await db.from('profiles').select('id, full_name')
+  // Récupère les IDs réels depuis les paye_entries existantes du deal (déjà résolus)
+  const { data: existingEntries } = await db.from('paye_entries')
+    .select('closer_id, setter_id')
+    .like('notes', `Alveo|${dealId}%`)
+
+  const closerId = (existingEntries ?? []).map(e => e.closer_id).find(Boolean) ?? null
+  const setterId = (existingEntries ?? []).map(e => e.setter_id).find(Boolean) ?? null
+
   const periode = currentPeriode(new Date())
-
-  function resolveProfile(name: string | null) {
-    if (!name) return null
-    const needle = name.toLowerCase().trim()
-    const firstName = needle.split(/[\s\-–]/)[0]
-    return (profiles ?? []).find(p => {
-      const hay = (p.full_name ?? '').toLowerCase().trim()
-      return hay === needle || hay.startsWith(firstName + ' ')
-    })?.id ?? null
-  }
-
-  const closerId = resolveProfile(deal.closer_name as string | null)
-  const setterId = resolveProfile(deal.setter_name as string | null)
 
   if (deductCloser > 0 && closerId) {
     await db.from('paye_entries').insert({
