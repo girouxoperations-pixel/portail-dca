@@ -50,9 +50,12 @@ type Deal = {
   payments:          Payment[]
 }
 
+type Profile = { id: string; full_name: string | null; role: string }
+
 interface Props {
-  deals:   Deal[]
-  isAdmin: boolean
+  deals:    Deal[]
+  profiles: Profile[]
+  isAdmin:  boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -308,7 +311,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
 
 // ── Deal row ──────────────────────────────────────────────────────────
 
-function DealRow({ deal, isAdmin, onRefund, onRestore }: { deal: Deal; isAdmin: boolean; onRefund: (id: string, name: string) => void; onRestore: (id: string) => void }) {
+function DealRow({ deal, isAdmin, onRefund, onRestore }: { deal: Deal; isAdmin: boolean; onRefund: (id: string, name: string, closerName: string | null, setterName: string | null) => void; onRestore: (id: string) => void }) {
   const [expanded, setExpanded]       = useState(false)
   const [editCollected, setEditCollected] = useState(false)
   const [collectedVal, setCollectedVal]   = useState(String(deal.collected))
@@ -534,7 +537,7 @@ function DealRow({ deal, isAdmin, onRefund, onRestore }: { deal: Deal; isAdmin: 
               {!isCancelled && !isRefunded && (
                 <button
                   disabled={pending}
-                  onClick={() => onRefund(deal.id, deal.client_name)}
+                  onClick={() => onRefund(deal.id, deal.client_name, deal.closer_name, deal.setter_name)}
                   title="Marquer comme remboursé"
                   className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 rounded transition-colors"
                 >
@@ -606,7 +609,7 @@ function MonthSection({
   label:     string
   deals:     Deal[]
   isAdmin:   boolean
-  onRefund:  (id: string, name: string) => void
+  onRefund:  (id: string, name: string, closerName: string | null, setterName: string | null) => void
   onRestore: (id: string) => void
 }) {
   const totalMontant    = deals.reduce((s, d) => s + (d.cash_montant ?? d.montant), 0)
@@ -641,7 +644,7 @@ function MonthSection({
         </td>
       </tr>
       {deals.map(d => (
-        <DealRow key={d.id} deal={d} isAdmin={isAdmin} onRefund={onRefund} onRestore={onRestore} />
+        <DealRow key={d.id} deal={d} isAdmin={isAdmin} onRefund={(id, name, cn, sn) => onRefund(id, name, cn, sn)} onRestore={onRestore} />
       ))}
     </>
   )
@@ -649,15 +652,31 @@ function MonthSection({
 
 // ── Main view ─────────────────────────────────────────────────────────
 
-export default function AlveoView({ deals, isAdmin }: Props) {
+export default function AlveoView({ deals, profiles, isAdmin }: Props) {
   const [showForm, setShowForm]   = useState(false)
   const [filterYear, setFilterYear]     = useState('2026')
   const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'annulé' | 'remboursé'>('actif')
   const [filterPerson, setFilterPerson] = useState('tous')
   const [search, setSearch]             = useState('')
-  const [refundTarget, setRefundTarget]   = useState<{ id: string; name: string } | null>(null)
+  const [refundTarget, setRefundTarget]   = useState<{ id: string; name: string; closerName: string | null; setterName: string | null } | null>(null)
   const [refundMontant, setRefundMontant] = useState('')
+  const [refundCloserId, setRefundCloserId] = useState<string>('')
+  const [refundSetterId, setRefundSetterId] = useState<string>('')
   const [, startRefundTrans] = useTransition()
+
+  const closers = profiles.filter(p => p.role === 'closer')
+  const setters = profiles.filter(p => p.role === 'setter')
+
+  function resolveProfileId(name: string | null): string {
+    if (!name) return ''
+    const needle = name.toLowerCase().trim()
+    const firstName = needle.split(/[\s\-–]/)[0]
+    const match = profiles.find(p => {
+      const hay = (p.full_name ?? '').toLowerCase().trim()
+      return hay === needle || hay.startsWith(firstName + ' ')
+    })
+    return match?.id ?? ''
+  }
 
   const TEAM_NAMES = new Set(['shanny', 'jacinthe', 'kalianna', 'kim', 'melika', 'audrey'])
   const norm = (s: string) =>
@@ -902,7 +921,12 @@ export default function AlveoView({ deals, isAdmin }: Props) {
                       label={label}
                       deals={monthDeals}
                       isAdmin={isAdmin}
-                      onRefund={(id, name) => { setRefundTarget({ id, name }); setRefundMontant('') }}
+                      onRefund={(id, name, closerName, setterName) => {
+                        setRefundTarget({ id, name, closerName, setterName })
+                        setRefundMontant('')
+                        setRefundCloserId(resolveProfileId(closerName))
+                        setRefundSetterId(resolveProfileId(setterName))
+                      }}
                       onRestore={(id) => startRefundTrans(() => renverserRemboursementAlveo(id))}
                     />
                   ))
@@ -946,19 +970,56 @@ export default function AlveoView({ deals, isAdmin }: Props) {
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-violet-600 mb-1.5">Closer</label>
+                <select
+                  value={refundCloserId}
+                  onChange={e => setRefundCloserId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-2 text-xs text-gray-900 focus:outline-none focus:border-violet-400"
+                >
+                  <option value="">— Aucun —</option>
+                  {closers.map(p => (
+                    <option key={p.id} value={p.id}>{p.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-600 mb-1.5">Setter</label>
+                <select
+                  value={refundSetterId}
+                  onChange={e => setRefundSetterId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-2 text-xs text-gray-900 focus:outline-none focus:border-blue-400"
+                >
+                  <option value="">— Aucun —</option>
+                  {setters.map(p => (
+                    <option key={p.id} value={p.id}>{p.full_name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {refundMontant && parseFloat(refundMontant) > 0 && (
               <div className="bg-red-50 rounded-lg p-3 text-xs space-y-1.5">
                 <p className="text-gray-500">Déductions dans la paie courante :</p>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Closer (10%)</span>
-                  <span className="font-semibold text-red-600">
-                    -{(parseFloat(refundMontant) * 0.10).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $
+                  <span className="text-gray-600">
+                    Closer (10%){refundCloserId ? ` · ${closers.find(p => p.id === refundCloserId)?.full_name ?? ''}` : ' · non assigné'}
+                  </span>
+                  <span className={refundCloserId ? 'font-semibold text-red-600' : 'text-gray-400'}>
+                    {refundCloserId
+                      ? `-${(parseFloat(refundMontant) * 0.10).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $`
+                      : '—'}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Setter (5%)</span>
-                  <span className="font-semibold text-red-600">
-                    -{(parseFloat(refundMontant) * 0.05).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $
+                  <span className="text-gray-600">
+                    Setter (5%){refundSetterId ? ` · ${setters.find(p => p.id === refundSetterId)?.full_name ?? ''}` : ' · non assigné'}
+                  </span>
+                  <span className={refundSetterId ? 'font-semibold text-red-600' : 'text-gray-400'}>
+                    {refundSetterId
+                      ? `-${(parseFloat(refundMontant) * 0.05).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $`
+                      : '—'}
                   </span>
                 </div>
               </div>
@@ -976,8 +1037,10 @@ export default function AlveoView({ deals, isAdmin }: Props) {
                 onClick={() => {
                   const montant = parseFloat(refundMontant)
                   if (!montant || montant <= 0) return
+                  const cid = refundCloserId || null
+                  const sid = refundSetterId || null
                   setRefundTarget(null)
-                  startRefundTrans(() => rembourserDeal(refundTarget.id, montant))
+                  startRefundTrans(() => rembourserDeal(refundTarget.id, montant, cid, sid))
                 }}
                 className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
