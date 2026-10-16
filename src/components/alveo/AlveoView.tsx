@@ -1025,6 +1025,12 @@ export default function AlveoView({ deals, profiles, isAdmin }: Props) {
               </div>
             )}
 
+            {!refundCloserId && !refundSetterId && (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                Sélectionne au moins un closer ou setter pour que la déduction s'applique.
+              </p>
+            )}
+
             <div className="flex gap-3 pt-1">
               <button
                 onClick={() => setRefundTarget(null)}
@@ -1033,7 +1039,7 @@ export default function AlveoView({ deals, profiles, isAdmin }: Props) {
                 Annuler
               </button>
               <button
-                disabled={!refundMontant || parseFloat(refundMontant) <= 0}
+                disabled={!refundMontant || parseFloat(refundMontant) <= 0 || (!refundCloserId && !refundSetterId)}
                 onClick={() => {
                   const montant = parseFloat(refundMontant)
                   if (!montant || montant <= 0) return
