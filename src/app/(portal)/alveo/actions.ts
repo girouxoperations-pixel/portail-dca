@@ -284,13 +284,29 @@ export async function rembourserDeal(dealId: string, montantRembourse: number) {
   const deductCloser = Math.round(montantRembourse * 0.10 * 100) / 100
   const deductSetter = Math.round(montantRembourse * 0.05 * 100) / 100
 
-  // Récupère les IDs réels depuis les paye_entries existantes du deal (déjà résolus)
+  // 1. Essaie de récupérer les IDs depuis les paye_entries existantes du deal
   const { data: existingEntries } = await db.from('paye_entries')
     .select('closer_id, setter_id')
     .like('notes', `Alveo|${dealId}%`)
 
-  const closerId = (existingEntries ?? []).map(e => e.closer_id).find(Boolean) ?? null
-  const setterId = (existingEntries ?? []).map(e => e.setter_id).find(Boolean) ?? null
+  let closerId = (existingEntries ?? []).map(e => e.closer_id).find(Boolean) ?? null
+  let setterId = (existingEntries ?? []).map(e => e.setter_id).find(Boolean) ?? null
+
+  // 2. Fallback par nom si aucune paye_entry existante
+  if (!closerId || !setterId) {
+    const { data: profiles } = await db.from('profiles').select('id, full_name')
+    function resolveProfile(name: string | null) {
+      if (!name) return null
+      const needle = name.toLowerCase().trim()
+      const firstName = needle.split(/[\s\-–]/)[0]
+      return (profiles ?? []).find(p => {
+        const hay = (p.full_name ?? '').toLowerCase().trim()
+        return hay === needle || hay.startsWith(firstName + ' ')
+      })?.id ?? null
+    }
+    if (!closerId) closerId = resolveProfile(deal.closer_name as string | null)
+    if (!setterId) setterId = resolveProfile(deal.setter_name as string | null)
+  }
 
   const periode = currentPeriode(new Date())
 
