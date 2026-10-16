@@ -12,6 +12,7 @@ import {
   toggleEnCollection,
   annulerDeal,
   rembourserDeal,
+  renverserRemboursementAlveo,
   supprimerDeal,
 } from '@/app/(portal)/alveo/actions'
 
@@ -307,7 +308,7 @@ function AddDealForm({ onClose }: { onClose: () => void }) {
 
 // ── Deal row ──────────────────────────────────────────────────────────
 
-function DealRow({ deal, isAdmin, onRefund }: { deal: Deal; isAdmin: boolean; onRefund: (id: string, name: string) => void }) {
+function DealRow({ deal, isAdmin, onRefund, onRestore }: { deal: Deal; isAdmin: boolean; onRefund: (id: string, name: string) => void; onRestore: (id: string) => void }) {
   const [expanded, setExpanded]       = useState(false)
   const [editCollected, setEditCollected] = useState(false)
   const [collectedVal, setCollectedVal]   = useState(String(deal.collected))
@@ -372,7 +373,21 @@ function DealRow({ deal, isAdmin, onRefund }: { deal: Deal; isAdmin: boolean; on
               <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Annulé</span>
             )}
             {isRefunded && (
-              <span className="text-xs bg-red-200 text-red-700 px-1.5 py-0.5 rounded font-semibold">Remboursé</span>
+              <>
+                <span className="text-xs bg-red-200 text-red-700 px-1.5 py-0.5 rounded font-semibold">Remboursé</span>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Remettre "${deal.client_name}" active ?\n\nLes déductions de paie créées seront supprimées.`)) {
+                        startTransition(() => onRestore(deal.id))
+                      }
+                    }}
+                    className="text-xs text-red-500 hover:text-gray-700 underline underline-offset-2 transition-colors"
+                  >
+                    Remettre active
+                  </button>
+                )}
+              </>
             )}
             {isEnCollection && (
               <span className="flex items-center gap-1 text-[10px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded uppercase tracking-wide">
@@ -586,11 +601,13 @@ function MonthSection({
   deals,
   isAdmin,
   onRefund,
+  onRestore,
 }: {
-  label:    string
-  deals:    Deal[]
-  isAdmin:  boolean
-  onRefund: (id: string, name: string) => void
+  label:     string
+  deals:     Deal[]
+  isAdmin:   boolean
+  onRefund:  (id: string, name: string) => void
+  onRestore: (id: string) => void
 }) {
   const totalMontant    = deals.reduce((s, d) => s + (d.cash_montant ?? d.montant), 0)
   const totalCollected  = deals.reduce((s, d) => s + (d.cash_collected ?? d.collected), 0)
@@ -624,7 +641,7 @@ function MonthSection({
         </td>
       </tr>
       {deals.map(d => (
-        <DealRow key={d.id} deal={d} isAdmin={isAdmin} onRefund={onRefund} />
+        <DealRow key={d.id} deal={d} isAdmin={isAdmin} onRefund={onRefund} onRestore={onRestore} />
       ))}
     </>
   )
@@ -886,6 +903,7 @@ export default function AlveoView({ deals, isAdmin }: Props) {
                       deals={monthDeals}
                       isAdmin={isAdmin}
                       onRefund={(id, name) => { setRefundTarget({ id, name }); setRefundMontant('') }}
+                      onRestore={(id) => startRefundTrans(() => renverserRemboursementAlveo(id))}
                     />
                   ))
                 )}

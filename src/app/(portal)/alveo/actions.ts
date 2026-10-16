@@ -349,6 +349,22 @@ export async function rembourserDeal(dealId: string, montantRembourse: number) {
   revalidatePath('/payes')
 }
 
+export async function renverserRemboursementAlveo(dealId: string) {
+  await requireAdminOrCsm()
+  const db = createAdminClient()
+
+  // Supprimer les paye_entries négatives créées par le remboursement
+  await db.from('paye_entries')
+    .delete()
+    .like('notes', `Remboursement Alveo|${dealId}%`)
+
+  // Remettre le deal à actif
+  await db.from('alveo_deals').update({ statut: 'actif' }).eq('id', dealId)
+
+  revalidatePath('/alveo')
+  revalidatePath('/payes')
+}
+
 export async function annulerDeal(dealId: string) {
   await requireAdminOrCsm()
   const db = createAdminClient()
