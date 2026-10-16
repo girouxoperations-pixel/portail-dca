@@ -284,10 +284,21 @@ export async function rembourserDeal(dealId: string, montantRembourse: number) {
   const deductCloser = Math.round(montantRembourse * 0.10 * 100) / 100
   const deductSetter = Math.round(montantRembourse * 0.05 * 100) / 100
 
-  // 1. Essaie de récupérer les IDs depuis les paye_entries existantes du deal
-  const { data: existingEntries } = await db.from('paye_entries')
-    .select('closer_id, setter_id')
-    .like('notes', `Alveo|${dealId}%`)
+  // 1. Cherche les IDs dans les paye_entries existantes
+  //    — via toggleRoleComplet : notes = 'Alveo|{dealId}|closer'
+  //    — via togglePaiement    : notes = 'Alveo|{paymentId}'
+  const { data: dealPayments } = await db.from('alveo_payments')
+    .select('id, person_role')
+    .eq('deal_id', dealId)
+    .eq('paid', true)
+
+  const paymentNotes = (dealPayments ?? []).map(p => `Alveo|${p.id}`)
+  const roleNotes    = [`Alveo|${dealId}|closer`, `Alveo|${dealId}|setter`]
+  const allNotes     = [...paymentNotes, ...roleNotes]
+
+  const { data: existingEntries } = allNotes.length > 0
+    ? await db.from('paye_entries').select('closer_id, setter_id').in('notes', allNotes)
+    : { data: [] }
 
   let closerId = (existingEntries ?? []).map(e => e.closer_id).find(Boolean) ?? null
   let setterId = (existingEntries ?? []).map(e => e.setter_id).find(Boolean) ?? null
