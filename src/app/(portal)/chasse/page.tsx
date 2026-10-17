@@ -13,7 +13,7 @@ export default async function ChassePage() {
   try {
     const [data, csmCompetition] = await Promise.all([
       getChassData(),
-      getCSMCompetition(),
+      getCSMCompetition().catch(() => []),
     ])
     const currentWeek = (data.weeks ?? []).find(w => w.status === 'active')
     const cashSemaine = currentWeek
