@@ -360,20 +360,28 @@ export async function getCSMCompetition(): Promise<CSMCompetitionRow[]> {
   const db = createAdminClient()
   const CUTOFF = '2026-10-01'
 
-  const [{ data: clients }, { data: csmProfiles }] = await Promise.all([
-    db.from('csm_clients').select('id').gte('enrollment_date', CUTOFF),
-    db.from('profiles').select('id, full_name').in('role', ['csm', 'head_csm']).eq('active', true).order('full_name'),
-  ])
+  // Chercher les clients éligibles + leur CSM directement depuis csm_clients
+  const { data: clients } = await db
+    .from('csm_clients')
+    .select('id, csm_id')
+    .gte('enrollment_date', CUTOFF)
+    .not('csm_id', 'is', null)
 
   const clientIds = (clients ?? []).map(c => c.id)
+  const csmIds    = [...new Set((clients ?? []).map(c => c.csm_id as string))]
 
-  const { data: commissions } = clientIds.length > 0
-    ? await db.from('csm_commissions').select('csm_id, type')
-        .in('type', ['cert_setter', 'placement', 'cert_closer'])
-        .in('client_id', clientIds)
-    : { data: [] }
+  if (csmIds.length === 0) return []
 
-  return (csmProfiles ?? []).map(csm => {
+  const [{ data: profiles }, { data: commissions }] = await Promise.all([
+    db.from('profiles').select('id, full_name').in('id', csmIds).order('full_name'),
+    clientIds.length > 0
+      ? db.from('csm_commissions').select('csm_id, type')
+          .in('type', ['cert_setter', 'placement', 'cert_closer'])
+          .in('client_id', clientIds)
+      : Promise.resolve({ data: [] as { csm_id: string; type: string }[] }),
+  ])
+
+  return (profiles ?? []).map(csm => {
     const myComms         = (commissions ?? []).filter(c => c.csm_id === csm.id)
     const certSetterCount = myComms.filter(c => c.type === 'cert_setter').length
     const placementCount  = myComms.filter(c => c.type === 'placement').length
