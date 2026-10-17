@@ -40,12 +40,19 @@ interface MonthlyResult {
   total_points: number; total_cash: number; rank: number; eliminated: boolean
 }
 
+interface SetterResult {
+  id: string; week_id: string; player_id: string
+  cash: number; cash_override: number | null
+  points: number; rank: number; is_confirmed: boolean
+}
+
 interface Props {
   config:         { show_cash: boolean; cerf_oct_closer: number; cerf_oct_setter: number; cerf_nov_closer: number; cerf_nov_setter: number; cerf_dec_closer: number; cerf_dec_setter: number } | null
   players:        Player[]
   weeks:          Week[]
   duels:          Duel[]
   monthlyResults: MonthlyResult[]
+  setterResults:  SetterResult[]
   isAdmin:        boolean
   userId:         string
   closerCashMap:  Record<string, number>
@@ -58,7 +65,7 @@ const dollar = (n: number) =>
 
 // ── Composant principal ────────────────────────────────────────────────
 
-export default function ChassView({ config, players, weeks, duels, monthlyResults, isAdmin, userId, closerCashMap, setterCashMap }: Props) {
+export default function ChassView({ config, players, weeks, duels, monthlyResults, setterResults, isAdmin, userId, closerCashMap, setterCashMap }: Props) {
   const showCash   = config?.show_cash ?? false
   const [tab, setTab] = useState<'duels' | 'classement' | 'bracket' | 'historique'>('duels')
 
@@ -126,32 +133,41 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
     currentWeek ? duels.filter(d => d.week_id === currentWeek.id) : [],
   [duels, currentWeek])
 
-  // Calcul des scores par groupe pour le mois en cours
-  function computeScores(groupe: 'closer' | 'setter'): PlayerScore[] {
-    const groupePlayers = players.filter(p => p.groupe === groupe && p.status === 'active')
+  // IDs des semaines du mois courant
+  const currentMonthWeekIds = useMemo(
+    () => new Set(weeks.filter(w => w.month === currentMonth).map(w => w.id)),
+    [weeks, currentMonth]
+  )
+
+  // Calcul des scores pour les closers (format duel)
+  function computeCloserScores(): PlayerScore[] {
+    const groupePlayers = players.filter(p => p.groupe === 'closer' && p.status === 'active')
     const monthDuels = duels.filter(d => {
       const week = weeks.find(w => w.id === d.week_id)
-      return week?.month === currentMonth && d.groupe === groupe && d.is_confirmed
+      return week?.month === currentMonth && d.groupe === 'closer' && d.is_confirmed
     })
-
     return groupePlayers.map(p => {
       const myDuels = monthDuels.filter(d => d.player1_id === p.id || d.player2_id === p.id)
       const totalPoints = myDuels.reduce((s, d) => {
         if (d.player1_id === p.id) return s + (d.points_p1 ?? 0)
         return s + (d.points_p2 ?? 0)
       }, 0)
-      const totalCash = getCash(p.id, groupe)
-      return {
-        playerId:    p.id,
-        nom:         p.profiles?.full_name?.split(' ')[0] ?? '?',
-        totalPoints,
-        totalCash,
-      }
+      return { playerId: p.id, nom: p.profiles?.full_name?.split(' ')[0] ?? '?', totalPoints, totalCash: getCash(p.id, 'closer') }
     })
   }
 
-  const closerScores = computeScores('closer')
-  const setterScores = computeScores('setter')
+  // Calcul des scores pour les setters (format groupe — chasse_setter_results)
+  function computeSetterScores(): PlayerScore[] {
+    const groupePlayers = players.filter(p => p.groupe === 'setter' && p.status === 'active')
+    return groupePlayers.map(p => {
+      const myResults = setterResults.filter(r => r.player_id === p.id && currentMonthWeekIds.has(r.week_id) && r.is_confirmed)
+      const totalPoints = myResults.reduce((s, r) => s + (r.points ?? 0), 0)
+      return { playerId: p.id, nom: p.profiles?.full_name?.split(' ')[0] ?? '?', totalPoints, totalCash: getCash(p.id, 'setter') }
+    })
+  }
+
+  const closerScores   = computeCloserScores()
+  const setterScores   = computeSetterScores()
   const closerStandings = classerJoueuses(closerScores)
   const setterStandings = classerJoueuses(setterScores)
 
@@ -245,21 +261,22 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
         <div className="space-y-6">
           {currentWeek ? (
             <>
-              {(['closer', 'setter'] as const).map(groupe => {
-                const groupeDuels = currentDuels.filter(d => d.groupe === groupe)
-                if (groupeDuels.length === 0) return null
+              {/* ── Closers : duels 1v1 ──────────────────────────────── */}
+              {(() => {
+                const closerDuels = currentDuels.filter(d => d.groupe === 'closer')
+                if (closerDuels.length === 0) return null
                 return (
-                  <div key={groupe}>
+                  <div>
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-sm">{groupe === 'closer' ? '🏹' : '📞'}</span>
-                      <h3 className="text-xs font-bold text-amber-200 uppercase tracking-wider capitalize">{groupe}s</h3>
+                      <span className="text-sm">🏹</span>
+                      <h3 className="text-xs font-bold text-amber-200 uppercase tracking-wider">Closers</h3>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {groupeDuels.map(duel => {
+                      {closerDuels.map(duel => {
                         const p1 = playerMap.get(duel.player1_id)
                         const p2 = duel.player2_id ? playerMap.get(duel.player2_id) : null
-                        const cash1 = cashEffectif(getCash(duel.player1_id, groupe), duel.player1_cash_override)
-                        const cash2 = p2 ? cashEffectif(getCash(duel.player2_id!, groupe), duel.player2_cash_override) : 0
+                        const cash1 = cashEffectif(getCash(duel.player1_id, 'closer'), duel.player1_cash_override)
+                        const cash2 = p2 ? cashEffectif(getCash(duel.player2_id!, 'closer'), duel.player2_cash_override) : 0
                         return (
                           <DuelCard
                             key={duel.id}
@@ -276,7 +293,7 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                               setBreakdown({
                                 profileId: player.profile_id,
                                 nom:       player.profiles?.full_name?.split(' ')[0] ?? '?',
-                                groupe,
+                                groupe: 'closer',
                               })
                             }}
                           />
@@ -285,10 +302,76 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                     </div>
                   </div>
                 )
-              })}
-              {currentDuels.length === 0 && (
+              })()} {/* end closer IIFE */}
+
+              {/* ── Setters : format groupe ──────────────────────────── */}
+              {(() => {
+                const activeSetters = players.filter(p => p.groupe === 'setter' && p.status === 'active')
+                if (activeSetters.length === 0) return null
+                const weekSetterResults = currentWeek
+                  ? setterResults.filter(r => r.week_id === currentWeek.id && r.is_confirmed)
+                  : []
+                const isSetterConfirmed = weekSetterResults.length > 0
+
+                const ranked = activeSetters
+                  .map(p => {
+                    const saved = weekSetterResults.find(r => r.player_id === p.id)
+                    const liveCash = cashEffectif(setterCashMap[p.profile_id] ?? 0, null)
+                    return {
+                      id:         p.id,
+                      profile_id: p.profile_id,
+                      nom:        p.profiles?.full_name?.split(' ')[0] ?? '?',
+                      cash:       isSetterConfirmed ? (saved?.cash ?? 0) : liveCash,
+                      points:     isSetterConfirmed ? (saved?.points ?? null) : null as number | null,
+                    }
+                  })
+                  .sort((a, b) => b.cash - a.cash)
+
+                if (!isSetterConfirmed) {
+                  ranked.forEach((s, i) => { s.points = i === 0 ? 1 : i === 1 ? 0.5 : 0 })
+                }
+
+                const medalEmojis = ['🥇','🥈','🥉']
+                return (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm">📞</span>
+                      <h3 className="text-xs font-bold text-amber-200 uppercase tracking-wider">Setters</h3>
+                      {isSetterConfirmed
+                        ? <span className="text-[10px] text-emerald-400 font-semibold ml-1">✓ Confirmé</span>
+                        : <span className="text-[10px] text-amber-400 ml-1">Live · pts projetés</span>}
+                    </div>
+                    <div className="bg-stone-800/60 rounded-xl border border-stone-700/50 overflow-hidden">
+                      {ranked.map((s, i) => (
+                        <div key={s.id} className="flex items-center gap-3 px-4 py-3 border-b border-stone-700/40 last:border-0">
+                          <span className="text-base w-6 text-center">{medalEmojis[i]}</span>
+                          <button
+                            onClick={() => setBreakdown({ profileId: s.profile_id, nom: s.nom, groupe: 'setter' })}
+                            className="flex-1 text-sm font-semibold text-amber-100 hover:text-amber-300 text-left transition-colors"
+                          >
+                            {s.nom}
+                          </button>
+                          {(showCash || isAdmin) && (
+                            <span className="text-sm font-mono text-amber-200">{dollar(s.cash)}</span>
+                          )}
+                          <span className={cn(
+                            'text-xs font-bold px-2.5 py-0.5 rounded-full min-w-[50px] text-center',
+                            s.points === 1   ? 'bg-amber-500/25 text-amber-300'
+                            : s.points === 0.5 ? 'bg-stone-600/50 text-stone-300'
+                            : 'bg-stone-800/80 text-stone-500',
+                          )}>
+                            {s.points === 1 ? '1 pt' : s.points === 0.5 ? '½ pt' : '0 pt'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {currentDuels.filter(d => d.groupe === 'closer').length === 0 && (
                 <div className="bg-stone-800/50 rounded-xl p-8 text-center">
-                  <p className="text-stone-400 text-sm">Les duels de cette semaine n&apos;ont pas encore été générés.</p>
+                  <p className="text-stone-400 text-sm">Les duels closers de cette semaine n&apos;ont pas encore été générés.</p>
                   {isAdmin && <p className="text-stone-500 text-xs mt-1">Utilise le panneau admin pour les créer.</p>}
                 </div>
               )}

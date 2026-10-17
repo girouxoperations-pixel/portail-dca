@@ -114,9 +114,19 @@ export const DEFAULT_POSITIONS_CLOSER: Record<string, string> = {
 
 export const DEFAULT_POSITIONS_SETTER: Record<string, string> = {
   Kalianna: 'W',
-  Alexandra:'X',
   Kim:      'Y',
   Mélika:   'Z',
+}
+
+export interface SetterResult {
+  id:           string
+  week_id:      string
+  player_id:    string
+  cash:         number
+  cash_override: number | null
+  points:       number
+  rank:         number
+  is_confirmed: boolean
 }
 
 // Schedule statique octobre (semaines 1-3)
@@ -126,15 +136,15 @@ export type DuelSpec = [string, string | null, boolean] // [p1, p2|null, isCerf]
 export const OCT_SCHEDULE: Record<number, { closer: DuelSpec[]; setter: DuelSpec[] }> = {
   1: {
     closer: [['A','B',false], ['C','E',false], ['D',null,true]],
-    setter: [['W','X',false], ['Y','Z',false]],
+    setter: [], // Setters : format groupe (chasse_setter_results)
   },
   2: {
     closer: [['A','C',false], ['D','E',false], ['B',null,true]],
-    setter: [['W','Y',false], ['X','Z',false]],
+    setter: [],
   },
   3: {
     closer: [['A','D',false], ['B','C',false], ['E',null,true]],
-    setter: [['W','Z',false], ['X','Y',false]],
+    setter: [],
   },
   // Semaine 4 : dynamique (générée depuis classement)
 }

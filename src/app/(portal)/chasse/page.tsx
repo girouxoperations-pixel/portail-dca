@@ -34,6 +34,7 @@ export default async function ChassePage() {
         weeks={allWeeks}
         duels={filteredDuels}
         monthlyResults={data.monthlyResults ?? []}
+        setterResults={data.setterResults ?? []}
         isAdmin={data.isAdmin}
         userId={data.userId}
         closerCashMap={cashSemaine.closerCash}
