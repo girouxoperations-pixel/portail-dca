@@ -33,6 +33,11 @@ export default function DuelCard({ duel, player1, player2, cash1, cash2, showCas
   const w2 = isConfirmed && duel.winner_id === player2?.id
   const draw = isConfirmed && !duel.winner_id && !duel.is_cerf
 
+  // Points projetés live (avant confirmation)
+  const liveLeading1 = !isConfirmed && !duel.is_cerf && cash1 > cash2
+  const liveLeading2 = !isConfirmed && !duel.is_cerf && cash2 > cash1
+  const liveTie      = !isConfirmed && !duel.is_cerf && cash1 === cash2 && (cash1 > 0 || cash2 > 0)
+
   if (duel.is_cerf) {
     // Semaine libre — joueuse sans duel, affichée avec son cash uniquement
     return (
@@ -99,13 +104,24 @@ export default function DuelCard({ duel, player1, player2, cash1, cash2, showCas
                 <p className="text-xs text-stone-400 tabular-nums">{dollar(row.cash)}</p>
               )}
             </div>
-            {isConfirmed && (
+            {isConfirmed ? (
               <div className="shrink-0 text-right">
                 {row.isWinner
                   ? <span className="text-xs font-bold text-emerald-700">🏹 +1 pt</span>
                   : draw
                     ? <span className="text-xs text-stone-400">½ pt</span>
                     : <span className="text-xs text-stone-300">0 pt</span>
+                }
+              </div>
+            ) : !duel.is_cerf && (
+              <div className="shrink-0">
+                {(i === 0 ? liveLeading1 : liveLeading2)
+                  ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">1 pt</span>
+                  : liveTie
+                    ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-stone-600/40 text-stone-400">½ pt</span>
+                    : (cash1 > 0 || cash2 > 0)
+                      ? <span className="text-xs px-2 py-0.5 rounded-full text-stone-600">0 pt</span>
+                      : null
                 }
               </div>
             )}
