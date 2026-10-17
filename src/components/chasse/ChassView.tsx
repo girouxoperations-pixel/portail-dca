@@ -46,6 +46,18 @@ interface SetterResult {
   points: number; rank: number; is_confirmed: boolean
 }
 
+interface CSMCompetitionRow {
+  csmId:           string
+  nom:             string
+  certSetterCount: number
+  placementCount:  number
+  certCloserCount: number
+  certSetterPts:   number
+  placementPts:    number
+  certCloserPts:   number
+  totalPts:        number
+}
+
 interface Props {
   config:         { show_cash: boolean; cerf_oct_closer: number; cerf_oct_setter: number; cerf_nov_closer: number; cerf_nov_setter: number; cerf_dec_closer: number; cerf_dec_setter: number } | null
   players:        Player[]
@@ -53,6 +65,7 @@ interface Props {
   duels:          Duel[]
   monthlyResults: MonthlyResult[]
   setterResults:  SetterResult[]
+  csmCompetition: CSMCompetitionRow[]
   isAdmin:        boolean
   userId:         string
   closerCashMap:  Record<string, number>
@@ -65,9 +78,9 @@ const dollar = (n: number) =>
 
 // ── Composant principal ────────────────────────────────────────────────
 
-export default function ChassView({ config, players, weeks, duels, monthlyResults, setterResults, isAdmin, userId, closerCashMap, setterCashMap }: Props) {
+export default function ChassView({ config, players, weeks, duels, monthlyResults, setterResults, csmCompetition, isAdmin, userId, closerCashMap, setterCashMap }: Props) {
   const showCash   = config?.show_cash ?? false
-  const [tab, setTab] = useState<'duels' | 'classement' | 'bracket' | 'historique'>('duels')
+  const [tab, setTab] = useState<'duels' | 'classement' | 'bracket' | 'historique' | 'csm'>('duels')
 
   const [breakdown, setBreakdown] = useState<{
     profileId: string; nom: string; groupe: 'closer' | 'setter'
@@ -240,6 +253,7 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
           { key: 'classement', label: '🏆 Classement' },
           { key: 'bracket',    label: '📋 Bracket'    },
           { key: 'historique', label: '📖 Historique' },
+          { key: 'csm',        label: '🎓 CSM'        },
         ] as const).map(t => (
           <button
             key={t.key}
@@ -513,6 +527,66 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                 </div>
               )
             })
+          )}
+        </div>
+      )}
+
+      {/* ── CSM ───────────────────────────────────────────────────── */}
+      {tab === 'csm' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-amber-800/40 bg-amber-950/20 px-4 py-2 flex items-center gap-2">
+            <span className="text-xs text-amber-400">Clients inscrits depuis le 1er oct. 2026 · cert. setter +1pt, placement +1.5pt, cert. closing +2pt</span>
+          </div>
+          {csmCompetition.length === 0 ? (
+            <div className="bg-stone-800/50 rounded-xl p-8 text-center">
+              <p className="text-stone-400 text-sm">Aucune CSM active trouvée.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {csmCompetition.map((csm, i) => (
+                <div key={csm.csmId} className={cn(
+                  'rounded-xl border overflow-hidden',
+                  i === 0 ? 'border-amber-600/50 bg-amber-950/30' : 'border-stone-700/50 bg-stone-800/30',
+                )}>
+                  {/* En-tête */}
+                  <div className={cn(
+                    'px-5 py-3 flex items-center gap-3 border-b',
+                    i === 0 ? 'border-amber-800/40 bg-amber-900/20' : 'border-stone-700/40 bg-stone-800/20',
+                  )}>
+                    <span className="text-xl">{i === 0 ? '🥇' : '🥈'}</span>
+                    <span className={cn('text-base font-bold', i === 0 ? 'text-amber-100' : 'text-stone-200')}>
+                      {csm.nom}
+                    </span>
+                    <span className={cn(
+                      'ml-auto text-lg font-black tabular-nums',
+                      i === 0 ? 'text-amber-300' : 'text-stone-300',
+                    )}>
+                      {csm.totalPts % 1 === 0 ? csm.totalPts : csm.totalPts.toFixed(1)} pts
+                    </span>
+                  </div>
+                  {/* Détail */}
+                  <div className="divide-y divide-stone-700/30">
+                    {[
+                      { label: 'Certifications setter',  count: csm.certSetterCount,  pts: csm.certSetterPts,  rate: '×1 pt'   },
+                      { label: 'Placements',             count: csm.placementCount,   pts: csm.placementPts,   rate: '×1.5 pt' },
+                      { label: 'Certifications closing', count: csm.certCloserCount,  pts: csm.certCloserPts,  rate: '×2 pt'   },
+                    ].map(row => (
+                      <div key={row.label} className="flex items-center gap-3 px-5 py-2.5">
+                        <span className="flex-1 text-xs text-stone-400">{row.label}</span>
+                        <span className="text-xs text-stone-300 tabular-nums font-semibold">{row.count}</span>
+                        <span className="text-[10px] text-stone-500 w-12 text-right">{row.rate}</span>
+                        <span className={cn(
+                          'text-xs font-bold tabular-nums w-14 text-right',
+                          row.pts > 0 ? (i === 0 ? 'text-amber-300' : 'text-stone-300') : 'text-stone-600',
+                        )}>
+                          {row.pts % 1 === 0 ? row.pts : row.pts.toFixed(1)} pt{row.pts !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

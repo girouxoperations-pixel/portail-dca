@@ -342,6 +342,56 @@ export async function reassignerPosition(playerId: string, position: string) {
   revalidatePath('/chasse')
 }
 
+// ── Compétition CSM ───────────────────────────────────────────────────
+
+export interface CSMCompetitionRow {
+  csmId:           string
+  nom:             string
+  certSetterCount: number
+  placementCount:  number
+  certCloserCount: number
+  certSetterPts:   number
+  placementPts:    number
+  certCloserPts:   number
+  totalPts:        number
+}
+
+export async function getCSMCompetition(): Promise<CSMCompetitionRow[]> {
+  const db = createAdminClient()
+  const CUTOFF = '2026-10-01'
+
+  const [{ data: clients }, { data: csmProfiles }] = await Promise.all([
+    db.from('csm_clients').select('id').gte('enrollment_date', CUTOFF),
+    db.from('profiles').select('id, full_name').in('role', ['csm', 'head_csm']).eq('active', true).order('full_name'),
+  ])
+
+  const clientIds = (clients ?? []).map(c => c.id)
+
+  const { data: commissions } = clientIds.length > 0
+    ? await db.from('csm_commissions').select('csm_id, type')
+        .in('type', ['cert_setter', 'placement', 'cert_closer'])
+        .in('client_id', clientIds)
+    : { data: [] }
+
+  return (csmProfiles ?? []).map(csm => {
+    const myComms         = (commissions ?? []).filter(c => c.csm_id === csm.id)
+    const certSetterCount = myComms.filter(c => c.type === 'cert_setter').length
+    const placementCount  = myComms.filter(c => c.type === 'placement').length
+    const certCloserCount = myComms.filter(c => c.type === 'cert_closer').length
+    return {
+      csmId:           csm.id,
+      nom:             csm.full_name?.split(' ')[0] ?? '?',
+      certSetterCount,
+      placementCount,
+      certCloserCount,
+      certSetterPts:   certSetterCount * 1,
+      placementPts:    placementCount  * 1.5,
+      certCloserPts:   certCloserCount * 2,
+      totalPts:        certSetterCount + placementCount * 1.5 + certCloserCount * 2,
+    }
+  }).sort((a, b) => b.totalPts - a.totalPts)
+}
+
 // ── Créer les duels d'une semaine ────────────────────────────────────
 
 export async function creerDuelsSemaine(

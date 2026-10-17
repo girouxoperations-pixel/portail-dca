@@ -1,6 +1,6 @@
 import { redirect }       from 'next/navigation'
 import { createClient }   from '@/lib/supabase/server'
-import { getChassData, getCashJoueuses } from './actions'
+import { getChassData, getCashJoueuses, getCSMCompetition } from './actions'
 import ChassView          from '@/components/chasse/ChassView'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +11,10 @@ export default async function ChassePage() {
   if (!user) redirect('/login')
 
   try {
-    const data = await getChassData()
+    const [data, csmCompetition] = await Promise.all([
+      getChassData(),
+      getCSMCompetition(),
+    ])
     const currentWeek = (data.weeks ?? []).find(w => w.status === 'active')
     const cashSemaine = currentWeek
       ? await getCashJoueuses(currentWeek.week_start, currentWeek.week_end)
@@ -35,6 +38,7 @@ export default async function ChassePage() {
         duels={filteredDuels}
         monthlyResults={data.monthlyResults ?? []}
         setterResults={data.setterResults ?? []}
+        csmCompetition={csmCompetition}
         isAdmin={data.isAdmin}
         userId={data.userId}
         closerCashMap={cashSemaine.closerCash}
