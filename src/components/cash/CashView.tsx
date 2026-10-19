@@ -1207,8 +1207,14 @@ export default function CashView({
         map.set(c.cash_entry_id, csmProfileMap.get(c.csm_id) ?? '?')
       }
     }
+    // Fallback: use cash_entries.csm_id directly for entries without a csm_clients record
+    for (const e of entrees) {
+      if (!map.has(e.id) && e.csm_id) {
+        map.set(e.id, csmProfileMap.get(e.csm_id) ?? '?')
+      }
+    }
     return map
-  }, [csmClients, csmMembers])
+  }, [csmClients, csmMembers, entrees])
 
   const snapshotMap = useMemo(
     () => new Map(snapshots.map(s => [s.month_key, s.collected])),
