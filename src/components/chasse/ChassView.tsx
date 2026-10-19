@@ -546,7 +546,11 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
             </div>
           ) : (
             weeks.filter(w => w.status === 'confirmed').map(week => {
-              const weekDuels = duels.filter(d => d.week_id === week.id && d.groupe === 'closer')
+              const weekDuels        = duels.filter(d => d.week_id === week.id && d.groupe === 'closer')
+              const weekSetterResults = setterResults
+                .filter(r => r.week_id === week.id && r.is_confirmed)
+                .sort((a, b) => a.rank - b.rank)
+              const medalEmojis = ['🥇','🥈','🥉']
               return (
                 <div key={week.id} className="bg-stone-800/50 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 border-b border-stone-700 flex items-center gap-3">
@@ -554,25 +558,59 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                     <span className="text-xs text-stone-300">{week.week_start} → {week.week_end}</span>
                     <span className="ml-auto text-[10px] text-emerald-400 font-semibold">✓ Confirmée</span>
                   </div>
-                  <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {weekDuels.map(duel => {
-                      const p1 = playerMap.get(duel.player1_id)
-                      const p2 = duel.player2_id ? playerMap.get(duel.player2_id) : null
-                      const cash1 = duel.player1_cash_override ?? 0
-                      const cash2 = duel.player2_cash_override ?? 0
-                      return (
-                        <DuelCard
-                          key={duel.id}
-                          duel={duel}
-                          player1={{ id: p1?.id ?? '', nom: p1?.profiles?.full_name?.split(' ')[0] ?? '?', position: p1?.position ?? '' }}
-                          player2={p2 ? { id: p2.id, nom: p2.profiles?.full_name?.split(' ')[0] ?? '?', position: p2.position } : null}
-                          cash1={cash1}
-                          cash2={cash2}
-                          showCash={showCash || isAdmin}
-                          isAdmin={false}
-                        />
-                      )
-                    })}
+                  <div className="p-3 space-y-3">
+                    {/* Closers */}
+                    {weekDuels.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {weekDuels.map(duel => {
+                          const p1 = playerMap.get(duel.player1_id)
+                          const p2 = duel.player2_id ? playerMap.get(duel.player2_id) : null
+                          return (
+                            <DuelCard
+                              key={duel.id}
+                              duel={duel}
+                              player1={{ id: p1?.id ?? '', nom: p1?.profiles?.full_name?.split(' ')[0] ?? '?', position: p1?.position ?? '' }}
+                              player2={p2 ? { id: p2.id, nom: p2.profiles?.full_name?.split(' ')[0] ?? '?', position: p2.position } : null}
+                              cash1={duel.player1_cash_override ?? 0}
+                              cash2={duel.player2_cash_override ?? 0}
+                              showCash={showCash || isAdmin}
+                              isAdmin={false}
+                            />
+                          )
+                        })}
+                      </div>
+                    )}
+                    {/* Setters groupe */}
+                    {weekSetterResults.length > 0 && (
+                      <div className="bg-stone-700/30 rounded-xl border border-stone-600/40 overflow-hidden">
+                        <div className="px-3 py-2 border-b border-stone-600/40 flex items-center gap-2">
+                          <span className="text-xs">📞</span>
+                          <span className="text-[10px] font-bold text-amber-200 uppercase tracking-wider">Setters</span>
+                        </div>
+                        {weekSetterResults.map((r, i) => {
+                          const p = playerMap.get(r.player_id)
+                          return (
+                            <div key={r.player_id} className="flex items-center gap-3 px-3 py-2.5 border-b border-stone-700/30 last:border-0">
+                              <span className="text-sm w-5 text-center">{medalEmojis[i] ?? ''}</span>
+                              <span className="flex-1 text-sm font-semibold text-stone-200">
+                                {p?.profiles?.full_name?.split(' ')[0] ?? '?'}
+                              </span>
+                              {(showCash || isAdmin) && (
+                                <span className="text-xs text-stone-400 tabular-nums">{dollar(r.cash)}</span>
+                              )}
+                              <span className={cn(
+                                'text-xs font-bold px-2 py-0.5 rounded-full',
+                                r.points === 1   ? 'bg-amber-500/20 text-amber-300'
+                                : r.points === 0.5 ? 'bg-stone-600/50 text-stone-300'
+                                : 'bg-stone-800 text-stone-500',
+                              )}>
+                                {r.points === 1 ? '1 pt' : r.points === 0.5 ? '½ pt' : '0 pt'}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               )
