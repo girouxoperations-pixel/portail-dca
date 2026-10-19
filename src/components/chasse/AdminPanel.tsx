@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Settings, RotateCcw, CheckCircle2 } from 'lucide-react'
+import { Settings, RotateCcw, CheckCircle2, PlayCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { mettreAJourConfig, sauvegarderOverride, confirmerSemaine, confirmerElimination, reassignerPosition } from '@/app/(portal)/chasse/actions'
+import { mettreAJourConfig, sauvegarderOverride, confirmerSemaine, confirmerElimination, reassignerPosition, activerSemaine } from '@/app/(portal)/chasse/actions'
 
 const dollar = (n: number) =>
   new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' $'
@@ -18,7 +18,7 @@ interface Props {
     cerf_dec_closer: number; cerf_dec_setter: number
   } | null
   players: Array<{ id: string; position: string; groupe: string; profiles: { full_name: string | null } | null }>
-  currentWeek: { id: string; week_number: number; week_start: string; week_end: string; month: number } | null
+  currentWeek: { id: string; week_number: number; week_start: string; week_end: string; month: number; status: string } | null
   duelsCurrentWeek: Array<{
     id: string; groupe: string; is_cerf: boolean
     player1_id: string; player2_id: string | null
@@ -216,16 +216,34 @@ export default function AdminPanel({ config, players, currentWeek, duelsCurrentW
           {/* Actions */}
           {currentWeek && (
             <div className="px-5 py-4 flex flex-wrap gap-3">
-              <button onClick={confirmerSem} disabled={pending}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
-                <CheckCircle2 size={14} />
-                Confirmer semaine {currentWeek.week_number}
-              </button>
-              <button onClick={confirmerElim} disabled={pending}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
-                <RotateCcw size={14} />
-                Élimination mois {currentWeek.month}
-              </button>
+              {currentWeek.status === 'pending' ? (
+                <button
+                  onClick={() => {
+                    if (!confirm(`Activer la semaine ${currentWeek.week_number} et créer ses duels ?`)) return
+                    startT(async () => {
+                      await activerSemaine(currentWeek.id)
+                      flash(`Semaine ${currentWeek.week_number} activée ✓`)
+                    })
+                  }}
+                  disabled={pending}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
+                  <PlayCircle size={14} />
+                  Activer semaine {currentWeek.week_number} + créer duels
+                </button>
+              ) : (
+                <>
+                  <button onClick={confirmerSem} disabled={pending}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
+                    <CheckCircle2 size={14} />
+                    Confirmer semaine {currentWeek.week_number}
+                  </button>
+                  <button onClick={confirmerElim} disabled={pending}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
+                    <RotateCcw size={14} />
+                    Élimination mois {currentWeek.month}
+                  </button>
+                </>
+              )}
             </div>
           )}
 

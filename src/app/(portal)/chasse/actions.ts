@@ -318,6 +318,65 @@ export async function confirmerElimination(month: number) {
   revalidatePath('/chasse')
 }
 
+// ── Activer une semaine et créer ses duels ────────────────────────────
+
+export async function activerSemaine(weekId: string) {
+  await requireAdmin()
+  const db = createAdminClient()
+
+  const { data: week } = await db.from('chasse_weeks').select('*').eq('id', weekId).single()
+  if (!week) throw new Error('Semaine introuvable')
+
+  await db.from('chasse_weeks').update({ status: 'active' }).eq('id', weekId)
+
+  // Calendrier statique (closers seulement — setters utilisent chasse_setter_results)
+  const SCHEDULE: Record<number, Array<[string, string | null, boolean]>> = {
+    1:  [['A','B',false], ['C','E',false], ['D',null,true]],
+    2:  [['A','C',false], ['D','E',false], ['B',null,true]],
+    3:  [['A','D',false], ['B','C',false], ['E',null,true]],
+    5:  [['#1','#4',false], ['#2','#3',false]],
+    6:  [['#1','#3',false], ['#2','#4',false]],
+    7:  [['#1','#2',false], ['#3','#4',false]],
+    9:  [['#1','#4',false], ['#2','#3',false]],
+    10: [['#1','#3',false], ['#2','#4',false]],
+    11: [['#1','#2',false], ['#3','#4',false]],
+  }
+
+  const specs = SCHEDULE[week.week_number as keyof typeof SCHEDULE]
+  if (!specs) { revalidatePath('/chasse'); return }
+
+  const { data: players } = await db
+    .from('chasse_players')
+    .select('id, position, groupe, status')
+  const activeClosers = (players ?? []).filter(p => p.groupe === 'closer' && p.status === 'active')
+
+  // Pour les semaines avec #1/#2/… on résout depuis chasse_monthly_results
+  const needsRank = specs.some(([p1]) => p1.startsWith('#'))
+  let byRank: Record<string, string> = {}
+  if (needsRank) {
+    const { data: monthResults } = await db
+      .from('chasse_monthly_results')
+      .select('player_id, rank')
+      .eq('month', week.month - 1)
+      .eq('groupe', 'closer')
+    for (const r of monthResults ?? []) byRank[`#${r.rank}`] = r.player_id
+  }
+
+  const inserts = specs.flatMap(([pos1, pos2, isCerf]) => {
+    const id1 = pos1.startsWith('#') ? byRank[pos1] : activeClosers.find(p => p.position === pos1)?.id
+    const id2 = pos2
+      ? pos2.startsWith('#') ? byRank[pos2] : activeClosers.find(p => p.position === pos2)?.id
+      : null
+    if (!id1) return []
+    return [{ week_id: weekId, groupe: 'closer', player1_id: id1, player2_id: id2 ?? null, is_cerf: isCerf, cerf_target: null }]
+  })
+
+  await db.from('chasse_duels').delete().eq('week_id', weekId)
+  if (inserts.length > 0) await db.from('chasse_duels').insert(inserts)
+
+  revalidatePath('/chasse')
+}
+
 // ── Mettre à jour la configuration ───────────────────────────────────
 
 export async function mettreAJourConfig(data: Partial<ChassConfig>) {
