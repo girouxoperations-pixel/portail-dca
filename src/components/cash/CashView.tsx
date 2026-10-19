@@ -214,11 +214,12 @@ const INPUT_CLS =
 // ── Modal formulaire ──────────────────────────────────────────────
 
 function ModalForm({
-  entry, closers, setters, onClose,
+  entry, closers, setters, csmMembers, onClose,
 }: {
   entry: CashEntry
   closers: Profil[]
   setters: Profil[]
+  csmMembers: Profil[]
   onClose: () => void
 }) {
   const [pending, startTransition] = useTransition()
@@ -288,6 +289,13 @@ function ModalForm({
               </select>
             </Champ>
           </div>
+
+          <Champ label="CSM">
+            <select name="csm_id" defaultValue={entry.csm_id ?? ''} className={INPUT_CLS}>
+              <option value="">— Aucune —</option>
+              {csmMembers.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>)}
+            </select>
+          </Champ>
 
           <div className="grid grid-cols-2 gap-4">
             <Champ label="Montant total ($)">
@@ -2543,6 +2551,7 @@ export default function CashView({
           entry={modalEntry}
           closers={closers}
           setters={setters}
+          csmMembers={csmMembers}
           onClose={() => setModalEntry(null)}
         />
       )}

@@ -72,6 +72,7 @@ export async function modifierCash(id: string, formData: FormData) {
   const collected      = Number(formData.get('collected'))
   const closedBy       = (formData.get('closed_by') as string) || null
   const setBy          = (formData.get('set_by') as string) || null
+  const csmId          = (formData.get('csm_id') as string) || null
 
   const { error } = await db
     .from('cash_entries')
@@ -86,6 +87,7 @@ export async function modifierCash(id: string, formData: FormData) {
       close_type:       (formData.get('close_type') as string) || null,
       closed_by:        closedBy,
       set_by:           setBy,
+      csm_id:           csmId,
       source_type:      (formData.get('source_type') as string) || null,
       onboarding_date:  (formData.get('onboarding_date') as string) || null,
       month,
