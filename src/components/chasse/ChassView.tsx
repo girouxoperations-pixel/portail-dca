@@ -546,7 +546,7 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
             </div>
           ) : (
             weeks.filter(w => w.status === 'confirmed').map(week => {
-              const weekDuels = duels.filter(d => d.week_id === week.id)
+              const weekDuels = duels.filter(d => d.week_id === week.id && d.groupe === 'closer')
               return (
                 <div key={week.id} className="bg-stone-800/50 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 border-b border-stone-700 flex items-center gap-3">
