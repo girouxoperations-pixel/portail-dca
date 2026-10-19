@@ -35,6 +35,7 @@ interface CashEntry {
   close_type: string | null
   set_by: string | null
   closed_by: string | null
+  csm_id: string | null
   month: number | null
   year: number | null
   notes: string | null
