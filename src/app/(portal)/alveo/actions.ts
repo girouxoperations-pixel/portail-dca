@@ -85,6 +85,31 @@ export async function ajouterDeal(data: {
     if (pe) throw new Error(pe.message)
   }
 
+  // Create CSM client record (dedup by name) so client appears in suivi CSM
+  const { data: defaultCsm } = await db
+    .from('profiles')
+    .select('id')
+    .ilike('full_name', 'Jacinthe%')
+    .limit(1)
+    .single()
+  const clientName = data.client_name.trim()
+  const enrollDate = data.deal_date || new Date().toISOString().slice(0, 10)
+  const { data: existing } = await db
+    .from('csm_clients')
+    .select('id')
+    .ilike('name', clientName)
+    .limit(1)
+    .single()
+  if (!existing) {
+    await db.from('csm_clients').insert({
+      name:           clientName,
+      enrollment_date: enrollDate,
+      onboarding_date: enrollDate,
+      payment_type:   'financement',
+      csm_id:         defaultCsm?.id ?? null,
+    })
+  }
+
   revalidatePath('/alveo')
 }
 
