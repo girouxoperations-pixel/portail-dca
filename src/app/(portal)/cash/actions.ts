@@ -98,6 +98,11 @@ export async function modifierCash(id: string, formData: FormData) {
 
   if (error) throw new Error(error.message)
 
+  // Sync CSM assignment on linked csm_clients record
+  if (csmId !== null) {
+    await db.from('csm_clients').update({ csm_id: csmId }).eq('cash_entry_id', id)
+  }
+
   // Sync linked paye entry
   await db.from('paye_entries').update({
     period_label:      periodLabel(entryDate),
