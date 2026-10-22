@@ -845,6 +845,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   <th className="px-4 py-2.5 text-right">Show %</th>
                   <th className="px-4 py-2.5 text-right">Deals</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
+                  <th className="px-4 py-2.5 text-right">Annulés</th>
                   <th className="px-4 py-2.5 text-right">Disqualif.</th>
                   <th className="px-4 py-2.5 text-left">Notes</th>
                   {isAdmin && <th className="px-4 py-2.5" />}
@@ -867,6 +868,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(e.showed, e.rdv_agenda)} bold /></td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{e.deals > 0 ? e.deals : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-400">{e.no_show}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-orange-400">{e.cancelled > 0 ? e.cancelled : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-500">{e.disqualified > 0 ? e.disqualified : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>
                     {isAdmin && (
