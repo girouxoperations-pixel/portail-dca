@@ -14,6 +14,9 @@ import {
   rembourserDeal,
   renverserRemboursementAlveo,
   supprimerDeal,
+  ajouterCreance,
+  modifierCreance,
+  supprimerCreance,
 } from '@/app/(portal)/alveo/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -52,10 +55,24 @@ type Deal = {
 
 type Profile = { id: string; full_name: string | null; role: string }
 
+type Creance = {
+  id:               string
+  client_name:      string
+  contenu_consomme: number
+  capital_paye:     number
+  balance_due:      number
+  csm_id:           string | null
+  status:           'actif' | 'en_collecte' | 'regle' | 'perdu'
+  notes:            string | null
+  created_at:       string
+}
+
 interface Props {
-  deals:    Deal[]
-  profiles: Profile[]
-  isAdmin:  boolean
+  deals:      Deal[]
+  profiles:   Profile[]
+  creances:   Creance[]
+  csmMembers: Profile[]
+  isAdmin:    boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -652,7 +669,243 @@ function MonthSection({
 
 // ── Main view ─────────────────────────────────────────────────────────
 
-export default function AlveoView({ deals, profiles, isAdmin }: Props) {
+// ── Créances ──────────────────────────────────────────────────────────
+
+const STATUS_LABELS: Record<string, string> = {
+  actif:        'Actif',
+  en_collecte:  'En collecte',
+  regle:        'Réglé',
+  perdu:        'Perdu',
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  actif:       'bg-red-100 text-red-700',
+  en_collecte: 'bg-orange-100 text-orange-700',
+  regle:       'bg-emerald-100 text-emerald-700',
+  perdu:       'bg-gray-100 text-gray-500',
+}
+
+const EMPTY_CREANCE = { client_name: '', contenu_consomme: '', capital_paye: '', csm_id: '', notes: '', status: 'actif' }
+
+function CreancesSection({ creances, csmMembers, isAdmin }: { creances: Creance[]; csmMembers: Profile[]; isAdmin: boolean }) {
+  const [filterStatus, setFilterStatus] = useState<'tous' | 'actif' | 'en_collecte' | 'regle' | 'perdu'>('actif')
+  const [showForm, setShowForm]         = useState(false)
+  const [editing, setEditing]           = useState<Creance | null>(null)
+  const [form, setForm]                 = useState(EMPTY_CREANCE)
+  const [pending, startT]               = useTransition()
+
+  function openAdd() { setForm(EMPTY_CREANCE); setEditing(null); setShowForm(true) }
+  function openEdit(c: Creance) {
+    setForm({
+      client_name:      c.client_name,
+      contenu_consomme: String(c.contenu_consomme),
+      capital_paye:     String(c.capital_paye),
+      csm_id:           c.csm_id ?? '',
+      notes:            c.notes ?? '',
+      status:           c.status,
+    })
+    setEditing(c)
+    setShowForm(true)
+  }
+  function closeForm() { setShowForm(false); setEditing(null) }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const data = {
+      client_name:      form.client_name.trim(),
+      contenu_consomme: parseFloat(form.contenu_consomme) || 0,
+      capital_paye:     parseFloat(form.capital_paye) || 0,
+      csm_id:           form.csm_id || null,
+      notes:            form.notes,
+      status:           form.status,
+    }
+    if (!data.client_name) return
+    startT(async () => {
+      if (editing) await modifierCreance(editing.id, data)
+      else await ajouterCreance(data)
+      closeForm()
+    })
+  }
+
+  const filtered = filterStatus === 'tous' ? creances : creances.filter(c => c.status === filterStatus)
+  const totalBalance = filtered.reduce((s, c) => s + c.balance_due, 0)
+
+  const csmMap = new Map(csmMembers.map(m => [m.id, m.full_name ?? '?']))
+
+  const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white'
+
+  return (
+    <div className="space-y-4">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+          {(['actif', 'en_collecte', 'tous', 'regle', 'perdu'] as const).map(s => (
+            <button key={s} onClick={() => setFilterStatus(s)}
+              className={cn('px-3 py-1.5 text-xs font-medium transition-colors capitalize',
+                filterStatus === s ? 'bg-violet-600 text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50')}>
+              {STATUS_LABELS[s] ?? 'Tous'}
+            </button>
+          ))}
+        </div>
+        {isAdmin && (
+          <button onClick={openAdd}
+            className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+            <Plus size={15} />
+            Ajouter une créance
+          </button>
+        )}
+      </div>
+
+      {/* Summary */}
+      {filtered.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs text-gray-500 mb-1">Nombre</p>
+            <p className="text-lg font-bold text-gray-900">{filtered.length}</p>
+          </div>
+          <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+            <p className="text-xs text-gray-500 mb-1">Balance totale due</p>
+            <p className="text-lg font-bold text-red-600 font-mono">{dollar(totalBalance)}</p>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs text-gray-500 mb-1">En collecte</p>
+            <p className="text-lg font-bold text-orange-600">{creances.filter(c => c.status === 'en_collecte').length}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit form */}
+      {showForm && (
+        <div className="bg-white rounded-xl border border-violet-200 p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">
+            {editing ? 'Modifier la créance' : 'Nouvelle créance'}
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs font-medium text-gray-500 block mb-1">Nom de la cliente</label>
+                <input required value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))}
+                  placeholder="Prénom Nom" className={INPUT} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Contenu consommé ($)</label>
+                <input type="number" min="0" step="0.01" required value={form.contenu_consomme}
+                  onChange={e => setForm(f => ({ ...f, contenu_consomme: e.target.value }))}
+                  placeholder="3000" className={INPUT} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Capital payé ($)</label>
+                <input type="number" min="0" step="0.01" required value={form.capital_paye}
+                  onChange={e => setForm(f => ({ ...f, capital_paye: e.target.value }))}
+                  placeholder="800" className={INPUT} />
+              </div>
+              {form.contenu_consomme && form.capital_paye && (
+                <div className="col-span-2 rounded-lg bg-red-50 border border-red-100 px-4 py-2 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Balance due</span>
+                  <span className="text-sm font-bold text-red-600 font-mono">
+                    {dollar((parseFloat(form.contenu_consomme) || 0) - (parseFloat(form.capital_paye) || 0))}
+                  </span>
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">CSM assignée</label>
+                <select value={form.csm_id} onChange={e => setForm(f => ({ ...f, csm_id: e.target.value }))} className={INPUT}>
+                  <option value="">— Aucune —</option>
+                  {csmMembers.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>)}
+                </select>
+              </div>
+              {editing && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Statut</label>
+                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={INPUT}>
+                    {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="col-span-2">
+                <label className="text-xs font-medium text-gray-500 block mb-1">Notes</label>
+                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  rows={2} placeholder="Détails, contexte…" className={INPUT + ' resize-none'} />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={closeForm}
+                className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                Annuler
+              </button>
+              <button type="submit" disabled={pending}
+                className="flex-1 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                {editing ? 'Sauvegarder' : 'Ajouter'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-100 px-5 py-12 text-center">
+          <p className="text-sm text-gray-400">Aucune créance pour ce statut</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-50 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                  <th className="px-4 py-2.5 text-left">Cliente</th>
+                  <th className="px-4 py-2.5 text-right">Contenu consommé</th>
+                  <th className="px-4 py-2.5 text-right">Capital payé</th>
+                  <th className="px-4 py-2.5 text-right">Balance due</th>
+                  <th className="px-4 py-2.5 text-left">CSM</th>
+                  <th className="px-4 py-2.5 text-left">Statut</th>
+                  <th className="px-4 py-2.5 text-left">Notes</th>
+                  {isAdmin && <th className="px-4 py-2.5" />}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map(c => (
+                  <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-gray-800">{c.client_name}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{dollar(c.contenu_consomme)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{dollar(c.capital_paye)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-bold text-red-600">{dollar(c.balance_due)}</td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">{c.csm_id ? (csmMap.get(c.csm_id) ?? '?') : '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', STATUS_COLORS[c.status])}>
+                        {STATUS_LABELS[c.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[180px] truncate">{c.notes ?? '—'}</td>
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEdit(c)} title="Modifier"
+                            className="p-1.5 text-gray-300 hover:text-violet-500 hover:bg-violet-50 rounded transition-colors">
+                            <Check size={13} className="rotate-0 hidden" />
+                            <span className="text-xs">✏️</span>
+                          </button>
+                          <button onClick={() => { if (confirm('Supprimer cette créance ?')) startT(() => supprimerCreance(c.id)) }}
+                            disabled={pending} title="Supprimer"
+                            className="p-1.5 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function AlveoView({ deals, profiles, creances, csmMembers, isAdmin }: Props) {
+  const [mainTab, setMainTab]     = useState<'deals' | 'creances'>('deals')
   const [showForm, setShowForm]   = useState(false)
   const [filterYear, setFilterYear]     = useState('2026')
   const [filterStatut, setFilterStatut] = useState<'tous' | 'actif' | 'annulé' | 'remboursé'>('actif')
@@ -762,12 +1015,12 @@ export default function AlveoView({ deals, profiles, isAdmin }: Props) {
       <div className="max-w-[1400px] mx-auto px-4 py-8">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Tracker Alveo</h1>
             <p className="text-sm text-gray-500 mt-0.5">Suivi des financements et commissions</p>
           </div>
-          {isAdmin && (
+          {isAdmin && mainTab === 'deals' && (
             <button
               onClick={() => setShowForm(v => !v)}
               className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
@@ -777,6 +1030,26 @@ export default function AlveoView({ deals, profiles, isAdmin }: Props) {
             </button>
           )}
         </div>
+
+        {/* Section tabs */}
+        <div className="flex gap-1 mb-6 border-b border-gray-200">
+          {([
+            ['deals', 'Deals'],
+            ['creances', `Créances${creances.filter(c => c.status !== 'regle' && c.status !== 'perdu').length > 0 ? ` (${creances.filter(c => c.status !== 'regle' && c.status !== 'perdu').length})` : ''}`],
+          ] as [string, string][]).map(([key, label]) => (
+            <button key={key} onClick={() => setMainTab(key as 'deals' | 'creances')}
+              className={cn('px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+                mainTab === key ? 'border-violet-600 text-violet-700' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300')}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {mainTab === 'creances' && (
+          <CreancesSection creances={creances} csmMembers={csmMembers} isAdmin={isAdmin} />
+        )}
+
+        {mainTab === 'deals' && (<>
 
         {/* Stats cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
@@ -942,6 +1215,7 @@ export default function AlveoView({ deals, profiles, isAdmin }: Props) {
           <span>· <span className="text-amber-600 font-medium">Payer →</span> = cliquer pour payer la commission complète</span>
           {isAdmin && <span>· Cliquer sur le montant collecté pour le modifier</span>}
         </div>
+        </>)}
       </div>
 
       {/* ── Modal remboursement ──────────────────────────────────── */}

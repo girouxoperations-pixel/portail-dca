@@ -404,3 +404,56 @@ export async function supprimerDeal(dealId: string) {
   if (error) throw new Error(error.message)
   revalidatePath('/alveo')
 }
+
+// ── Créances ──────────────────────────────────────────────────────────
+
+export async function ajouterCreance(data: {
+  client_name:       string
+  contenu_consomme:  number
+  capital_paye:      number
+  csm_id:            string | null
+  notes:             string
+}) {
+  await requireAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('alveo_creances').insert({
+    client_name:      data.client_name.trim(),
+    contenu_consomme: data.contenu_consomme,
+    capital_paye:     data.capital_paye,
+    csm_id:           data.csm_id || null,
+    notes:            data.notes.trim() || null,
+    status:           'actif',
+  })
+  if (error) throw new Error(error.message)
+  revalidatePath('/alveo')
+}
+
+export async function modifierCreance(id: string, data: {
+  client_name:       string
+  contenu_consomme:  number
+  capital_paye:      number
+  csm_id:            string | null
+  notes:             string
+  status:            string
+}) {
+  await requireAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('alveo_creances').update({
+    client_name:      data.client_name.trim(),
+    contenu_consomme: data.contenu_consomme,
+    capital_paye:     data.capital_paye,
+    csm_id:           data.csm_id || null,
+    notes:            data.notes.trim() || null,
+    status:           data.status,
+  }).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/alveo')
+}
+
+export async function supprimerCreance(id: string) {
+  await requireAdminOrCsm()
+  const db = createAdminClient()
+  const { error } = await db.from('alveo_creances').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/alveo')
+}

@@ -17,7 +17,7 @@ export default async function AlveoPage() {
 
   const db = createAdminClient()
 
-  const [{ data: deals }, { data: payments }, { data: profiles }] = await Promise.all([
+  const [{ data: deals }, { data: payments }, { data: profiles }, { data: creances }, { data: csmMembers }] = await Promise.all([
     db.from('alveo_deals')
       .select('*, cash_entries(id, montant_courant, collected, entry_date)')
       .order('deal_date', { ascending: false }),
@@ -28,6 +28,13 @@ export default async function AlveoPage() {
       .select('id, full_name, role')
       .in('role', ['closer', 'setter'])
       .eq('active', true)
+      .order('full_name'),
+    db.from('alveo_creances')
+      .select('*')
+      .order('created_at', { ascending: false }),
+    db.from('profiles')
+      .select('id, full_name, role')
+      .or('roles.cs.{csm},roles.cs.{head_csm}')
       .order('full_name'),
   ])
 
@@ -47,6 +54,8 @@ export default async function AlveoPage() {
     <AlveoView
       deals={dealsWithPayments}
       profiles={profiles ?? []}
+      creances={creances ?? []}
+      csmMembers={csmMembers ?? []}
       isAdmin={profil.role === 'admin'}
     />
   )
