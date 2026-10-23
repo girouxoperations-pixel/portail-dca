@@ -687,7 +687,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const EMPTY_CREANCE = { client_name: '', contenu_consomme: '', capital_paye: '', csm_id: '', notes: '', status: 'actif' }
 
-function CreancesSection({ creances, csmMembers, isAdmin }: { creances: Creance[]; csmMembers: Profile[]; isAdmin: boolean }) {
+function CreancesSection({ creances, csmMembers, deals, isAdmin }: { creances: Creance[]; csmMembers: Profile[]; deals: Deal[]; isAdmin: boolean }) {
   const [filterStatus, setFilterStatus] = useState<'tous' | 'actif' | 'en_collecte' | 'regle' | 'perdu'>('actif')
   const [showForm, setShowForm]         = useState(false)
   const [editing, setEditing]           = useState<Creance | null>(null)
@@ -731,6 +731,14 @@ function CreancesSection({ creances, csmMembers, isAdmin }: { creances: Creance[
   const totalBalance = filtered.reduce((s, c) => s + c.balance_due, 0)
 
   const csmMap = new Map(csmMembers.map(m => [m.id, m.full_name ?? '?']))
+
+  const dealClients = useMemo(() => {
+    const seen = new Set<string>()
+    return deals
+      .map(d => d.client_name)
+      .filter(n => { if (seen.has(n)) return false; seen.add(n); return true })
+      .sort()
+  }, [deals])
 
   const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white'
 
@@ -784,8 +792,10 @@ function CreancesSection({ creances, csmMembers, isAdmin }: { creances: Creance[
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-xs font-medium text-gray-500 block mb-1">Nom de la cliente</label>
-                <input required value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))}
-                  placeholder="Prénom Nom" className={INPUT} />
+                <select required value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} className={INPUT}>
+                  <option value="">— Choisir une cliente Alveo —</option>
+                  {dealClients.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Contenu consommé ($)</label>
@@ -1046,7 +1056,7 @@ export default function AlveoView({ deals, profiles, creances, csmMembers, isAdm
         </div>
 
         {mainTab === 'creances' && (
-          <CreancesSection creances={creances} csmMembers={csmMembers} isAdmin={isAdmin} />
+          <CreancesSection creances={creances} csmMembers={csmMembers} deals={deals} isAdmin={isAdmin} />
         )}
 
         {mainTab === 'deals' && (<>
