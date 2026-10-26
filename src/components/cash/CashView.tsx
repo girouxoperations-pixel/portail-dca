@@ -1427,10 +1427,11 @@ export default function CashView({
       byMonth,
       timing: {
         total: refundedWithDate.length,
+        totalDeals: totalCount,
         within10Count: within10.length,
         within30Count: within30.length,
-        within10Pct: refundedWithDate.length > 0 ? within10.length / refundedWithDate.length * 100 : 0,
-        within30Pct: refundedWithDate.length > 0 ? within30.length / refundedWithDate.length * 100 : 0,
+        within10Pct: totalCount > 0 ? within10.length / totalCount * 100 : 0,
+        within30Pct: totalCount > 0 ? within30.length / totalCount * 100 : 0,
         avgDays,
       },
     }
@@ -1994,12 +1995,12 @@ export default function CashView({
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Dans les 10 jours</p>
                       <p className="text-xl font-bold text-red-600 tabular-nums">{refundStats.timing.within10Pct.toFixed(1)}%</p>
-                      <p className="text-xs text-gray-400">{refundStats.timing.within10Count} / {refundStats.timing.total} remboursements</p>
+                      <p className="text-xs text-gray-400">{refundStats.timing.within10Count} / {refundStats.timing.totalDeals} deals</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Dans les 30 jours</p>
                       <p className="text-xl font-bold text-orange-500 tabular-nums">{refundStats.timing.within30Pct.toFixed(1)}%</p>
-                      <p className="text-xs text-gray-400">{refundStats.timing.within30Count} / {refundStats.timing.total} remboursements</p>
+                      <p className="text-xs text-gray-400">{refundStats.timing.within30Count} / {refundStats.timing.totalDeals} deals</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Délai moyen</p>
