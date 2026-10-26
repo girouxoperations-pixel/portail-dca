@@ -148,9 +148,11 @@ export async function marquerRemboursementDepuisCash(cashEntryId: string, montan
     })
     .eq('cash_entry_id', cashEntryId)
 
+  const refundedAt = `${ty}-${String(tm).padStart(2,'0')}-${String(td).padStart(2,'0')}`
+
   // Mark cash entry as refunded
   const { data: updated, error: refundError } = await db.from('cash_entries')
-    .update({ collected: 0, close_type: 'refund', is_refunded: true, notes: `[REMBOURSÉ le ${dateStr}]` })
+    .update({ collected: 0, close_type: 'refund', is_refunded: true, notes: `[REMBOURSÉ le ${dateStr}]`, refunded_at: refundedAt })
     .eq('id', cashEntryId)
     .select('id')
   if (refundError) throw new Error(`Erreur DB: ${refundError.message}`)

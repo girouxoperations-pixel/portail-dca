@@ -42,6 +42,7 @@ interface CashEntry {
   source_type: 'webi' | 'vsl' | null
   onboarding_date: string | null
   is_refunded: boolean | null
+  refunded_at: string | null
 }
 
 interface Profil {
@@ -1408,11 +1409,30 @@ export default function CashView({
         return { label, ...v }
       })
 
+    // Timing stats: days between entry_date and refunded_at
+    function daysBetween(d1: string, d2: string) {
+      return Math.round((new Date(d2).getTime() - new Date(d1).getTime()) / 86400000)
+    }
+    const refundedWithDate = refunded.filter(e => e.refunded_at && e.entry_date)
+    const within10  = refundedWithDate.filter(e => daysBetween(e.entry_date, e.refunded_at!) <= 10)
+    const within30  = refundedWithDate.filter(e => daysBetween(e.entry_date, e.refunded_at!) <= 30)
+    const avgDays   = refundedWithDate.length > 0
+      ? Math.round(refundedWithDate.reduce((s, e) => s + daysBetween(e.entry_date, e.refunded_at!), 0) / refundedWithDate.length)
+      : null
+
     return {
       totalCount, refundCount, refundAmount, totalAmount,
       refundPctCount:  totalCount  > 0 ? refundCount  / totalCount  * 100 : 0,
       refundPctAmount: totalAmount > 0 ? refundAmount / totalAmount * 100 : 0,
       byMonth,
+      timing: {
+        total: refundedWithDate.length,
+        within10Count: within10.length,
+        within30Count: within30.length,
+        within10Pct: refundedWithDate.length > 0 ? within10.length / refundedWithDate.length * 100 : 0,
+        within30Pct: refundedWithDate.length > 0 ? within30.length / refundedWithDate.length * 100 : 0,
+        avgDays,
+      },
     }
   }, [filtrees, recurringIds])
 
@@ -1967,6 +1987,30 @@ export default function CashView({
                   </div>
                 </div>
               </div>
+              {refundStats.timing.total > 0 && (
+                <div className="px-5 py-4 border-b border-gray-50 bg-red-50/40">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Délai avant remboursement</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Dans les 10 jours</p>
+                      <p className="text-xl font-bold text-red-600 tabular-nums">{refundStats.timing.within10Pct.toFixed(1)}%</p>
+                      <p className="text-xs text-gray-400">{refundStats.timing.within10Count} / {refundStats.timing.total} remboursements</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Dans les 30 jours</p>
+                      <p className="text-xl font-bold text-orange-500 tabular-nums">{refundStats.timing.within30Pct.toFixed(1)}%</p>
+                      <p className="text-xs text-gray-400">{refundStats.timing.within30Count} / {refundStats.timing.total} remboursements</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Délai moyen</p>
+                      <p className="text-xl font-bold text-gray-700 tabular-nums">
+                        {refundStats.timing.avgDays !== null ? `${refundStats.timing.avgDays}j` : '—'}
+                      </p>
+                      <p className="text-xs text-gray-400">entre le close et le remboursement</p>
+                    </div>
+                  </div>
+                </div>
+              )}
               {refundStats.byMonth.some(m => m.refundCount > 0) && (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
