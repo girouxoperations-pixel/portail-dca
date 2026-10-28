@@ -17,6 +17,7 @@ import {
   Archive,
   Mic,
   Crosshair,
+  ClipboardList,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -36,6 +37,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard },
     { label: 'Hunting Season 🏹', href: '/chasse',      icon: Crosshair       },
     { label: 'Équipe',      href: '/equipe',       icon: Trophy          },
+    { label: 'Management',  href: '/management',   icon: ClipboardList   },
     { label: 'Todo',        href: '/todo',         icon: ListTodo        },
     { label: 'Closers',     href: '/closer',       icon: Phone           },
     { label: 'Setters',     href: '/setter',       icon: Users           },
@@ -54,6 +56,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
   ],
   head_csm: [
     { label: 'Dashboard',    href: '/dashboard',  icon: LayoutDashboard },
+    { label: 'Management',   href: '/management', icon: ClipboardList   },
     { label: 'Paie',         href: '/payes',      icon: Banknote        },
     { label: 'Récurrents',   href: '/recurrents', icon: RefreshCw       },
     { label: 'Cash / Stats', href: '/cash',       icon: Wallet          },
