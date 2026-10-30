@@ -778,9 +778,11 @@ export default async function DashboardPage({
     if (name) nameToProfileId.set(name.toLowerCase().trim(), id)
   }
 
-  function isLbDeal(e: { close_type: string | null; notes: string | null }) {
+  function isLbDeal(e: { close_type: string | null; notes: string | null; collected?: number | null }) {
     if (e.close_type === 'recurring') return false
+    if (e.close_type === 'refund') return false
     if (e.notes?.startsWith('Récurrent')) return false
+    if ((e.collected ?? 0) <= 0) return false
     return true
   }
 
@@ -819,6 +821,7 @@ export default async function DashboardPage({
       if (!isLbDeal(e)) continue
       const cur = byUser.get(e.set_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.set_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
+
     }
     for (const a of allAlveoDeals ?? []) {
       if (!a.setter_name || !a.deal_date) continue
