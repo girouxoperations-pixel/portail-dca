@@ -763,19 +763,11 @@ export default async function DashboardPage({
     (recurringCashOccs ?? []).map(o => o.cash_entry_id).filter(Boolean) as string[]
   )
 
-  const yesterday = new Date(now)
-  yesterday.setDate(now.getDate() - 1)
-  const yesterdayStr  = yesterday.toISOString().split('T')[0]
-  const lbWeekStart   = getMondayStr(now)
-  const lbWeekEnd     = getSundayStr(now)
-
-  const lbPeriods = {
-    jour:      yesterdayStr,
-    semaine:   lbWeekStart,
-    mois:      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`,
-    trimestre: (() => { const q = Math.floor(now.getMonth() / 3); return `${now.getFullYear()}-${String(q * 3 + 1).padStart(2, '0')}-01` })(),
-    annee:     `${now.getFullYear()}-01-01`,
-  } as const
+  const lbWeekStart = getMondayStr(now)
+  const lbWeekEnd   = getSundayStr(now)
+  const lbMoisStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  // Last day of current month (new Date(y, m+1, 0) = last day of month m)
+  const lbMoisEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
 
   // Name→id reverse map for matching Alveo closer_name/setter_name
   const nameToProfileId = new Map<string, string>()
@@ -848,11 +840,8 @@ export default async function DashboardPage({
   }
 
   const leaderboardData = {
-    jour:      { closers: lbCloserRows(yesterdayStr, yesterdayStr), setters: lbSetterRows(yesterdayStr, yesterdayStr) },
-    semaine:   { closers: lbCloserRows(lbWeekStart, lbWeekEnd),     setters: lbSetterRows(lbWeekStart, lbWeekEnd)     },
-    mois:      { closers: lbCloserRows(lbPeriods.mois),             setters: lbSetterRows(lbPeriods.mois)             },
-    trimestre: { closers: lbCloserRows(lbPeriods.trimestre),        setters: lbSetterRows(lbPeriods.trimestre)        },
-    annee:     { closers: lbCloserRows(lbPeriods.annee),            setters: lbSetterRows(lbPeriods.annee)            },
+    semaine: { closers: lbCloserRows(lbWeekStart, lbWeekEnd), setters: lbSetterRows(lbWeekStart, lbWeekEnd) },
+    mois:    { closers: lbCloserRows(lbMoisStart,  lbMoisEnd), setters: lbSetterRows(lbMoisStart,  lbMoisEnd) },
   }
 
   // ── Récurrents health (always relative to today, not the period) ────

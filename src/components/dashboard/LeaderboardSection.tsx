@@ -6,14 +6,11 @@ const RANK_MEDAL = ['🥇', '🥈', '🥉']
 
 type LeaderRow  = { nom: string; primary: string; secondary: string }
 type PeriodData = { closers: LeaderRow[]; setters: LeaderRow[] }
-type Periode    = 'jour' | 'semaine' | 'mois' | 'trimestre' | 'annee'
+type Periode    = 'semaine' | 'mois'
 
 const TABS: { key: Periode; label: string }[] = [
-  { key: 'jour',      label: 'Hier'      },
-  { key: 'semaine',   label: 'Semaine'   },
-  { key: 'mois',      label: 'Mois'      },
-  { key: 'trimestre', label: 'Trimestre' },
-  { key: 'annee',     label: 'Année'     },
+  { key: 'semaine', label: 'Semaine' },
+  { key: 'mois',    label: 'Mois'    },
 ]
 
 function LeaderboardCard({ title, emoji, rows }: { title: string; emoji: string; rows: LeaderRow[] }) {
@@ -48,7 +45,8 @@ export default function LeaderboardSection({ leaderboard }: { leaderboard: Recor
   const [active, setActive] = useState<Periode>('mois')
   const { closers, setters } = leaderboard[active]
 
-  if (Object.values(leaderboard).every(p => p.closers.length === 0 && p.setters.length === 0)) {
+  if (leaderboard.semaine.closers.length === 0 && leaderboard.semaine.setters.length === 0 &&
+      leaderboard.mois.closers.length === 0    && leaderboard.mois.setters.length === 0) {
     return null
   }
 
