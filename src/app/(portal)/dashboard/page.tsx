@@ -639,7 +639,9 @@ export default async function DashboardPage({
       .not('cash_entry_id', 'is', null),
     supabase.from('cash_entries')
       .select('id, entry_date, closed_by, set_by, collected, close_type, notes')
-      .neq('is_refunded', true),
+      .neq('is_refunded', true)
+      .gte('entry_date', `${now.getFullYear()}-01-01`)
+      .limit(5000),
     db.from('profiles').select('id, full_name').or('roles.cs.{csm},roles.cs.{head_csm}'),
     db.from('csm_clients').select('name, csm_id'),
     db.from('csm_clients')
