@@ -769,9 +769,7 @@ export default async function DashboardPage({
   // Last day of current month (new Date(y, m+1, 0) = last day of month m)
   const lbMoisEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  // Exact même logique que getSourceType dans CashView
-  function isLbDeal(e: { id?: string; close_type: string | null; notes: string | null }) {
-    if (e.id && recurringCashIds.has(e.id)) return false
+  function isLbDeal(e: { close_type: string | null; notes: string | null }) {
     if (e.close_type === 'recurring') return false
     if (e.notes?.startsWith('Récurrent')) return false
     return true
