@@ -638,7 +638,7 @@ export default async function DashboardPage({
       .eq('recu', true)
       .not('cash_entry_id', 'is', null),
     supabase.from('cash_entries')
-      .select('entry_date, closed_by, set_by, collected, close_type, notes')
+      .select('id, entry_date, closed_by, set_by, collected, close_type, notes')
       .neq('is_refunded', true),
     db.from('profiles').select('id, full_name').or('roles.cs.{csm},roles.cs.{head_csm}'),
     db.from('csm_clients').select('name, csm_id'),
@@ -758,6 +758,11 @@ export default async function DashboardPage({
     return d.toISOString().split('T')[0]
   }
 
+  // IDs des cash_entries liés à des paiements récurrents (exclure du leaderboard)
+  const recurringCashIds = new Set(
+    (recurringCashOccs ?? []).map(o => o.cash_entry_id).filter(Boolean) as string[]
+  )
+
   const yesterday = new Date(now)
   yesterday.setDate(now.getDate() - 1)
   const yesterdayStr  = yesterday.toISOString().split('T')[0]
@@ -778,7 +783,8 @@ export default async function DashboardPage({
     if (name) nameToProfileId.set(name.toLowerCase().trim(), id)
   }
 
-  function isLbDeal(e: { close_type: string | null; notes: string | null; collected?: number | null }) {
+  function isLbDeal(e: { id?: string; close_type: string | null; notes: string | null; collected?: number | null }) {
+    if (e.id && recurringCashIds.has(e.id)) return false
     if (e.close_type === 'recurring') return false
     if (e.close_type === 'refund') return false
     if (e.notes?.startsWith('Récurrent')) return false
@@ -935,9 +941,6 @@ export default async function DashboardPage({
   const onboardingStats = Array.from(onboardingByCsm.values()).sort((a, b) => b.mois - a.mois)
 
   // ── KPIs ─────────────────────────────────────────────────────────
-  const recurringCashIds = new Set(
-    (recurringCashOccs ?? []).map(o => o.cash_entry_id).filter(Boolean) as string[]
-  )
   const cashRevenu    = (cashMois ?? []).reduce((s, e) => s + (e.montant_courant ?? 0), 0)
   const cashCollected = (cashMois ?? []).reduce((s, e) => s + (e.collected ?? 0), 0)
   const isRecEntry = (e: { id?: string; close_type: string | null; notes: string | null }) =>
