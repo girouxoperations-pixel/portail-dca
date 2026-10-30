@@ -769,22 +769,15 @@ export default async function DashboardPage({
   // Last day of current month (new Date(y, m+1, 0) = last day of month m)
   const lbMoisEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  // Name→id reverse map for matching Alveo closer_name/setter_name
-  const nameToProfileId = new Map<string, string>()
-  for (const [id, name] of profileMap.entries()) {
-    if (name) nameToProfileId.set(name.toLowerCase().trim(), id)
-  }
-
-  function isLbDeal(e: { id?: string; close_type: string | null; notes: string | null; collected?: number | null }) {
+  // Exact même logique que getSourceType dans CashView
+  function isLbDeal(e: { id?: string; close_type: string | null; notes: string | null }) {
     if (e.id && recurringCashIds.has(e.id)) return false
     if (e.close_type === 'recurring') return false
-    if (e.close_type === 'refund') return false
     if (e.notes?.startsWith('Récurrent')) return false
-    if ((e.collected ?? 0) <= 0) return false
     return true
   }
 
-  function lbCloserRows(min: string, max = todayStr) {
+  function lbCloserRows(min: string, max: string) {
     const byUser = new Map<string, { closes: number; cash: number }>()
     for (const e of allCashEntries ?? []) {
       if (!e.closed_by || !e.entry_date) continue
@@ -793,16 +786,8 @@ export default async function DashboardPage({
       const cur = byUser.get(e.closed_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.closed_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
-    for (const a of allAlveoDeals ?? []) {
-      if (!a.closer_name || !a.deal_date) continue
-      if (a.deal_date < min || a.deal_date > max) continue
-      const uid = nameToProfileId.get(a.closer_name.toLowerCase().trim())
-      if (!uid) continue
-      const cur = byUser.get(uid) ?? { closes: 0, cash: 0 }
-      byUser.set(uid, { closes: cur.closes + 1, cash: cur.cash + (a.montant ?? 0) })
-    }
     return Array.from(byUser.entries())
-      .filter(([uid, v]) => v.closes > 0 && profileMap.has(uid))
+      .filter(([uid]) => profileMap.has(uid))
       .sort(([, a], [, b]) => b.closes - a.closes || b.cash - a.cash)
       .map(([uid, v]) => ({
         nom:       profileMap.get(uid)!,
@@ -811,7 +796,7 @@ export default async function DashboardPage({
       }))
   }
 
-  function lbSetterRows(min: string, max = todayStr) {
+  function lbSetterRows(min: string, max: string) {
     const byUser = new Map<string, { closes: number; cash: number }>()
     for (const e of allCashEntries ?? []) {
       if (!e.set_by || !e.entry_date) continue
@@ -819,18 +804,9 @@ export default async function DashboardPage({
       if (!isLbDeal(e)) continue
       const cur = byUser.get(e.set_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.set_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
-
-    }
-    for (const a of allAlveoDeals ?? []) {
-      if (!a.setter_name || !a.deal_date) continue
-      if (a.deal_date < min || a.deal_date > max) continue
-      const uid = nameToProfileId.get(a.setter_name.toLowerCase().trim())
-      if (!uid) continue
-      const cur = byUser.get(uid) ?? { closes: 0, cash: 0 }
-      byUser.set(uid, { closes: cur.closes + 1, cash: cur.cash + (a.montant ?? 0) })
     }
     return Array.from(byUser.entries())
-      .filter(([uid, v]) => v.closes > 0 && profileMap.has(uid))
+      .filter(([uid]) => profileMap.has(uid))
       .sort(([, a], [, b]) => b.closes - a.closes || b.cash - a.cash)
       .map(([uid, v]) => ({
         nom:       profileMap.get(uid)!,
