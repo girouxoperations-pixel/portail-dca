@@ -595,6 +595,7 @@ export default async function DashboardPage({
     { data: csmMembers },
     { data: csmClients },
     { data: onboardingClients },
+    { data: allAlveoDeals },
   ] = await Promise.all([
     supabase.from('monthly_stats')
       .select('source, closer_name, user_id, year, month, scheduled_calls, show_calls, pitch_calls, closes, cash_collected, revenue'),
@@ -645,6 +646,9 @@ export default async function DashboardPage({
       .select('name, csm_id, onboarding_date')
       .not('onboarding_date', 'is', null)
       .neq('status', 'refund'),
+    db.from('alveo_deals')
+      .select('deal_date, montant, closer_name, setter_name, statut')
+      .neq('statut', 'remboursé'),
   ])
 
   // ── Profile maps ──────────────────────────────────────────────────
@@ -747,17 +751,32 @@ export default async function DashboardPage({
     return d.toISOString().split('T')[0]
   }
 
+  function getSundayStr(from: Date): string {
+    const d   = new Date(from)
+    const day = d.getDay()
+    d.setDate(d.getDate() + (day === 0 ? 0 : 7 - day))
+    return d.toISOString().split('T')[0]
+  }
+
   const yesterday = new Date(now)
   yesterday.setDate(now.getDate() - 1)
-  const yesterdayStr = yesterday.toISOString().split('T')[0]
+  const yesterdayStr  = yesterday.toISOString().split('T')[0]
+  const lbWeekStart   = getMondayStr(now)
+  const lbWeekEnd     = getSundayStr(now)
 
   const lbPeriods = {
     jour:      yesterdayStr,
-    semaine:   getMondayStr(now),
+    semaine:   lbWeekStart,
     mois:      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`,
     trimestre: (() => { const q = Math.floor(now.getMonth() / 3); return `${now.getFullYear()}-${String(q * 3 + 1).padStart(2, '0')}-01` })(),
     annee:     `${now.getFullYear()}-01-01`,
   } as const
+
+  // Name→id reverse map for matching Alveo closer_name/setter_name
+  const nameToProfileId = new Map<string, string>()
+  for (const [id, name] of profileMap.entries()) {
+    if (name) nameToProfileId.set(name.toLowerCase().trim(), id)
+  }
 
   function isLbDeal(e: { close_type: string | null; notes: string | null }) {
     if (e.close_type === 'recurring') return false
@@ -773,6 +792,14 @@ export default async function DashboardPage({
       if (!isLbDeal(e)) continue
       const cur = byUser.get(e.closed_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.closed_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
+    }
+    for (const a of allAlveoDeals ?? []) {
+      if (!a.closer_name || !a.deal_date) continue
+      if (a.deal_date < min || a.deal_date > max) continue
+      const uid = nameToProfileId.get(a.closer_name.toLowerCase().trim())
+      if (!uid) continue
+      const cur = byUser.get(uid) ?? { closes: 0, cash: 0 }
+      byUser.set(uid, { closes: cur.closes + 1, cash: cur.cash + (a.montant ?? 0) })
     }
     return Array.from(byUser.entries())
       .filter(([uid, v]) => v.closes > 0 && profileMap.has(uid))
@@ -793,6 +820,14 @@ export default async function DashboardPage({
       const cur = byUser.get(e.set_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.set_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
+    for (const a of allAlveoDeals ?? []) {
+      if (!a.setter_name || !a.deal_date) continue
+      if (a.deal_date < min || a.deal_date > max) continue
+      const uid = nameToProfileId.get(a.setter_name.toLowerCase().trim())
+      if (!uid) continue
+      const cur = byUser.get(uid) ?? { closes: 0, cash: 0 }
+      byUser.set(uid, { closes: cur.closes + 1, cash: cur.cash + (a.montant ?? 0) })
+    }
     return Array.from(byUser.entries())
       .filter(([uid, v]) => v.closes > 0 && profileMap.has(uid))
       .sort(([, a], [, b]) => b.closes - a.closes || b.cash - a.cash)
@@ -805,7 +840,7 @@ export default async function DashboardPage({
 
   const leaderboardData = {
     jour:      { closers: lbCloserRows(yesterdayStr, yesterdayStr), setters: lbSetterRows(yesterdayStr, yesterdayStr) },
-    semaine:   { closers: lbCloserRows(lbPeriods.semaine),          setters: lbSetterRows(lbPeriods.semaine)          },
+    semaine:   { closers: lbCloserRows(lbWeekStart, lbWeekEnd),     setters: lbSetterRows(lbWeekStart, lbWeekEnd)     },
     mois:      { closers: lbCloserRows(lbPeriods.mois),             setters: lbSetterRows(lbPeriods.mois)             },
     trimestre: { closers: lbCloserRows(lbPeriods.trimestre),        setters: lbSetterRows(lbPeriods.trimestre)        },
     annee:     { closers: lbCloserRows(lbPeriods.annee),            setters: lbSetterRows(lbPeriods.annee)            },
