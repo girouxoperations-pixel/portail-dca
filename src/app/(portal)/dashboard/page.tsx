@@ -636,7 +636,8 @@ export default async function DashboardPage({
     db.from('recurring_occurrences')
       .select('cash_entry_id')
       .eq('recu', true)
-      .not('cash_entry_id', 'is', null),
+      .not('cash_entry_id', 'is', null)
+      .limit(50000),
     supabase.from('cash_entries')
       .select('id, entry_date, closed_by, set_by, collected, close_type, notes')
       .neq('is_refunded', true)
