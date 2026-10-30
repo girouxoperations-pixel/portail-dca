@@ -769,18 +769,11 @@ export default async function DashboardPage({
   // Last day of current month (new Date(y, m+1, 0) = last day of month m)
   const lbMoisEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
 
-  function isLbDeal(e: { close_type: string | null; notes: string | null }) {
-    if (e.close_type === 'recurring') return false
-    if (e.notes?.startsWith('Récurrent')) return false
-    return true
-  }
-
   function lbCloserRows(min: string, max: string) {
     const byUser = new Map<string, { closes: number; cash: number }>()
     for (const e of allCashEntries ?? []) {
       if (!e.closed_by || !e.entry_date) continue
       if (e.entry_date < min || e.entry_date > max) continue
-      if (!isLbDeal(e)) continue
       const cur = byUser.get(e.closed_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.closed_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
@@ -799,7 +792,6 @@ export default async function DashboardPage({
     for (const e of allCashEntries ?? []) {
       if (!e.set_by || !e.entry_date) continue
       if (e.entry_date < min || e.entry_date > max) continue
-      if (!isLbDeal(e)) continue
       const cur = byUser.get(e.set_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.set_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
