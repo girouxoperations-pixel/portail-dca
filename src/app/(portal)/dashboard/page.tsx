@@ -776,6 +776,7 @@ export default async function DashboardPage({
     for (const e of allCashEntries ?? []) {
       if (!e.closed_by || !e.entry_date) continue
       if (e.entry_date < min || e.entry_date > max) continue
+      if (e.id && recurringCashIds.has(e.id)) continue
       const cur = byUser.get(e.closed_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.closed_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
@@ -794,6 +795,7 @@ export default async function DashboardPage({
     for (const e of allCashEntries ?? []) {
       if (!e.set_by || !e.entry_date) continue
       if (e.entry_date < min || e.entry_date > max) continue
+      if (e.id && recurringCashIds.has(e.id)) continue
       const cur = byUser.get(e.set_by) ?? { closes: 0, cash: 0 }
       byUser.set(e.set_by, { closes: cur.closes + 1, cash: cur.cash + (e.collected ?? 0) })
     }
