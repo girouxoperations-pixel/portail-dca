@@ -1,27 +1,29 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { Plus, Trash2, Check, ChevronLeft, ChevronRight, AlertCircle, X } from 'lucide-react'
+import { Plus, Trash2, Check, ChevronLeft, ChevronRight, AlertCircle, X, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { savePLMonth } from './actions'
 
 // ── Types ─────────────────────────────────────────────────────────────
 
-type DepenseRow = { id: string; label: string; ht: number; ttc: number }
-type PayeRow    = { id: string; name: string; amount: number }
+type DepenseRow   = { id: string; label: string; ht: number; ttc: number }
+type PayeRow      = { id: string; name: string; amount: number }
+type RefundEntry  = { id: string; name: string; originalMonth: string }
 
 export type PLData = {
-  revenu:             number
-  cashCollect:        number
-  depenses:           DepenseRow[]
-  payeEquipe:         PayeRow[]
-  impotPercent:       number
-  rosaDepensePerso:   number
-  samDepensePerso:    number
-  rosaPercent:        number
-  samPercent:         number
-  notes:              string
-  netProfitOverride?: number
+  revenu:                  number
+  cashCollect:             number
+  depenses:                DepenseRow[]
+  payeEquipe:              PayeRow[]
+  impotPercent:            number
+  rosaDepensePerso:        number
+  samDepensePerso:         number
+  rosaPercent:             number
+  samPercent:              number
+  notes:                   string
+  netProfitOverride?:      number
+  refundsFromPrevMonths:   RefundEntry[]
 }
 
 export type PLMonthRecord = {
@@ -58,6 +60,7 @@ const EMPTY_DATA = (): PLData => ({
   payeEquipe: [],
   impotPercent: 0, rosaDepensePerso: 0, samDepensePerso: 0,
   rosaPercent: 0.60, samPercent: 0.40, notes: '',
+  refundsFromPrevMonths: [],
 })
 
 function compute(d: PLData) {
@@ -310,6 +313,86 @@ function MonthDetail({ data, onChange }: {
           <p className="text-xs text-gray-400">{fmt(c.charges)} en charges</p>
         </div>
       </div>
+
+      {/* Refunds from previous months */}
+      {(() => {
+        const entries = data.refundsFromPrevMonths ?? []
+        function addRefund() {
+          onChange({ refundsFromPrevMonths: [...entries, { id: uid(), name: '', originalMonth: '' }] })
+        }
+        function updRefund(id: string, field: keyof RefundEntry, val: string) {
+          onChange({ refundsFromPrevMonths: entries.map(r => r.id === id ? { ...r, [field]: val } : r) })
+        }
+        function delRefund(id: string) {
+          onChange({ refundsFromPrevMonths: entries.filter(r => r.id !== id) })
+        }
+        return (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-red-50/40">
+              <div className="flex items-center gap-2">
+                <RotateCcw size={13} className="text-red-400" />
+                <h3 className="text-sm font-semibold text-gray-800">Remboursements de mois précédents</h3>
+                {entries.length > 0 && (
+                  <span className="px-1.5 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold rounded-full">
+                    {entries.length}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={addRefund}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+              >
+                <Plus size={11} /> Ajouter
+              </button>
+            </div>
+            {entries.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-gray-400">Aucun remboursement de mois précédent</p>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 text-[11px] text-gray-500 font-semibold">
+                    <th className="px-4 py-2.5 text-left">Nom de la cliente</th>
+                    <th className="px-4 py-2.5 text-left w-52">Mois d'origine du deal</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {entries.map(r => (
+                    <tr key={r.id} className="group hover:bg-gray-50/50">
+                      <td className="px-3 py-0.5">
+                        <input
+                          type="text"
+                          value={r.name}
+                          onChange={e => updRefund(r.id, 'name', e.target.value)}
+                          placeholder="Nom complet"
+                          className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-800 rounded focus:outline-none focus:ring-1 focus:ring-red-300 focus:bg-red-50/30 transition-colors"
+                        />
+                      </td>
+                      <td className="px-3 py-0.5">
+                        <input
+                          type="text"
+                          value={r.originalMonth}
+                          onChange={e => updRefund(r.id, 'originalMonth', e.target.value)}
+                          placeholder="ex : Septembre 2026"
+                          className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-500 rounded focus:outline-none focus:ring-1 focus:ring-red-300 focus:bg-red-50/30 transition-colors"
+                        />
+                      </td>
+                      <td className="px-2 py-0.5">
+                        <button
+                          onClick={() => delRefund(r.id)}
+                          className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )
+      })()}
 
       {/* 3-col layout */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_300px] gap-4 items-start">
