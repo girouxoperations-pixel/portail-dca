@@ -26,11 +26,9 @@ export default function RefundStats({ stats }: { stats: RefundStats }) {
   const { monthly, delays, totalRefunds } = stats
 
   const delayBuckets = [
-    { label: '≤ 10 jours',    count: delays.d10,     color: 'bg-emerald-500' },
-    { label: '11 – 30 jours', count: delays.d30,     color: 'bg-yellow-400'  },
-    { label: '31 – 60 jours', count: delays.d60,     color: 'bg-orange-400'  },
-    { label: '61 – 90 jours', count: delays.d90,     color: 'bg-red-400'     },
-    { label: '90 jours +',    count: delays.d90plus, color: 'bg-rose-600'    },
+    { label: '≤ 10 jours',  count: delays.d10,     color: 'bg-emerald-500' },
+    { label: '11 – 30 jours', count: delays.d30,   color: 'bg-yellow-400'  },
+    { label: '31 jours +',  count: delays.d31plus, color: 'bg-red-500'     },
   ]
 
   return (

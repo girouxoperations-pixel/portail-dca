@@ -18,7 +18,7 @@ import RefundStatsView from '@/components/admin/RefundStats'
 
 export type RefundStats = {
   monthly: { year: number; month: number; totalDeals: number; totalRefunds: number }[]
-  delays: { d10: number; d30: number; d60: number; d90: number; d90plus: number }
+  delays: { d10: number; d30: number; d31plus: number }
   totalRefunds: number
 }
 

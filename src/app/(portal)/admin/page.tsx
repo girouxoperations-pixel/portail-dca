@@ -27,16 +27,14 @@ function buildRefundStats(entries: { entry_date: string; is_refunded: boolean; r
     .sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month)
 
   const refunded = entries.filter(e => e.is_refunded && e.refunded_at && e.entry_date)
-  const delays = { d10: 0, d30: 0, d60: 0, d90: 0, d90plus: 0 }
+  const delays = { d10: 0, d30: 0, d31plus: 0 }
   for (const e of refunded) {
     const orig    = new Date(e.entry_date + 'T12:00:00').getTime()
     const refDate = new Date(e.refunded_at! + 'T12:00:00').getTime()
     const days    = Math.round((refDate - orig) / 86400000)
     if (days <= 10)      delays.d10++
     else if (days <= 30) delays.d30++
-    else if (days <= 60) delays.d60++
-    else if (days <= 90) delays.d90++
-    else                 delays.d90plus++
+    else                 delays.d31plus++
   }
 
   return { monthly, delays, totalRefunds: refunded.length }
