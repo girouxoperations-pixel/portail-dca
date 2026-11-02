@@ -50,6 +50,13 @@ export async function getChassData() {
 
 // ── Cash depuis cash_entries pour une semaine ─────────────────────────
 
+// Étend weekEnd au samedi inclus (les ventes du samedi comptent)
+function weekEndSat(weekEnd: string): string {
+  const d = new Date(weekEnd + 'T12:00:00')
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().split('T')[0]
+}
+
 export async function getCashJoueuses(weekStart: string, weekEnd: string): Promise<{
   closerCash: Record<string, number>
   setterCash: Record<string, number>
@@ -60,7 +67,7 @@ export async function getCashJoueuses(weekStart: string, weekEnd: string): Promi
     .from('cash_entries')
     .select('closed_by, set_by, collected, close_type, notes, recurring_occurrences(recurring_deals(date_debut))')
     .gte('entry_date', weekStart)
-    .lte('entry_date', weekEnd)
+    .lte('entry_date', weekEndSat(weekEnd))
     .eq('is_refunded', false)
 
   const closerCash: Record<string, number> = {}
@@ -110,7 +117,7 @@ export async function getCashBreakdown(
     .select('id, client_name, entry_date, collected, close_type, notes, recurring_occurrences(recurring_deals(date_debut))')
     .eq(col, profileId)
     .gte('entry_date', weekStart)
-    .lte('entry_date', weekEnd)
+    .lte('entry_date', weekEndSat(weekEnd))
     .eq('is_refunded', false)
     .order('entry_date', { ascending: true })
 
