@@ -12,8 +12,15 @@ import {
 import { PALIERS, dollar, getPalier } from '@/lib/constants'
 import OrgChartView, { type OrgNode }     from '@/app/(portal)/admin/organigramme/OrgChartView'
 import PLView,       { type PLMonthRecord } from '@/app/(portal)/admin/pl/PLView'
+import RefundStatsView from '@/components/admin/RefundStats'
 
 // ── Types ────────────────────────────────────────────────────────────
+
+export type RefundStats = {
+  monthly: { year: number; month: number; totalDeals: number; totalRefunds: number }[]
+  delays: { d10: number; d30: number; d60: number; d90: number; d90plus: number }
+  totalRefunds: number
+}
 
 type Membre = {
   id:         string
@@ -38,7 +45,7 @@ type StatsGlobales = {
   moisLabel:    string
 }
 
-type Tab = 'membres' | 'organigramme' | 'pl'
+type Tab = 'membres' | 'organigramme' | 'pl' | 'remboursements'
 
 // ── Constantes ───────────────────────────────────────────────────────
 
@@ -421,6 +428,7 @@ export default function AdminView({
   isOwner = false,
   orgChartData,
   plMonths,
+  refundStats,
 }: {
   membres:       Membre[]
   currentUserId: string
@@ -428,6 +436,7 @@ export default function AdminView({
   isOwner?:      boolean
   orgChartData:  OrgNode
   plMonths:      PLMonthRecord[]
+  refundStats:   RefundStats
 }) {
   const [activeTab,   setActiveTab]   = useState<Tab>('membres')
   const [filtreRole,  setFiltreRole]  = useState<string>('tous')
@@ -468,10 +477,11 @@ export default function AdminView({
   }
 
   const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { key: 'membres',      label: 'Membres',      icon: Users      },
+    { key: 'membres',      label: 'Membres',          icon: Users      },
     ...(isOwner ? [
-      { key: 'organigramme' as Tab, label: 'Organigramme', icon: Network    },
-      { key: 'pl'           as Tab, label: 'P&L',          icon: TrendingUp },
+      { key: 'organigramme'    as Tab, label: 'Organigramme',    icon: Network    },
+      { key: 'pl'              as Tab, label: 'P&L',             icon: TrendingUp },
+      { key: 'remboursements'  as Tab, label: 'Remboursements',  icon: BarChart3  },
     ] : []),
   ]
 
@@ -607,6 +617,11 @@ export default function AdminView({
       {/* ── TAB : P&L ──────────────────────────────────────────────────── */}
       {activeTab === 'pl' && (
         <PLView initialMonths={plMonths} />
+      )}
+
+      {/* ── TAB : REMBOURSEMENTS ───────────────────────────────────────── */}
+      {activeTab === 'remboursements' && (
+        <RefundStatsView stats={refundStats} />
       )}
 
       {/* Modals */}
