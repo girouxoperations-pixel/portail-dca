@@ -108,11 +108,13 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
   const now    = new Date()
   const todayS = now.toISOString().split('T')[0]
 
-  const currentWeek = useMemo(() =>
-    weeks.find(w => w.status === 'active') ??
-    weeks.find(w => w.week_start <= todayS && w.week_end >= todayS) ??
-    weeks.find(w => w.status === 'pending'),
-  [weeks, todayS])
+  const currentWeek = useMemo(() => {
+    // Si plusieurs semaines sont 'active', prendre la plus récente
+    const actives = weeks.filter(w => w.status === 'active').sort((a, b) => b.week_number - a.week_number)
+    if (actives.length > 0) return actives[0]
+    return weeks.find(w => w.week_start <= todayS && w.week_end >= todayS) ??
+           weeks.find(w => w.status === 'pending')
+  }, [weeks, todayS])
 
   const currentMonth = currentWeek?.month ?? 10
 
