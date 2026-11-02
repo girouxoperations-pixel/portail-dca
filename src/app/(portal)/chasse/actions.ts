@@ -170,58 +170,82 @@ export async function confirmerSemaine(weekId: string, weekStart: string, weekEn
 
   const { closerCash, setterCash } = await getCashJoueuses(weekStart, weekEnd)
   const { data: players } = await db.from('chasse_players').select('id, profile_id, groupe, status')
+  const { data: weekData } = await db.from('chasse_weeks').select('month').eq('id', weekId).single()
+  const weekMonth = weekData?.month ?? 10
 
-  // ── Closers : duels 1v1 ──────────────────────────────────────────────
-  const { data: allDuels } = await db.from('chasse_duels').select('*').eq('week_id', weekId)
-  const closerDuels = (allDuels ?? []).filter(d => d.groupe === 'closer')
-
-  for (const duel of closerDuels) {
-    const p1Profile = players?.find(p => p.id === duel.player1_id)?.profile_id
-    const p2Profile = players?.find(p => p.id === duel.player2_id)?.profile_id
-
-    const cash1 = cashEffectif(p1Profile ? (closerCash[p1Profile] ?? 0) : 0, duel.player1_cash_override)
-    const cash2 = duel.is_cerf
-      ? 0
-      : cashEffectif(p2Profile ? (closerCash[p2Profile] ?? 0) : 0, duel.player2_cash_override)
-
-    let result
-    if (duel.is_cerf) {
-      result = calculerCerf(cash1, duel.cerf_target ?? 0)
-    } else {
-      result = calculerDuel(cash1, cash2)
-    }
-
-    const winnerId = result.winnerId === 'p1' ? duel.player1_id
-                   : result.winnerId === 'p2' ? duel.player2_id
-                   : null
-
-    await db.from('chasse_duels').update({
-      player1_cash_override: duel.player1_cash_override ?? cash1,
-      player2_cash_override: duel.is_cerf ? null : (duel.player2_cash_override ?? cash2),
-      winner_id:   winnerId,
-      points_p1:   result.pointsP1,
-      points_p2:   result.pointsP2,
-      is_confirmed: true,
-    }).eq('id', duel.id)
-  }
-
-  // ── Setters : format groupe (1re=1pt, 2e=0.5pt, 3e=0pt) ─────────────
-  const activeSetters = (players ?? []).filter(p => p.groupe === 'setter' && p.status === 'active')
-  if (activeSetters.length > 0) {
-    const ranked = activeSetters
-      .map(p => ({ playerId: p.id, cash: setterCash[p.profile_id] ?? 0 }))
+  if (weekMonth >= 11) {
+    // ── Format combiné Nov/Dec : tous ensemble, 2/1/0.5/0/0 pts ────────
+    const COMBINED_POINTS = [2, 1, 0.5, 0, 0]
+    const activePlayers = (players ?? []).filter(p => p.status === 'active')
+    const ranked = activePlayers
+      .map(p => ({
+        playerId: p.id,
+        cash: p.groupe === 'closer' ? (closerCash[p.profile_id] ?? 0) : (setterCash[p.profile_id] ?? 0),
+      }))
       .sort((a, b) => b.cash - a.cash)
 
     for (let i = 0; i < ranked.length; i++) {
-      const points = i === 0 ? 1 : i === 1 ? 0.5 : 0
       await db.from('chasse_setter_results').upsert({
         week_id:      weekId,
         player_id:    ranked[i].playerId,
         cash:         ranked[i].cash,
-        points,
+        points:       COMBINED_POINTS[i] ?? 0,
         rank:         i + 1,
         is_confirmed: true,
       }, { onConflict: 'week_id,player_id' })
+    }
+  } else {
+    // ── Format Octobre : duels closers + groupe setters ──────────────────
+    const { data: allDuels } = await db.from('chasse_duels').select('*').eq('week_id', weekId)
+    const closerDuels = (allDuels ?? []).filter(d => d.groupe === 'closer')
+
+    for (const duel of closerDuels) {
+      const p1Profile = players?.find(p => p.id === duel.player1_id)?.profile_id
+      const p2Profile = players?.find(p => p.id === duel.player2_id)?.profile_id
+
+      const cash1 = cashEffectif(p1Profile ? (closerCash[p1Profile] ?? 0) : 0, duel.player1_cash_override)
+      const cash2 = duel.is_cerf
+        ? 0
+        : cashEffectif(p2Profile ? (closerCash[p2Profile] ?? 0) : 0, duel.player2_cash_override)
+
+      let result
+      if (duel.is_cerf) {
+        result = calculerCerf(cash1, duel.cerf_target ?? 0)
+      } else {
+        result = calculerDuel(cash1, cash2)
+      }
+
+      const winnerId = result.winnerId === 'p1' ? duel.player1_id
+                     : result.winnerId === 'p2' ? duel.player2_id
+                     : null
+
+      await db.from('chasse_duels').update({
+        player1_cash_override: duel.player1_cash_override ?? cash1,
+        player2_cash_override: duel.is_cerf ? null : (duel.player2_cash_override ?? cash2),
+        winner_id:   winnerId,
+        points_p1:   result.pointsP1,
+        points_p2:   result.pointsP2,
+        is_confirmed: true,
+      }).eq('id', duel.id)
+    }
+
+    const activeSetters = (players ?? []).filter(p => p.groupe === 'setter' && p.status === 'active')
+    if (activeSetters.length > 0) {
+      const ranked = activeSetters
+        .map(p => ({ playerId: p.id, cash: setterCash[p.profile_id] ?? 0 }))
+        .sort((a, b) => b.cash - a.cash)
+
+      for (let i = 0; i < ranked.length; i++) {
+        const points = i === 0 ? 1 : i === 1 ? 0.5 : 0
+        await db.from('chasse_setter_results').upsert({
+          week_id:      weekId,
+          player_id:    ranked[i].playerId,
+          cash:         ranked[i].cash,
+          points,
+          rank:         i + 1,
+          is_confirmed: true,
+        }, { onConflict: 'week_id,player_id' })
+      }
     }
   }
 
@@ -243,13 +267,6 @@ export async function confirmerElimination(month: number) {
   const { data: players } = await db.from('chasse_players').select('*, profiles(full_name)').eq('status', 'active')
   if (!players) throw new Error('Aucune joueuse active')
 
-  const { data: duels } = await db
-    .from('chasse_duels')
-    .select('*, chasse_weeks!inner(month)')
-    .eq('chasse_weeks.month', month)
-    .eq('is_confirmed', true)
-
-  // Setter results (groupe format)
   const { data: monthWeeks } = await db.from('chasse_weeks').select('id').eq('month', month)
   const monthWeekIds = (monthWeeks ?? []).map(w => w.id)
   const { data: setterResultsData } = await db
@@ -258,40 +275,16 @@ export async function confirmerElimination(month: number) {
     .eq('is_confirmed', true)
     .in('week_id', monthWeekIds.length > 0 ? monthWeekIds : ['00000000-0000-0000-0000-000000000000'])
 
-  for (const groupe of ['closer', 'setter'] as const) {
-    const groupePlayers = players.filter(p => p.groupe === groupe)
+  if (month >= 11) {
+    // ── Format combiné Nov/Dec : tout le monde ensemble ─────────────────
+    const scores = (players ?? []).map(p => ({
+      playerId:    p.id,
+      groupe:      p.groupe as 'closer' | 'setter',
+      nom:         (p.profiles as { full_name: string | null } | null)?.full_name ?? '?',
+      totalPoints: (setterResultsData ?? []).filter(r => r.player_id === p.id).reduce((s, r) => s + (r.points ?? 0), 0),
+      totalCash:   (setterResultsData ?? []).filter(r => r.player_id === p.id).reduce((s, r) => s + (r.cash ?? 0), 0),
+    }))
 
-    let scores: PlayerScore[]
-    if (groupe === 'setter') {
-      scores = groupePlayers.map(p => {
-        const myResults = (setterResultsData ?? []).filter(r => r.player_id === p.id)
-        return {
-          playerId:    p.id,
-          nom:         (p.profiles as { full_name: string | null } | null)?.full_name ?? '?',
-          totalPoints: myResults.reduce((s, r) => s + (r.points ?? 0), 0),
-          totalCash:   myResults.reduce((s, r) => s + (r.cash ?? 0), 0),
-        }
-      })
-    } else {
-    const groupeDuels = (duels ?? []).filter(d => d.groupe === groupe)
-
-    scores = groupePlayers.map(p => {
-      const myDuels = groupeDuels.filter(d => d.player1_id === p.id || d.player2_id === p.id)
-      const totalPoints = myDuels.reduce((s, d) => {
-        if (d.player1_id === p.id) return s + (d.points_p1 ?? 0)
-        return s + (d.points_p2 ?? 0)
-      }, 0)
-
-      return {
-        playerId:    p.id,
-        nom:         (p.profiles as { full_name: string | null } | null)?.full_name ?? '?',
-        totalPoints,
-        totalCash:   0,
-      }
-    })
-    } // end else (closer)
-
-    // Trier et sauvegarder les résultats mensuels
     const sorted = [...scores].sort((a, b) => {
       if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
       return b.totalCash - a.totalCash
@@ -299,19 +292,74 @@ export async function confirmerElimination(month: number) {
 
     for (let i = 0; i < sorted.length; i++) {
       await db.from('chasse_monthly_results').upsert({
-        month, groupe,
-        player_id:    sorted[i].playerId,
-        total_points: sorted[i].totalPoints,
-        total_cash:   sorted[i].totalCash,
-        rank:         i + 1,
-        eliminated:   i === sorted.length - 1,
+        month, groupe: sorted[i].groupe, player_id: sorted[i].playerId,
+        total_points: sorted[i].totalPoints, total_cash: sorted[i].totalCash,
+        rank: i + 1, eliminated: i === sorted.length - 1,
       }, { onConflict: 'month,groupe,player_id' })
     }
 
-    // Marquer la dernière comme éliminée
     if (sorted.length > 0) {
       const elimineeId = sorted[sorted.length - 1].playerId
       await db.from('chasse_players').update({ status: 'eliminated', eliminated_month: month }).eq('id', elimineeId)
+    }
+  } else {
+    // ── Format Octobre : par groupe ──────────────────────────────────────
+    const { data: duels } = await db
+      .from('chasse_duels')
+      .select('*, chasse_weeks!inner(month)')
+      .eq('chasse_weeks.month', month)
+      .eq('is_confirmed', true)
+
+    for (const groupe of ['closer', 'setter'] as const) {
+      const groupePlayers = players.filter(p => p.groupe === groupe)
+
+      let scores: PlayerScore[]
+      if (groupe === 'setter') {
+        scores = groupePlayers.map(p => {
+          const myResults = (setterResultsData ?? []).filter(r => r.player_id === p.id)
+          return {
+            playerId:    p.id,
+            nom:         (p.profiles as { full_name: string | null } | null)?.full_name ?? '?',
+            totalPoints: myResults.reduce((s, r) => s + (r.points ?? 0), 0),
+            totalCash:   myResults.reduce((s, r) => s + (r.cash ?? 0), 0),
+          }
+        })
+      } else {
+        const groupeDuels = (duels ?? []).filter(d => d.groupe === groupe)
+        scores = groupePlayers.map(p => {
+          const myDuels = groupeDuels.filter(d => d.player1_id === p.id || d.player2_id === p.id)
+          const totalPoints = myDuels.reduce((s, d) => {
+            if (d.player1_id === p.id) return s + (d.points_p1 ?? 0)
+            return s + (d.points_p2 ?? 0)
+          }, 0)
+          return {
+            playerId:    p.id,
+            nom:         (p.profiles as { full_name: string | null } | null)?.full_name ?? '?',
+            totalPoints, totalCash: 0,
+          }
+        })
+      }
+
+      const sorted = [...scores].sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
+        return b.totalCash - a.totalCash
+      })
+
+      for (let i = 0; i < sorted.length; i++) {
+        await db.from('chasse_monthly_results').upsert({
+          month, groupe,
+          player_id:    sorted[i].playerId,
+          total_points: sorted[i].totalPoints,
+          total_cash:   sorted[i].totalCash,
+          rank:         i + 1,
+          eliminated:   i === sorted.length - 1,
+        }, { onConflict: 'month,groupe,player_id' })
+      }
+
+      if (sorted.length > 0) {
+        const elimineeId = sorted[sorted.length - 1].playerId
+        await db.from('chasse_players').update({ status: 'eliminated', eliminated_month: month }).eq('id', elimineeId)
+      }
     }
   }
 
@@ -329,17 +377,18 @@ export async function activerSemaine(weekId: string) {
 
   await db.from('chasse_weeks').update({ status: 'active' }).eq('id', weekId)
 
-  // Calendrier statique (closers seulement — setters utilisent chasse_setter_results)
+  // Nov/Dec : format groupe combiné — pas de duels 1v1 à créer
+  if (week.month >= 11) {
+    revalidatePath('/chasse')
+    return
+  }
+
+  // Calendrier statique octobre (closers seulement — setters utilisent chasse_setter_results)
   const SCHEDULE: Record<number, Array<[string, string | null, boolean]>> = {
     1:  [['A','B',false], ['C','E',false], ['D',null,true]],
     2:  [['A','C',false], ['D','E',false], ['B',null,true]],
     3:  [['A','D',false], ['B','C',false], ['E',null,true]],
-    5:  [['#1','#4',false], ['#2','#3',false]],
-    6:  [['#1','#3',false], ['#2','#4',false]],
-    7:  [['#1','#2',false], ['#3','#4',false]],
-    9:  [['#1','#4',false], ['#2','#3',false]],
-    10: [['#1','#3',false], ['#2','#4',false]],
-    11: [['#1','#2',false], ['#3','#4',false]],
+    // semaine 4 : dynamique selon classement
   }
 
   const specs = SCHEDULE[week.week_number as keyof typeof SCHEDULE]

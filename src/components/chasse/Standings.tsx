@@ -7,21 +7,21 @@ const dollar = (n: number) =>
   new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' $'
 
 interface StandingRow {
-  playerId:     string
-  nom:          string
-  position:     string
-  points:       number
-  cash:         number
-  rank:         number
-  isEliminated: boolean
-  totalPoints?: number
-  totalCash?:   number
+  playerId:      string
+  nom:           string
+  position:      string
+  points:        number
+  cash:          number
+  rank:          number
+  isEliminated:  boolean
+  totalPoints?:  number
+  totalCash?:    number
   isThreatened?: boolean
-  groupe?:      string
+  groupe?:       string
 }
 
 interface StandingsProps {
-  groupe:    'closer' | 'setter'
+  groupe:    'closer' | 'setter' | 'combined'
   rows:      StandingRow[]
   showCash:  boolean
   month:     string
@@ -33,17 +33,22 @@ export default function Standings({ groupe, rows, showCash, month }: StandingsPr
   const actifs    = rows.filter(r => !r.isEliminated)
   const eliminees = rows.filter(r => r.isEliminated)
 
-  const color = groupe === 'closer' ? 'violet' : 'blue'
+  const isCombined = groupe === 'combined'
+  const color  = isCombined ? 'amber' : groupe === 'closer' ? 'violet' : 'blue'
+  const title  = isCombined ? 'Classement Général' : groupe + 's'
+  const emoji  = isCombined ? '🏆' : groupe === 'closer' ? '🏹' : '📞'
 
   return (
     <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm">{groupe === 'closer' ? '🏹' : '📞'}</span>
-          <span className="text-sm font-bold text-stone-800 capitalize">{groupe}s</span>
+          <span className="text-sm">{emoji}</span>
+          <span className="text-sm font-bold text-stone-800 capitalize">{title}</span>
           <span className={cn(
             'text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
-            color === 'violet' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700',
+            color === 'violet' ? 'bg-violet-100 text-violet-700'
+            : color === 'blue'   ? 'bg-blue-100 text-blue-700'
+            : 'bg-amber-100 text-amber-700',
           )}>
             {month}
           </span>
@@ -64,12 +69,16 @@ export default function Standings({ groupe, rows, showCash, month }: StandingsPr
               <span className="text-sm">{MEDALS[row.rank] ?? `#${row.rank}`}</span>
             </div>
 
-            <div className={cn(
-              'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0',
-              color === 'violet' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700',
-            )}>
-              {row.position}
-            </div>
+            {isCombined ? (
+              <span className="text-sm shrink-0">{row.groupe === 'closer' ? '🏹' : '📞'}</span>
+            ) : (
+              <div className={cn(
+                'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0',
+                color === 'violet' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700',
+              )}>
+                {row.position}
+              </div>
+            )}
 
             <p className="flex-1 text-sm font-semibold text-stone-800 truncate">{row.nom}</p>
 

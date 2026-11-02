@@ -152,7 +152,9 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
     [weeks, currentMonth]
   )
 
-  // Calcul des scores pour les closers (format duel)
+  const isNovDec = currentMonth >= 11
+
+  // Calcul des scores pour les closers (format duel — Octobre)
   function computeCloserScores(): PlayerScore[] {
     const groupePlayers = players.filter(p => p.groupe === 'closer' && p.status === 'active')
     const monthDuels = duels.filter(d => {
@@ -169,7 +171,7 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
     })
   }
 
-  // Calcul des scores pour les setters (format groupe — chasse_setter_results)
+  // Calcul des scores pour les setters (format groupe — Octobre)
   function computeSetterScores(): PlayerScore[] {
     const groupePlayers = players.filter(p => p.groupe === 'setter' && p.status === 'active')
     return groupePlayers.map(p => {
@@ -179,10 +181,25 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
     })
   }
 
-  const closerScores   = computeCloserScores()
-  const setterScores   = computeSetterScores()
+  // Calcul des scores combinés (Nov/Dec — tout le monde ensemble)
+  function computeCombinedScores(): PlayerScore[] {
+    const activePlayers = players.filter(p => p.status === 'active')
+    return activePlayers.map(p => {
+      const myResults = setterResults.filter(r => r.player_id === p.id && currentMonthWeekIds.has(r.week_id) && r.is_confirmed)
+      const totalPoints = myResults.reduce((s, r) => s + (r.points ?? 0), 0)
+      return { playerId: p.id, nom: p.profiles?.full_name?.split(' ')[0] ?? '?', totalPoints, totalCash: getCash(p.id, p.groupe) }
+    })
+  }
+
+  const closerScores    = computeCloserScores()
+  const setterScores    = computeSetterScores()
   const closerStandings = classerJoueuses(closerScores)
   const setterStandings = classerJoueuses(setterScores)
+  const combinedStandings = classerJoueuses(computeCombinedScores()).map(s => ({
+    ...s,
+    isEliminated: playerMap.get(s.playerId)?.status === 'eliminated',
+    groupe: playerMap.get(s.playerId)?.groupe ?? 'closer',
+  }))
 
   // Tombées au combat
   const tombees = players.filter(p => p.status === 'eliminated')
@@ -231,11 +248,15 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
           {/* Période */}
           {currentWeek && (
             <div className="mt-4 grid grid-cols-3 gap-3">
-              {[
+              {(isNovDec ? [
+                { label: 'Joueuses actives', value: players.filter(p => p.status === 'active').length },
+                { label: 'Closers restantes', value: players.filter(p => p.groupe === 'closer' && p.status === 'active').length },
+                { label: 'Setters restantes', value: players.filter(p => p.groupe === 'setter' && p.status === 'active').length },
+              ] : [
                 { label: 'Closers actives', value: players.filter(p => p.groupe === 'closer' && p.status === 'active').length },
                 { label: 'Setters actives', value: players.filter(p => p.groupe === 'setter' && p.status === 'active').length },
                 { label: 'Duels cette semaine', value: currentDuels.filter(d => !d.is_cerf).length },
-              ].map(kpi => (
+              ]).map(kpi => (
                 <div key={kpi.label} className="bg-black/20 rounded-xl px-3 py-3 text-center">
                   <p className="text-2xl font-bold text-amber-100">{kpi.value}</p>
                   <p className="text-[10px] text-amber-400 mt-0.5 uppercase tracking-wide">{kpi.label}</p>
@@ -274,8 +295,74 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
         <div className="space-y-6">
           {currentWeek ? (
             <>
-              {/* ── Closers : duels 1v1 ──────────────────────────────── */}
-              {(() => {
+              {/* ── Nov/Dec : groupe combiné ──────────────────────────── */}
+              {isNovDec && (() => {
+                const activeAll = players.filter(p => p.status === 'active')
+                const weekCombined = setterResults.filter(r => r.week_id === currentWeek.id && r.is_confirmed)
+                const isCombinedConfirmed = weekCombined.length > 0
+                const COMBINED_POINTS = [2, 1, 0.5, 0, 0]
+
+                const ranked = activeAll
+                  .map(p => {
+                    const saved    = weekCombined.find(r => r.player_id === p.id)
+                    const liveCash = getCash(p.id, p.groupe)
+                    return {
+                      id:         p.id,
+                      profile_id: p.profile_id,
+                      nom:        p.profiles?.full_name?.split(' ')[0] ?? '?',
+                      groupe:     p.groupe,
+                      cash:       isCombinedConfirmed ? (saved?.cash ?? 0) : liveCash,
+                      points:     isCombinedConfirmed ? (saved?.points ?? null) : null as number | null,
+                    }
+                  })
+                  .sort((a, b) => b.cash - a.cash)
+
+                if (!isCombinedConfirmed) {
+                  ranked.forEach((s, i) => { s.points = COMBINED_POINTS[i] ?? 0 })
+                }
+
+                const medalEmojis = ['🥇','🥈','🥉','4️⃣','5️⃣']
+                return (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm">🏆</span>
+                      <h3 className="text-xs font-bold text-amber-200 uppercase tracking-wider">Classement Semaine</h3>
+                      {isCombinedConfirmed
+                        ? <span className="text-[10px] text-emerald-400 font-semibold ml-1">✓ Confirmé</span>
+                        : <span className="text-[10px] text-amber-400 ml-1">Live · pts projetés</span>}
+                    </div>
+                    <div className="bg-stone-800/60 rounded-xl border border-stone-700/50 overflow-hidden">
+                      {ranked.map((s, i) => (
+                        <div key={s.id} className="flex items-center gap-3 px-4 py-3 border-b border-stone-700/40 last:border-0">
+                          <span className="text-base w-6 text-center shrink-0">{medalEmojis[i] ?? `#${i + 1}`}</span>
+                          <span className="text-sm shrink-0">{s.groupe === 'closer' ? '🏹' : '📞'}</span>
+                          <button
+                            onClick={() => setBreakdown({ profileId: s.profile_id, nom: s.nom, groupe: s.groupe as 'closer' | 'setter' })}
+                            className="flex-1 text-sm font-semibold text-amber-100 hover:text-amber-300 text-left transition-colors"
+                          >
+                            {s.nom}
+                          </button>
+                          {(showCash || isAdmin) && (
+                            <span className="text-sm font-mono text-amber-200">{dollar(s.cash)}</span>
+                          )}
+                          <span className={cn(
+                            'text-xs font-bold px-2.5 py-0.5 rounded-full min-w-[52px] text-center',
+                            s.points === 2   ? 'bg-amber-500/35 text-amber-200'
+                            : s.points === 1   ? 'bg-amber-500/25 text-amber-300'
+                            : s.points === 0.5 ? 'bg-stone-600/50 text-stone-300'
+                            : 'bg-stone-800/80 text-stone-500',
+                          )}>
+                            {s.points === 2 ? '2 pts' : s.points === 1 ? '1 pt' : s.points === 0.5 ? '½ pt' : '0 pt'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* ── Closers : duels 1v1 (Octobre seulement) ──────────── */}
+              {!isNovDec && (() => {
                 const closerDuels = currentDuels.filter(d => d.groupe === 'closer')
                 if (closerDuels.length === 0) return null
                 return (
@@ -317,8 +404,8 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                 )
               })()} {/* end closer IIFE */}
 
-              {/* ── Setters : format groupe ──────────────────────────── */}
-              {(() => {
+              {/* ── Setters : format groupe (Octobre seulement) ─────── */}
+              {!isNovDec && (() => {
                 const activeSetters = players.filter(p => p.groupe === 'setter' && p.status === 'active')
                 if (activeSetters.length === 0) return null
                 const weekSetterResults = currentWeek
@@ -382,7 +469,7 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                 )
               })()}
 
-              {currentDuels.filter(d => d.groupe === 'closer').length === 0 && (
+              {!isNovDec && currentDuels.filter(d => d.groupe === 'closer').length === 0 && (
                 <div className="bg-stone-800/50 rounded-xl p-8 text-center">
                   <p className="text-stone-400 text-sm">Les duels closers de cette semaine n&apos;ont pas encore été générés.</p>
                   {isAdmin && <p className="text-stone-500 text-xs mt-1">Utilise le panneau admin pour les créer.</p>}
@@ -450,36 +537,56 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
 
       {/* ── Classement ────────────────────────────────────────────── */}
       {tab === 'classement' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Standings
-            groupe="closer"
-            month={MONTH_LABELS[currentMonth]}
-            showCash={showCash || isAdmin}
-            rows={closerStandings.map(s => ({
-              playerId:     s.playerId,
-              nom:          s.nom,
-              position:     playerMap.get(s.playerId)?.position ?? '',
-              points:       s.totalPoints,
-              cash:         s.totalCash,
-              rank:         s.rank,
-              isEliminated: playerMap.get(s.playerId)?.status === 'eliminated',
-            }))}
-          />
-          <Standings
-            groupe="setter"
-            month={MONTH_LABELS[currentMonth]}
-            showCash={showCash || isAdmin}
-            rows={setterStandings.map(s => ({
-              playerId:     s.playerId,
-              nom:          s.nom,
-              position:     playerMap.get(s.playerId)?.position ?? '',
-              points:       s.totalPoints,
-              cash:         s.totalCash,
-              rank:         s.rank,
-              isEliminated: playerMap.get(s.playerId)?.status === 'eliminated',
-            }))}
-          />
-        </div>
+        isNovDec ? (
+          <div className="max-w-md mx-auto">
+            <Standings
+              groupe="combined"
+              month={MONTH_LABELS[currentMonth]}
+              showCash={showCash || isAdmin}
+              rows={combinedStandings.map(s => ({
+                playerId:     s.playerId,
+                nom:          s.nom,
+                position:     playerMap.get(s.playerId)?.position ?? '',
+                groupe:       s.groupe,
+                points:       s.totalPoints,
+                cash:         s.totalCash,
+                rank:         s.rank,
+                isEliminated: s.isEliminated,
+              }))}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Standings
+              groupe="closer"
+              month={MONTH_LABELS[currentMonth]}
+              showCash={showCash || isAdmin}
+              rows={closerStandings.map(s => ({
+                playerId:     s.playerId,
+                nom:          s.nom,
+                position:     playerMap.get(s.playerId)?.position ?? '',
+                points:       s.totalPoints,
+                cash:         s.totalCash,
+                rank:         s.rank,
+                isEliminated: playerMap.get(s.playerId)?.status === 'eliminated',
+              }))}
+            />
+            <Standings
+              groupe="setter"
+              month={MONTH_LABELS[currentMonth]}
+              showCash={showCash || isAdmin}
+              rows={setterStandings.map(s => ({
+                playerId:     s.playerId,
+                nom:          s.nom,
+                position:     playerMap.get(s.playerId)?.position ?? '',
+                points:       s.totalPoints,
+                cash:         s.totalCash,
+                rank:         s.rank,
+                isEliminated: playerMap.get(s.playerId)?.status === 'eliminated',
+              }))}
+            />
+          </div>
+        )
       )}
 
       {/* ── Bracket ───────────────────────────────────────────────── */}
@@ -550,7 +657,8 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
               const weekSetterResults = setterResults
                 .filter(r => r.week_id === week.id && r.is_confirmed)
                 .sort((a, b) => a.rank - b.rank)
-              const medalEmojis = ['🥇','🥈','🥉']
+              const isNovDecWeek = week.month >= 11
+              const medalEmojis  = ['🥇','🥈','🥉','4️⃣','5️⃣']
               return (
                 <div key={week.id} className="bg-stone-800/50 rounded-xl overflow-hidden">
                   <div className="px-4 py-3 border-b border-stone-700 flex items-center gap-3">
@@ -580,18 +688,23 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                         })}
                       </div>
                     )}
-                    {/* Setters groupe */}
+                    {/* Setters groupe (Oct) / Groupe combiné (Nov/Déc) */}
                     {weekSetterResults.length > 0 && (
                       <div className="bg-stone-700/30 rounded-xl border border-stone-600/40 overflow-hidden">
                         <div className="px-3 py-2 border-b border-stone-600/40 flex items-center gap-2">
-                          <span className="text-xs">📞</span>
-                          <span className="text-[10px] font-bold text-amber-200 uppercase tracking-wider">Setters</span>
+                          <span className="text-xs">{isNovDecWeek ? '🏆' : '📞'}</span>
+                          <span className="text-[10px] font-bold text-amber-200 uppercase tracking-wider">
+                            {isNovDecWeek ? 'Classement Semaine' : 'Setters'}
+                          </span>
                         </div>
                         {weekSetterResults.map((r, i) => {
                           const p = playerMap.get(r.player_id)
                           return (
                             <div key={r.player_id} className="flex items-center gap-3 px-3 py-2.5 border-b border-stone-700/30 last:border-0">
-                              <span className="text-sm w-5 text-center">{medalEmojis[i] ?? ''}</span>
+                              <span className="text-sm w-5 text-center">{medalEmojis[i] ?? `#${i+1}`}</span>
+                              {isNovDecWeek && (
+                                <span className="text-xs shrink-0">{p?.groupe === 'closer' ? '🏹' : '📞'}</span>
+                              )}
                               <span className="flex-1 text-sm font-semibold text-stone-200">
                                 {p?.profiles?.full_name?.split(' ')[0] ?? '?'}
                               </span>
@@ -600,11 +713,12 @@ export default function ChassView({ config, players, weeks, duels, monthlyResult
                               )}
                               <span className={cn(
                                 'text-xs font-bold px-2 py-0.5 rounded-full',
-                                r.points === 1   ? 'bg-amber-500/20 text-amber-300'
+                                r.points === 2   ? 'bg-amber-500/35 text-amber-200'
+                                : r.points === 1   ? 'bg-amber-500/20 text-amber-300'
                                 : r.points === 0.5 ? 'bg-stone-600/50 text-stone-300'
                                 : 'bg-stone-800 text-stone-500',
                               )}>
-                                {r.points === 1 ? '1 pt' : r.points === 0.5 ? '½ pt' : '0 pt'}
+                                {r.points === 2 ? '2 pts' : r.points === 1 ? '1 pt' : r.points === 0.5 ? '½ pt' : '0 pt'}
                               </span>
                             </div>
                           )
