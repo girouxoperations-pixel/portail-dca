@@ -1414,11 +1414,11 @@ export default function CashView({
       return Math.round((new Date(d2).getTime() - new Date(d1).getTime()) / 86400000)
     }
     const refundedWithDate = refunded.filter(e => e.refunded_at && e.entry_date)
+    const total     = refundedWithDate.length
     const within10  = refundedWithDate.filter(e => daysBetween(e.entry_date, e.refunded_at!) <= 10)
     const within30  = refundedWithDate.filter(e => daysBetween(e.entry_date, e.refunded_at!) <= 30)
-    const avgDays   = refundedWithDate.length > 0
-      ? Math.round(refundedWithDate.reduce((s, e) => s + daysBetween(e.entry_date, e.refunded_at!), 0) / refundedWithDate.length)
-      : null
+    const d11to30   = within30.length - within10.length
+    const d31plus   = total - within30.length
 
     return {
       totalCount, refundCount, refundAmount, totalAmount,
@@ -1426,13 +1426,13 @@ export default function CashView({
       refundPctAmount: totalAmount > 0 ? refundAmount / totalAmount * 100 : 0,
       byMonth,
       timing: {
-        total: refundedWithDate.length,
-        totalDeals: totalCount,
-        within10Count: within10.length,
-        within30Count: within30.length,
-        within10Pct: totalCount > 0 ? within10.length / totalCount * 100 : 0,
-        within30Pct: totalCount > 0 ? within30.length / totalCount * 100 : 0,
-        avgDays,
+        total,
+        within10Count:  within10.length,
+        d11to30Count:   d11to30,
+        d31plusCount:   d31plus,
+        within10Pct: total > 0 ? within10.length / total * 100 : 0,
+        d11to30Pct:  total > 0 ? d11to30         / total * 100 : 0,
+        d31plusPct:  total > 0 ? d31plus          / total * 100 : 0,
       },
     }
   }, [filtrees, recurringIds])
@@ -1990,24 +1990,24 @@ export default function CashView({
               </div>
               {refundStats.timing.total > 0 && (
                 <div className="px-5 py-4 border-b border-gray-50 bg-red-50/40">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Délai avant remboursement</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    Délai avant remboursement <span className="font-normal normal-case text-gray-400">— % sur {refundStats.timing.total} remboursements</span>
+                  </p>
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <p className="text-xs text-gray-400 mb-1">Dans les 10 jours</p>
-                      <p className="text-xl font-bold text-red-600 tabular-nums">{refundStats.timing.within10Pct.toFixed(1)}%</p>
-                      <p className="text-xs text-gray-400">{refundStats.timing.within10Count} / {refundStats.timing.totalDeals} deals</p>
+                      <p className="text-xs text-gray-400 mb-1">≤ 10 jours</p>
+                      <p className="text-xl font-bold text-emerald-600 tabular-nums">{refundStats.timing.within10Pct.toFixed(1)}%</p>
+                      <p className="text-xs text-gray-400">{refundStats.timing.within10Count} remboursements</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 mb-1">Dans les 30 jours</p>
-                      <p className="text-xl font-bold text-orange-500 tabular-nums">{refundStats.timing.within30Pct.toFixed(1)}%</p>
-                      <p className="text-xs text-gray-400">{refundStats.timing.within30Count} / {refundStats.timing.totalDeals} deals</p>
+                      <p className="text-xs text-gray-400 mb-1">11 – 30 jours</p>
+                      <p className="text-xl font-bold text-orange-500 tabular-nums">{refundStats.timing.d11to30Pct.toFixed(1)}%</p>
+                      <p className="text-xs text-gray-400">{refundStats.timing.d11to30Count} remboursements</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 mb-1">Délai moyen</p>
-                      <p className="text-xl font-bold text-gray-700 tabular-nums">
-                        {refundStats.timing.avgDays !== null ? `${refundStats.timing.avgDays}j` : '—'}
-                      </p>
-                      <p className="text-xs text-gray-400">entre le close et le remboursement</p>
+                      <p className="text-xs text-gray-400 mb-1">31 jours +</p>
+                      <p className="text-xl font-bold text-red-600 tabular-nums">{refundStats.timing.d31plusPct.toFixed(1)}%</p>
+                      <p className="text-xs text-gray-400">{refundStats.timing.d31plusCount} remboursements</p>
                     </div>
                   </div>
                 </div>
