@@ -65,7 +65,7 @@ export default async function CashPage() {
       setters={setters}
       allProfiles={allProfiles ?? []}
       csmMembers={csmMembers ?? []}
-      isAdmin={role === 'admin'}
+      isAdmin={role === 'admin' || role === 'csm' || role === 'head_csm'}
       recurringCashIds={recurringCashIds}
       recurringOccMap={recurringOccMap}
       perfs={perfs ?? []}
