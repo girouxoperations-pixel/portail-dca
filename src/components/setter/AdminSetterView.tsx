@@ -29,6 +29,7 @@ interface SetterEntry {
   rdv_agenda:   number
   showed:       number
   no_show:      number
+  rebook:       number
   disqualified: number
   cancelled:    number
   deals:        number
@@ -94,11 +95,12 @@ function computeKpis(rows: SetterEntry[]) {
   const rdv_agenda   = rows.reduce((s, e) => s + e.rdv_agenda,   0)
   const showed       = rows.reduce((s, e) => s + e.showed,       0)
   const no_show      = rows.reduce((s, e) => s + e.no_show,      0)
+  const rebook       = rows.reduce((s, e) => s + (e.rebook ?? 0), 0)
   const disqualified = rows.reduce((s, e) => s + e.disqualified, 0)
   const cancelled    = rows.reduce((s, e) => s + e.cancelled,    0)
   const deals        = rows.reduce((s, e) => s + e.deals,        0)
   return {
-    attempts, contacts, rdv, rdv_agenda, showed, no_show, disqualified, cancelled, deals,
+    attempts, contacts, rdv, rdv_agenda, showed, no_show, rebook, disqualified, cancelled, deals,
     contactRate: pct(contacts, attempts),
     bookRate:    pct(rdv, contacts),
     showRate:    pct(showed, rdv_agenda),
@@ -159,6 +161,7 @@ function ModalAjout({ setters, onClose }: { setters: Profil[]; onClose: () => vo
           <div className="grid grid-cols-3 gap-3">
             {[
               { name: 'no_show',      label: 'No Show'      },
+              { name: 'rebook',       label: 'Rebook'       },
               { name: 'disqualified', label: 'Disqualifiés' },
               { name: 'cancelled',    label: 'Annulés'      },
             ].map(f => (
@@ -239,9 +242,10 @@ function ModalModifier({ entry, setterName, onClose }: {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Pertes</p>
           <div className="grid grid-cols-3 gap-3">
             {([
-              { name: 'no_show',      label: 'No Show',      value: entry.no_show      },
-              { name: 'disqualified', label: 'Disqualifiés', value: entry.disqualified },
-              { name: 'cancelled',    label: 'Annulés',      value: entry.cancelled    },
+              { name: 'no_show',      label: 'No Show',      value: entry.no_show         },
+              { name: 'rebook',       label: 'Rebook',       value: entry.rebook ?? 0     },
+              { name: 'disqualified', label: 'Disqualifiés', value: entry.disqualified    },
+              { name: 'cancelled',    label: 'Annulés',      value: entry.cancelled       },
             ] as const).map(f => (
               <div key={f.name} className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-gray-700">{f.label}</label>
@@ -378,11 +382,11 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
   const statsParSetter = useMemo(() => {
     const agg = new Map<string, {
       attempts: number; contacts: number; rdv: number; rdv_agenda: number;
-      showed: number; no_show: number; disqualified: number; cancelled: number; deals: number
+      showed: number; no_show: number; rebook: number; disqualified: number; cancelled: number; deals: number
     }>()
     for (const e of filtreePeriode) {
       const cur = agg.get(e.user_id) ?? {
-        attempts: 0, contacts: 0, rdv: 0, rdv_agenda: 0, showed: 0, no_show: 0, disqualified: 0, cancelled: 0, deals: 0,
+        attempts: 0, contacts: 0, rdv: 0, rdv_agenda: 0, showed: 0, no_show: 0, rebook: 0, disqualified: 0, cancelled: 0, deals: 0,
       }
       agg.set(e.user_id, {
         attempts:     cur.attempts     + e.attempts,
@@ -391,6 +395,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
         rdv_agenda:   cur.rdv_agenda   + e.rdv_agenda,
         showed:       cur.showed       + e.showed,
         no_show:      cur.no_show      + e.no_show,
+        rebook:       cur.rebook       + (e.rebook ?? 0),
         disqualified: cur.disqualified + e.disqualified,
         cancelled:    cur.cancelled    + e.cancelled,
         deals:        cur.deals        + e.deals,
@@ -440,7 +445,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
   const weeklyStats = useMemo(() => {
     type WeekRow = {
       isoYear: number; week: number; weekStart: string; weekEnd: string
-      attempts: number; contacts: number; rdv: number; rdvAgenda: number; showed: number; noShow: number
+      attempts: number; contacts: number; rdv: number; rdvAgenda: number; showed: number; noShow: number; rebook: number
       deals: number; cashDeals: number; cashRecurrents: number
     }
     const map = new Map<string, WeekRow>()
@@ -449,13 +454,14 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
     for (const e of filtrees) {
       const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
       const key = `${isoYear}-${String(week).padStart(2, '0')}`
-      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, rdvAgenda: 0, showed: 0, noShow: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, rdvAgenda: 0, showed: 0, noShow: 0, rebook: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
       cur.attempts  += e.attempts
       cur.contacts  += e.contacts
       cur.rdv       += e.rdv_booked
       cur.rdvAgenda += e.rdv_agenda
       cur.showed    += e.showed
       cur.noShow    += e.no_show
+      cur.rebook    += (e.rebook ?? 0)
       map.set(key, cur)
     }
 
@@ -463,7 +469,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
     for (const e of filteredCashEntries) {
       const { isoYear, week, weekStart, weekEnd } = isoWeekInfo(e.entry_date)
       const key = `${isoYear}-${String(week).padStart(2, '0')}`
-      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, rdvAgenda: 0, showed: 0, noShow: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
+      const cur = map.get(key) ?? { isoYear, week, weekStart, weekEnd, attempts: 0, contacts: 0, rdv: 0, rdvAgenda: 0, showed: 0, noShow: 0, rebook: 0, deals: 0, cashDeals: 0, cashRecurrents: 0 }
       const isRecurring = e.close_type === 'recurring' || e.close_type === 'financement' || (e.notes?.startsWith('Récurrent') ?? false)
       if (isRecurring) {
         cur.cashRecurrents += e.collected ?? 0
@@ -568,10 +574,14 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
       {/* KPIs pertes */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Pertes équipe</p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
             <MetricCard label="No Show"      value={kpis.no_show}      icon={XCircle} color="violet" sub="RDV non honorés" />
             <DeltaBadge current={kpis.no_show} prev={kpisPrev.no_show} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
+            <MetricCard label="Rebook"       value={kpis.rebook}       icon={XCircle} color="amber"  sub="RDV reprogrammés" />
+            <DeltaBadge current={kpis.rebook} prev={kpisPrev.rebook} />
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-1">
             <MetricCard label="Disqualifiés" value={kpis.disqualified} icon={UserX}   color="amber"  sub="Prospects écartés" />
@@ -657,6 +667,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   <th className="px-4 py-2.5 text-right">Show %</th>
                   <th className="px-4 py-2.5 text-right">Deals</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
+                  <th className="px-4 py-2.5 text-right">Rebook</th>
                   <th className="px-4 py-2.5 text-right">Disq.</th>
                   <th className="px-4 py-2.5 text-right">Annulés</th>
                 </tr>
@@ -696,6 +707,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                       <td className="px-4 py-3 text-right"><PctBadge value={pct(s.showed, s.rdv_agenda)} bold /></td>
                       <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{s.deals > 0 ? s.deals : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-red-400">{s.no_show}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-orange-400">{s.rebook > 0 ? s.rebook : <span className="text-gray-200">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.disqualified}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-400">{s.cancelled}</td>
                     </tr>
@@ -716,6 +728,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   <td className="px-4 py-3 text-right"><PctBadge value={kpis.showRate} bold /></td>
                   <td className="px-4 py-3 text-right tabular-nums text-green-700 font-semibold">{kpis.deals}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-red-400">{kpis.no_show}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-orange-400">{kpis.rebook}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.disqualified}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{kpis.cancelled}</td>
                 </tr>
@@ -751,6 +764,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   <th className="px-4 py-2.5 text-right">Cash Récurrents</th>
                   <th className="px-4 py-2.5 text-right">Total Cash</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
+                  <th className="px-4 py-2.5 text-right">Rebook</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -774,6 +788,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                       <td className="px-4 py-3 text-right tabular-nums text-violet-600">{w.cashRecurrents > 0 ? dollar(w.cashRecurrents) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-bold text-gray-900">{(w.cashDeals + w.cashRecurrents) > 0 ? dollar(w.cashDeals + w.cashRecurrents) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-red-400">{w.noShow > 0 ? w.noShow : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-orange-400">{w.rebook > 0 ? w.rebook : <span className="text-gray-300">—</span>}</td>
                     </tr>
                   )
                 })}
@@ -845,6 +860,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                   <th className="px-4 py-2.5 text-right">Show %</th>
                   <th className="px-4 py-2.5 text-right">Deals</th>
                   <th className="px-4 py-2.5 text-right">No Show</th>
+                  <th className="px-4 py-2.5 text-right">Rebook</th>
                   <th className="px-4 py-2.5 text-right">Annulés</th>
                   <th className="px-4 py-2.5 text-right">Disqualif.</th>
                   <th className="px-4 py-2.5 text-left">Notes</th>
@@ -868,6 +884,7 @@ export default function AdminSetterView({ entrees, setters, cashEntries, isAdmin
                     <td className="px-4 py-3 text-right"><PctBadge value={pct(e.showed, e.rdv_agenda)} bold /></td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-700">{e.deals > 0 ? e.deals : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-400">{e.no_show}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-orange-400">{(e.rebook ?? 0) > 0 ? e.rebook : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-orange-400">{e.cancelled > 0 ? e.cancelled : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-500">{e.disqualified > 0 ? e.disqualified : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-xs text-gray-400 max-w-[120px] truncate">{e.notes ?? '—'}</td>

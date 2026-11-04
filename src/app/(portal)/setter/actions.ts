@@ -30,6 +30,7 @@ function parseFields(formData: FormData) {
     rdv_agenda:   Number(formData.get('rdv_agenda')   ?? 0),
     showed:       Number(formData.get('showed')       ?? 0),
     no_show:      Number(formData.get('no_show')      ?? 0),
+    rebook:       Number(formData.get('rebook')       ?? 0),
     disqualified: Number(formData.get('disqualified') ?? 0),
     cancelled:    Number(formData.get('cancelled')    ?? 0),
     deals:        Number(formData.get('deals')        ?? 0),
