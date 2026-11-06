@@ -56,7 +56,7 @@ export default async function AlveoPage() {
       profiles={profiles ?? []}
       creances={creances ?? []}
       csmMembers={csmMembers ?? []}
-      isAdmin={profil.role === 'admin'}
+      isAdmin={['admin', 'csm', 'head_csm'].includes(profil.role as string)}
     />
   )
 }
