@@ -9,11 +9,14 @@ export default async function AlveoPage() {
   if (!user) redirect('/login')
 
   const { data: profil } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
+    .from('profiles').select('role, roles').eq('id', user.id).single()
 
-  if (!profil || !['admin', 'csm', 'head_csm'].includes(profil.role as string)) {
-    redirect('/dashboard')
-  }
+  const userRoles = (profil?.roles ?? []) as string[]
+  const hasAccess = profil && (
+    ['admin', 'csm', 'head_csm'].includes(profil.role as string) ||
+    userRoles.some(r => ['admin', 'csm', 'head_csm'].includes(r))
+  )
+  if (!hasAccess) redirect('/dashboard')
 
   const db = createAdminClient()
 
@@ -56,7 +59,10 @@ export default async function AlveoPage() {
       profiles={profiles ?? []}
       creances={creances ?? []}
       csmMembers={csmMembers ?? []}
-      isAdmin={['admin', 'csm', 'head_csm'].includes(profil.role as string)}
+      isAdmin={
+        ['admin', 'csm', 'head_csm'].includes(profil.role as string) ||
+        userRoles.some(r => ['admin', 'csm', 'head_csm'].includes(r))
+      }
     />
   )
 }
