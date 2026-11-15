@@ -47,6 +47,8 @@ interface Analyse {
   correctifs?: { point: string; citation?: string; a_dire?: string }[]
   focus?: string
   signal_setter?: string
+  cash?: { paiement_obtenu?: string; montant_aujourdhui?: string; paiement_complet_vise_en_premier?: string; argent_laisse_sur_la_table?: string }
+  profil_lead?: { source_ou_webinaire?: string; profil?: string; motivation_principale?: string; objection_principale?: string; qualite_lead?: string; commentaire_ads?: string }
 }
 
 const VERDICT: Record<string, { label: string; cls: string }> = {
@@ -242,6 +244,32 @@ function CarteAppel({ a }: { a: AnalyseRow }) {
             </div>
           )}
 
+          {(an.cash || an.profil_lead) && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {an.cash && (
+                <div className="bg-emerald-50 rounded-xl p-3 space-y-1 text-xs text-emerald-950">
+                  <p className="text-[11px] font-semibold uppercase text-emerald-600">Cash</p>
+                  {an.cash.paiement_obtenu && <p><strong>Obtenu : </strong>{an.cash.paiement_obtenu}{an.cash.montant_aujourdhui && an.cash.montant_aujourdhui !== 'inconnu' && ` (${an.cash.montant_aujourdhui})`}</p>}
+                  {an.cash.paiement_complet_vise_en_premier && <p><strong>Paiement complet visé en premier : </strong>{an.cash.paiement_complet_vise_en_premier}</p>}
+                  {an.cash.argent_laisse_sur_la_table && <p className="text-orange-700"><strong>Laissé sur la table : </strong>{an.cash.argent_laisse_sur_la_table}</p>}
+                </div>
+              )}
+              {an.profil_lead && (
+                <div className="bg-sky-50 rounded-xl p-3 space-y-1 text-xs text-sky-950">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase text-sky-600">Ce que les ads attirent</p>
+                    {an.profil_lead.qualite_lead && <span className="font-semibold">Lead {an.profil_lead.qualite_lead}</span>}
+                  </div>
+                  {an.profil_lead.source_ou_webinaire && <p><strong>Source : </strong>{an.profil_lead.source_ou_webinaire}</p>}
+                  {an.profil_lead.profil && <p><strong>Profil : </strong>{an.profil_lead.profil}</p>}
+                  {an.profil_lead.motivation_principale && <p><strong>Motivation : </strong>{an.profil_lead.motivation_principale}</p>}
+                  {an.profil_lead.objection_principale && <p><strong>Objection : </strong>{an.profil_lead.objection_principale}</p>}
+                  {an.profil_lead.commentaire_ads && <p className="italic">{an.profil_lead.commentaire_ads}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
           {an.verdict_explication && <p className="text-gray-700"><strong>Verdict : </strong>{an.verdict_explication}</p>}
 
           {an.etapes?.length ? (
@@ -258,7 +286,7 @@ function CarteAppel({ a }: { a: AnalyseRow }) {
 
           {an.forces?.length ? (
             <div>
-              <p className="text-[11px] font-semibold uppercase text-emerald-600 mb-1">Forces</p>
+              <p className="text-[11px] font-semibold uppercase text-emerald-600 mb-1">Ce qui va bien (à garder)</p>
               {an.forces.map((f, i) => (
                 <div key={i} className="mb-2">
                   <p className="text-gray-800">• {f.point}</p>

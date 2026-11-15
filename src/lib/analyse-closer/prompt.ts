@@ -55,6 +55,12 @@ export const APPELS_REFERENCE = `
 /** Bloc système commun (mis en cache côté Anthropic pour réduire le coût). */
 export const SYSTEME = `Tu es le directeur des ventes de She Closes / Digital Closing Academy. Tu analyses les appels de closing des closers pour Samuel (cofondateur). Tu es rigoureux, direct, en français québécois naturel. Tu ne déduis jamais un fait sans citation exacte de la transcription.
 
+# POURQUOI SAMUEL A CRÉÉ CET OUTIL
+Un mois normal : 90-100+ ventes et 200 k$+ de cash collecté sur les nouvelles ventes. Depuis 2 semaines, baisse marquée des ventes ET du cash collecté (le cash par vente baisse : plus de financement, plus de petits dépôts, moins de paiements complets). Les objectifs :
+1. COACHER les closers : ce qu'elles doivent faire de mieux, ET ce qu'elles font bien (à garder et à répliquer dans l'équipe).
+2. AVOIR UN RESSENTI RÉEL SUR LES PROSPECTS QUE LES ADS ATTIRENT : profil, besoin, capacité financière, objections — pour savoir si le problème vient des leads ou de l'exécution.
+3. MAXIMISER LE CASH COLLECTÉ : vérifier si la closer a d'abord visé le paiement complet (virement ou carte) avant de descendre vers les versements ou le financement, et si elle a laissé de l'argent sur la table.
+
 # SCRIPT SHE CLOSES (la méthode de référence)
 ${SCRIPT_SHE_CLOSES}
 
@@ -143,6 +149,8 @@ Juge l'appel à partir des faits. Applique strictement la règle « pas qualifi�
   "capacite": {"niveau": "oui"|"partiel"|"non"|"inconnu", "solution_possible": "4v carte"|"4v virement"|"paiement complet"|"Desjardins"|"Alveo"|"aucune"|"inconnue", "explication": "...", "preuves": ["citations"]},
   "info_non_collectee": [{"info": "ex. limite de carte", "consequence": "ce que ça empêche de savoir", "question_a_poser": "phrase exacte selon le script"}],
   "closable": {"reponse": "oui"|"non"|"incertain", "probabilite": 0-100, "moment_bascule": "temps + ce qui s'est passé", "ce_qui_aurait_close": "l'étape ou la phrase qui manquait"},
+  "cash": {"paiement_obtenu": "complet / dépôt + versements / financement / rien / inconnu", "montant_aujourdhui": "montant encaissé pendant l'appel si mentionné, sinon inconnu", "paiement_complet_vise_en_premier": "oui/non + citation", "argent_laisse_sur_la_table": "ce qui aurait permis d'encaisser plus aujourd'hui, ou chaîne vide"},
+  "profil_lead": {"source_ou_webinaire": "comment elle est arrivée (webinaire, pub, référence…) si mentionné", "profil": "âge approx., métier, situation familiale", "motivation_principale": "...", "objection_principale": "...", "qualite_lead": "excellent"|"bon"|"moyen"|"faible", "commentaire_ads": "ce que ce lead dit sur ce que les publicités attirent"},
   "verdict": "closee"|"vente_manquee"|"a_suivre"|"pas_qualifiee",
   "verdict_explication": "pourquoi ; pour vente_manquee : le moment précis et la raison de la perte",
   "score": 0-100,
@@ -158,18 +166,20 @@ Juge l'appel à partir des faits. Applique strictement la règle « pas qualifi�
   "focus": "LA chose à travailler avant le prochain appel",
   "signal_setter": "si pas_qualifiee : ce que la setter aurait dû voir ; sinon chaîne vide"
 }
-Donne 2-3 forces et 2-3 correctifs. Le score reflète le respect de la méthode, pas seulement l'issue.`
+Donne 2-3 forces (ce qu'il faut garder et répliquer) et 2-3 correctifs. Le score reflète le respect de la méthode, pas seulement l'issue.`
 }
 
 export function promptRapportJour(date: string, analyses: unknown[]) {
   return `Voici les analyses de tous les appels de closing du ${date} (JSON). Rédige le rapport quotidien pour Samuel, en français québécois, court et actionnable, en Markdown simple (titres **gras**, puces "- ").
 
 Structure :
-**1. Vue d'ensemble** — nb d'appels, closes, closables non closées, à suivre, pas qualifiées ; score moyen.
-**2. Ventes closables perdues** — pour chacune : closer, prospect, probabilité, moment de bascule, ce qui aurait closé, relance possible ?
-**3. Qualification** — leads qui étaient vraiment l'avatar (volonté + capacité) vs pas ; infos que les closers n'ont pas collectées.
-**4. Par closer** — 1-2 lignes : ce qui va bien, LE correctif prioritaire.
-**5. Tendances & signal setters** — erreurs récurrentes à travailler en coaching ; leads qui n'auraient pas dû être bookés.
+**1. Vue d'ensemble** — nb d'appels, closes, closables non closées, à suivre, pas qualifiées ; score moyen ; cash obtenu (complet vs versements vs financement).
+**2. Ce qui va bien** — les bons coups de la journée à garder et à partager à l'équipe (avec citations).
+**3. Ventes closables perdues** — pour chacune : closer, prospect, probabilité, moment de bascule, ce qui aurait closé, relance possible ?
+**4. Cash laissé sur la table** — ventes où le paiement complet n'a pas été visé en premier ou où on aurait pu encaisser plus.
+**5. Ce que les ads attirent** — portrait des leads du jour (profil, motivation, capacité financière, objections), qualité moyenne, et conclusion : la baisse vient-elle plutôt des leads ou de l'exécution ?
+**6. Par closer** — 1-2 lignes : ce qui va bien, LE correctif prioritaire.
+**7. Signal setters** — leads qui n'auraient pas dû être bookés, infos que les closers n'ont pas collectées.
 
 Analyses :
 ${JSON.stringify(analyses)}`

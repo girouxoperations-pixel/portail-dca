@@ -193,7 +193,7 @@ export async function genererRapportJour(date: string) {
       solution: r.solution, score: r.score, note_samuel: r.samuel_note,
       resume: a.resume, explication: a.verdict_explication, bascule: a.closable,
       info_non_collectee: a.info_non_collectee, correctifs: a.correctifs, focus: a.focus,
-      signal_setter: a.signal_setter,
+      signal_setter: a.signal_setter, cash: a.cash, profil_lead: a.profil_lead, forces: a.forces,
     }
   })
   const { texte } = await appelerClaude(promptRapportJour(date, compact), 4000)
