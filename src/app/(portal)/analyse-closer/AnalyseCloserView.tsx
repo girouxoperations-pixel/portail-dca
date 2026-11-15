@@ -127,7 +127,8 @@ function Feedback({ a }: { a: AnalyseRow }) {
   const router = useRouter()
 
   const envoyer = (accord: boolean) => start(async () => {
-    await donnerFeedback({ id: a.id, accord, verdict: accord ? null : verdict, closable: accord ? null : closable, note })
+    const r = await donnerFeedback({ id: a.id, accord, verdict: accord ? null : verdict, closable: accord ? null : closable, note })
+    if (!r.ok) { alert(r.erreur); return }
     setMode('ferme')
     router.refresh()
   })
@@ -315,7 +316,7 @@ function CarteAppel({ a }: { a: AnalyseRow }) {
           <Feedback a={a} />
 
           <button
-            onClick={() => { if (confirm('Supprimer cette analyse ?')) start(() => supprimerAnalyse(a.id)) }}
+            onClick={() => { if (confirm('Supprimer cette analyse ?')) start(async () => { const r = await supprimerAnalyse(a.id); if (!r.ok) alert(r.erreur) }) }}
             disabled={pending}
             className="text-xs text-gray-400 hover:text-red-600 inline-flex items-center gap-1"
           >
@@ -430,9 +431,11 @@ export default function AnalyseCloserView({ analyses, rapports, closers }: {
     startAnalyse(async () => {
       try {
         setEtape(1)
-        const faits = await extraireFaits({ closer, prospect, transcript })
+        const f = await extraireFaits({ closer, prospect, transcript })
+        if (!f.ok) throw new Error(`Étape 1 (extraction) : ${f.erreur}`)
         setEtape(2)
-        await analyserAppelCloser({ closer, prospect, callDate, fathomUrl, issue, transcript, faits })
+        const r = await analyserAppelCloser({ closer, prospect, callDate, fathomUrl, issue, transcript, faits: f.data })
+        if (!r.ok) throw new Error(`Étape 2 (jugement) : ${r.erreur}`)
         setTranscript(''); setProspect(''); setFathomUrl(''); setIssue('')
         setJour(callDate)
         setOnglet('jour')
@@ -448,7 +451,11 @@ export default function AnalyseCloserView({ analyses, rapports, closers }: {
   function rapportJour() {
     setErreur(null)
     startRapport(async () => {
-      try { await genererRapportJour(jour); router.refresh() }
+      try {
+        const r = await genererRapportJour(jour)
+        if (!r.ok) throw new Error(r.erreur)
+        router.refresh()
+      }
       catch (err) { setErreur(err instanceof Error ? err.message : 'Erreur inattendue') }
     })
   }
