@@ -28,3 +28,17 @@ create table if not exists public.call_daily_reports (
 -- RLS activée sans aucune policy : seul le service role (serveur) y accède.
 alter table public.call_analyses      enable row level security;
 alter table public.call_daily_reports enable row level security;
+
+-- v2 : grilles avatar/closable, faits extraits, feedback de Samuel (boucle d'apprentissage)
+alter table public.call_analyses
+  add column if not exists faits jsonb,
+  add column if not exists volonte text check (volonte in ('oui','partiel','non','inconnu')),
+  add column if not exists capacite text check (capacite in ('oui','partiel','non','inconnu')),
+  add column if not exists closable text check (closable in ('oui','non','incertain')),
+  add column if not exists closable_pct int check (closable_pct between 0 and 100),
+  add column if not exists info_manquante boolean default false,
+  add column if not exists samuel_accord boolean,
+  add column if not exists samuel_verdict text,
+  add column if not exists samuel_closable text,
+  add column if not exists samuel_note text,
+  add column if not exists feedback_at timestamptz;

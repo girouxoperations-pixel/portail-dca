@@ -1,33 +1,44 @@
 import { SCRIPT_SHE_CLOSES } from './script'
 
-export const MODELE_ANALYSE = process.env.ANALYSE_CLOSER_MODEL || 'claude-sonnet-4-6'
+/** Modèle le plus puissant ; repli automatique si indisponible sur la clé. */
+export const MODELE_ANALYSE = process.env.ANALYSE_CLOSER_MODEL || 'claude-opus-5-5'
+export const MODELE_REPLI = 'claude-sonnet-4-6'
 
 /** Critères validés par Samuel (15 nov. 2026). */
 export const CRITERES = `
-## AVATAR TYPE SHE CLOSES
+## AVATAR TYPE SHE CLOSES — deux axes jugés séparément
+
+### Axe 1 : VOLONTÉ (veut le faire)
 - Femme de 18 à 50 ans.
-- Veut changer sa situation et a un besoin réel.
-- Veut se faire guider ; influençable.
-- Laisse la closer avoir le contrôle de l'appel.
-Signal ❌ fort : la prospect veut garder le contrôle de l'appel (mène avec ses questions, magasine, doute de tout, ne se laisse pas guider). Ce n'est pas notre cliente type, même si elle coche le reste.
+- Besoin réel et raison profonde de changer (argent, liberté, famille, job toxique…).
+- Urgence : un « pourquoi maintenant » (déclic, échéance, ras-le-bol).
+- Coachable : veut se faire guider, influençable, LAISSE LA CLOSER AVOIR LE CONTRÔLE de l'appel.
+Signal ❌ fort : la prospect veut garder le contrôle (mène avec ses questions, magasine, doute de tout, ne se laisse pas guider). Ce n'est pas notre cliente type même si elle coche le reste.
 Être bilingue n'est PAS une raison de disqualifier ; rediriger vers les États-Unis n'est qu'une sortie polie quand ce n'est pas notre avatar.
 
-## CAPACITÉ FINANCIÈRE (solution faisable)
-Au moins une option :
-- un plan de 4 versements minimum (4v), par carte de crédit ou par virement ;
-- une solution de financement : Desjardins, ou Alveo (regarde le cash flow plutôt que le crédit ; produit 12 mois).
+### Axe 2 : CAPACITÉ FINANCIÈRE (peut le faire)
+Au moins une solution concrète :
+- 4 versements minimum (4v) par carte de crédit (limite disponible suffisante) ou par virement ;
+- paiement complet (épargne, marge) ;
+- financement Desjardins (si elle est chez Desjardins / admissible) ;
+- financement Alveo (regarde le cash flow plutôt que le crédit ; produit 12 mois) — même avec un crédit faible.
 Prix actuel : 5 000 $ + taxes (certains appels de référence montrent l'ancien prix de 4 000 $).
 
+## RÈGLE CLÉ : « PAS QUALIFIÉE » ≠ « PAS POSÉ LA QUESTION »
+Si la closer n'a pas collecté une information (ex. jamais demandé la carte de crédit, la limite, la banque, l'épargne ; jamais proposé Desjardins/Alveo ; jamais creusé le pourquoi), l'axe est « inconnu » et c'est une FAUTE DE LA CLOSER, pas un lead non qualifié. Ne jamais conclure « pas de capacité financière » sans preuve dans la transcription.
+
+## CLOSABLE ?
+Une vente est closable si : Volonté = oui (ou partiel récupérable) ET Capacité = oui (ou une solution existait mais n'a pas été proposée/explorée). Elle n'est pas closable si la prospect n'est clairement pas l'avatar ou si les preuves montrent qu'aucune solution financière n'existait.
+
 ## VERDICTS
-- "closee" : la vente a été faite pendant l'appel (ou paiement/financement confirmé).
-- "vente_manquee" : bon avatar + solution faisable, mais pas closée → dire à quel moment et pourquoi l'appel a été perdu.
-- "a_suivre" : bon avatar, mais il manquait un élément réel (ex. financement Alveo/Desjardins en attente, rappel planifié).
-- "pas_qualifiee" : pas notre avatar ou aucune solution financière possible → signal pour les setters.
+- "closee" : vente faite pendant l'appel (ou paiement/financement confirmé).
+- "vente_manquee" : closable mais pas closée → moment précis et raison de la perte.
+- "a_suivre" : bon avatar, il manquait un élément réel (financement en attente, rappel planifié).
+- "pas_qualifiee" : pas notre avatar ou aucune solution financière possible (prouvé) → signal pour les setters.
 `
 
 /** Résumé des 11 appels de référence fournis par Samuel. */
 export const APPELS_REFERENCE = `
-Appels modèles (ce qui fonctionne chez nous) :
 1. Samuel — Céleste Ouellet : close via Desjardins.
 2. Samuel — Hanaé Poliquin : objection « pas d'un coup », plan financier, Desjardins.
 3. Samuel — Ilona Lefebvre : frame du webinaire, Desjardins.
@@ -35,25 +46,14 @@ Appels modèles (ce qui fonctionne chez nous) :
 5. Samuel — professionnelle d'un ordre (pas de commission possible) : veut plus de liberté, virement Interac fait pendant l'appel.
 6. Samuel — Lise : appel débuté en anglais ; versements autorisés au lieu de sortir tout d'un coup de la marge de crédit.
 7. Audrey — Sarah Lemieux : peur pour sa carte ; exception 4 versements par carte (~1 250 $ + taxes/mois).
-8. Emma Tardif — Laury Archambault : webinaire, budget serré (auto financée, carte 2 000 $), demande Alveo 12 mois lancée en direct, en attente de sélection → exemple « a_suivre ».
-9. Audrey — Sophie Vaillancourt : méfiante (formation à 8 000 $ sans résultat), refuse les intérêts ; prix reformulé en micro-versements (~115 $/mois), demande Desjardins faite pendant l'appel, fonds déposés et virement avant la fin.
-10. Samuel — Shana Chataigne : disqualification. Voulait garder le contrôle (mène avec ses questions, méfiante, veut garder sa job). Sortie polie vers les États-Unis, aucun pitch de prix → « pas_qualifiee » bien géré.
-11. Samuel — Camelia Tchang-Poirier : disqualification financière. Motivée mais aucune réserve (« cracher 2 000 $ ? non »). Fourchette de prix donnée avant l'offre, refus de la mettre en stress financier, report → « pas_qualifiee ».
+8. Emma Tardif — Laury Archambault : webinaire, budget serré (auto financée, carte 2 000 $), demande Alveo 12 mois lancée en direct, en attente → « a_suivre ».
+9. Audrey — Sophie Vaillancourt : méfiante (formation à 8 000 $ sans résultat), refuse les intérêts ; prix reformulé en micro-versements (~115 $/mois), Desjardins fait pendant l'appel, fonds déposés et virement avant la fin.
+10. Samuel — Shana Chataigne : pas l'avatar (veut garder le contrôle, méfiante, veut garder sa job). Sortie polie vers les États-Unis, aucun pitch de prix → « pas_qualifiee » bien géré.
+11. Samuel — Camelia Tchang-Poirier : disqualification financière prouvée (aucune réserve, « cracher 2 000 $ ? non », chômage incertain). Fourchette de prix donnée avant l'offre, report → « pas_qualifiee ».
 `
 
-export function promptAnalyse(params: {
-  closer: string
-  prospect?: string
-  issue?: string
-  transcript: string
-}) {
-  const issue =
-    params.issue === 'close' ? 'La closer indique que la vente a été closée.'
-    : params.issue === 'pas_close' ? "La closer indique que la vente n'a PAS été closée."
-    : params.issue === 'a_suivre' ? 'La closer indique que le dossier est à suivre.'
-    : "Issue de l'appel non précisée : déduis-la de la transcription."
-
-  return `Tu es le directeur des ventes de She Closes / Digital Closing Academy. Tu analyses un appel de closing pour Samuel (cofondateur), qui veut savoir exactement ce que fait chaque closer comparé à la méthode She Closes qui fonctionne. Tu es direct, précis, en français québécois naturel, et tu cites toujours les phrases exactes de la transcription.
+/** Bloc système commun (mis en cache côté Anthropic pour réduire le coût). */
+export const SYSTEME = `Tu es le directeur des ventes de She Closes / Digital Closing Academy. Tu analyses les appels de closing des closers pour Samuel (cofondateur). Tu es rigoureux, direct, en français québécois naturel. Tu ne déduis jamais un fait sans citation exacte de la transcription.
 
 # SCRIPT SHE CLOSES (la méthode de référence)
 ${SCRIPT_SHE_CLOSES}
@@ -61,29 +61,90 @@ ${SCRIPT_SHE_CLOSES}
 # CRITÈRES
 ${CRITERES}
 
-# APPELS DE RÉFÉRENCE
-${APPELS_REFERENCE}
+# APPELS DE RÉFÉRENCE (ce qui fonctionne chez nous)
+${APPELS_REFERENCE}`
 
-# APPEL À ANALYSER
-Closer : ${params.closer}
-${params.prospect ? `Prospect : ${params.prospect}` : ''}
-${issue}
+export interface Correction {
+  closer: string
+  prospect: string | null
+  verdict_ia: string | null
+  closable_ia: string | null
+  accord: boolean
+  verdict_samuel: string | null
+  closable_samuel: string | null
+  note: string | null
+}
+
+function blocCorrections(corrections: Correction[]) {
+  if (!corrections.length) return ''
+  return `
+# CORRECTIONS DE SAMUEL SUR DES ANALYSES PRÉCÉDENTES (calibre ton jugement sur les siennes)
+${corrections.map((c, i) => `${i + 1}. ${c.closer}${c.prospect ? ` → ${c.prospect}` : ''} : IA a dit verdict « ${c.verdict_ia} », closable « ${c.closable_ia} ». ${
+    c.accord ? 'Samuel est D\'ACCORD.' : `Samuel N'EST PAS D'ACCORD → verdict « ${c.verdict_samuel ?? c.verdict_ia} », closable « ${c.closable_samuel ?? c.closable_ia} ».`
+  }${c.note ? ` Raison : ${c.note}` : ''}`).join('\n')}
+`
+}
+
+/** Passe 1 : extraction des faits, sans jugement. */
+export function promptExtraction(p: { closer: string; prospect?: string; transcript: string }) {
+  return `PASSE 1 — EXTRACTION DES FAITS (aucun jugement).
+Closer : ${p.closer}${p.prospect ? `\nProspect : ${p.prospect}` : ''}
 
 TRANSCRIPTION :
 """
-${params.transcript.trim()}
+${p.transcript.trim()}
 """
 
-# CE QUE TU DOIS RENDRE
-Réponds UNIQUEMENT avec un objet JSON valide (sans texte autour, sans bloc de code), de cette forme :
+Extrais uniquement ce qui est dit, avec citations exactes et horodatage quand il existe. Réponds UNIQUEMENT avec un JSON valide :
+{
+  "prospect": {"age_ou_indice": "...", "situation": "métier, famille, contexte", "raison_de_changer": [{"fait": "...", "citation": "...", "temps": "mm:ss"}], "urgence": [{"fait": "...", "citation": "..."}], "controle_appel": [{"fait": "qui mène l'appel, se laisse guider ou non", "citation": "..."}]},
+  "finances": {"revenu": "... ou non collecté", "carte_credit": "limite/solde ou non collecté", "epargne_marge": "... ou non collecté", "banque": "... ou non collecté", "conjoint_ou_decideur": "...", "citations": ["..."]},
+  "questions_finances_posees": ["questions de la closer sur l'argent, mot pour mot"],
+  "solutions_proposees": ["4v carte", "virement", "Desjardins", "Alveo", "…ce qui a réellement été proposé"],
+  "prix_annonce": "montant et moment, ou non annoncé",
+  "objections": [{"objection": "...", "citation": "...", "temps": "...", "reponse_closer": "...", "resolue": true}],
+  "etapes_script": {"intro_frame": "fait/partiel/absent + preuve", "situation_actuelle": "...", "futur_desire": "...", "presentation": "...", "close": "..."},
+  "issue_observee": "close / paiement fait / financement en attente / rappel / refus / disqualifiée — avec citation",
+  "moments_cles": [{"temps": "...", "description": "..."}]
+}`
+}
+
+/** Passe 2 : jugement à partir des faits extraits. */
+export function promptJugement(p: {
+  closer: string
+  prospect?: string
+  issue?: string
+  faits: unknown
+  transcript: string
+  corrections: Correction[]
+}) {
+  const issue =
+    p.issue === 'close' ? 'La closer indique que la vente a été closée.'
+    : p.issue === 'pas_close' ? "La closer indique que la vente n'a PAS été closée."
+    : p.issue === 'a_suivre' ? 'La closer indique que le dossier est à suivre.'
+    : "Issue non précisée : déduis-la des faits."
+
+  return `PASSE 2 — JUGEMENT.
+Closer : ${p.closer}${p.prospect ? `\nProspect : ${p.prospect}` : ''}
+${issue}
+${blocCorrections(p.corrections)}
+FAITS EXTRAITS (passe 1) :
+${JSON.stringify(p.faits)}
+
+TRANSCRIPTION (pour vérifier une citation au besoin) :
+"""
+${p.transcript.trim()}
+"""
+
+Juge l'appel à partir des faits. Applique strictement la règle « pas qualifiée ≠ pas posé la question ». Réponds UNIQUEMENT avec un JSON valide :
 {
   "resume": "2-3 phrases : qui est la prospect, ce qui s'est passé, l'issue",
-  "verdict": "closee" | "vente_manquee" | "a_suivre" | "pas_qualifiee",
-  "verdict_explication": "pourquoi ce verdict ; pour vente_manquee : le moment précis et la raison de la perte",
-  "avatar": "oui" | "partiel" | "non",
-  "avatar_preuves": ["citations exactes de la prospect qui justifient (âge, besoin, se laisse guider ou non)"],
-  "solution_financiere": "4v carte" | "4v virement" | "paiement complet" | "Desjardins" | "Alveo" | "aucune" | "inconnue",
-  "solution_preuves": ["citations sur sa capacité financière"],
+  "volonte": {"niveau": "oui"|"partiel"|"non"|"inconnu", "besoin": "...", "urgence": "...", "laisse_le_controle": "oui/non + explication", "preuves": ["citations"]},
+  "capacite": {"niveau": "oui"|"partiel"|"non"|"inconnu", "solution_possible": "4v carte"|"4v virement"|"paiement complet"|"Desjardins"|"Alveo"|"aucune"|"inconnue", "explication": "...", "preuves": ["citations"]},
+  "info_non_collectee": [{"info": "ex. limite de carte", "consequence": "ce que ça empêche de savoir", "question_a_poser": "phrase exacte selon le script"}],
+  "closable": {"reponse": "oui"|"non"|"incertain", "probabilite": 0-100, "moment_bascule": "temps + ce qui s'est passé", "ce_qui_aurait_close": "l'étape ou la phrase qui manquait"},
+  "verdict": "closee"|"vente_manquee"|"a_suivre"|"pas_qualifiee",
+  "verdict_explication": "pourquoi ; pour vente_manquee : le moment précis et la raison de la perte",
   "score": 0-100,
   "etapes": [
     {"etape": "1. Intro / frame", "note": 0-10, "commentaire": "..."},
@@ -101,14 +162,14 @@ Donne 2-3 forces et 2-3 correctifs. Le score reflète le respect de la méthode,
 }
 
 export function promptRapportJour(date: string, analyses: unknown[]) {
-  return `Tu es le directeur des ventes de She Closes. Voici les analyses IA de tous les appels de closing du ${date} (JSON). Rédige le rapport quotidien pour Samuel, en français québécois, court et actionnable, en Markdown simple (titres **gras**, puces "- ").
+  return `Voici les analyses de tous les appels de closing du ${date} (JSON). Rédige le rapport quotidien pour Samuel, en français québécois, court et actionnable, en Markdown simple (titres **gras**, puces "- ").
 
 Structure :
-**1. Vue d'ensemble** — nombre d'appels, closes, ventes manquées, à suivre, pas qualifiées ; score moyen.
-**2. Ventes manquées** — pour chacune : closer, prospect, moment où ça a été perdu, quoi faire (relance possible ?).
-**3. Par closer** — 1-2 lignes chacune : ce qui va bien, LE correctif prioritaire.
-**4. Tendances** — erreurs qui reviennent dans l'équipe, à travailler en coaching.
-**5. Signal setters** — prospects pas qualifiées qui n'auraient pas dû être bookées.
+**1. Vue d'ensemble** — nb d'appels, closes, closables non closées, à suivre, pas qualifiées ; score moyen.
+**2. Ventes closables perdues** — pour chacune : closer, prospect, probabilité, moment de bascule, ce qui aurait closé, relance possible ?
+**3. Qualification** — leads qui étaient vraiment l'avatar (volonté + capacité) vs pas ; infos que les closers n'ont pas collectées.
+**4. Par closer** — 1-2 lignes : ce qui va bien, LE correctif prioritaire.
+**5. Tendances & signal setters** — erreurs récurrentes à travailler en coaching ; leads qui n'auraient pas dû être bookés.
 
 Analyses :
 ${JSON.stringify(analyses)}`

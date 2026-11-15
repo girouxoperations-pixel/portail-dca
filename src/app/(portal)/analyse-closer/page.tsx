@@ -19,7 +19,7 @@ export default async function AnalyseCloserPage() {
 
   const [{ data: analyses }, { data: rapports }, { data: closers }] = await Promise.all([
     db.from('call_analyses')
-      .select('id, call_date, closer_name, prospect_name, fathom_url, issue, verdict, avatar, solution, score, analysis, created_at')
+      .select('id, call_date, closer_name, prospect_name, fathom_url, issue, verdict, avatar, volonte, capacite, closable, closable_pct, info_manquante, solution, score, analysis, samuel_accord, samuel_verdict, samuel_closable, samuel_note, created_at')
       .gte('call_date', depuis)
       .order('call_date', { ascending: false })
       .order('created_at', { ascending: false }),
