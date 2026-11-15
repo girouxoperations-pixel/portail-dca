@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LogOut } from 'lucide-react'
+import { LogOut, Brain } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { NAV_ITEMS, type NavItem } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
+import { peutVoirAnalyseCloser } from '@/lib/analyse-closer/access'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -64,6 +65,12 @@ export default function PortalHeader({ profile }: PortalHeaderProps) {
       seen.add(item.href)
       return true
     })
+  // Onglet réservé (Samuel seulement)
+  if (peutVoirAnalyseCloser(profile.email)) {
+    const i = navItems.findIndex(n => n.href === '/analyseur')
+    navItems.splice(i >= 0 ? i + 1 : navItems.length, 0,
+      { label: 'Analyse-closer', href: '/analyse-closer', icon: Brain })
+  }
   const initials = getInitials(profile.full_name, profile.email)
   const roleLabel = ROLE_LABELS[profile.role] ?? profile.role
 
