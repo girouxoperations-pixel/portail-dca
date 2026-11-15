@@ -4,9 +4,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { peutVoirAnalyseCloser } from '@/lib/analyse-closer/access'
 import AnalyseCloserView, { type AnalyseRow, type RapportRow } from './AnalyseCloserView'
 
-// Une analyse Claude d'un long appel peut prendre plus d'une minute.
-export const maxDuration = 300
-
 function dateIlYA(jours: number) {
   return new Date(Date.now() - jours * 86400000).toISOString().slice(0, 10)
 }
