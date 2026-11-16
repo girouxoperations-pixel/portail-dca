@@ -65,6 +65,13 @@ export default function PortalHeader({ profile }: PortalHeaderProps) {
       seen.add(item.href)
       return true
     })
+  // Coach toujours placé juste après « Analyseur » (sinon il tombe à la fin pour les admins)
+  const iCoach = navItems.findIndex(n => n.href === '/coach')
+  if (iCoach >= 0) {
+    const [coach] = navItems.splice(iCoach, 1)
+    const iAna = navItems.findIndex(n => n.href === '/analyseur')
+    navItems.splice(iAna >= 0 ? iAna + 1 : navItems.length, 0, coach)
+  }
   // Onglet réservé (Samuel seulement)
   if (peutVoirAnalyseCloser(profile.email)) {
     const i = navItems.findIndex(n => n.href === '/analyseur')
