@@ -18,6 +18,7 @@ import {
   Mic,
   Crosshair,
   ClipboardList,
+  GraduationCap,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -91,6 +92,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Mon Suivi',    href: '/closer',       icon: Phone           },
     { label: 'Suivi client', href: '/suivi-client', icon: HeartHandshake  },
     { label: 'Analyseur',   href: '/analyseur',    icon: Mic             },
+    { label: 'Coach',        href: '/coach',        icon: GraduationCap   },
     { label: 'Feedback',     href: '/feedback',     icon: MessageSquare   },
     { label: 'Ma Paie',      href: '/payes',        icon: Banknote        },
     { label: 'Documents',    href: '/documents',    icon: FolderOpen      },

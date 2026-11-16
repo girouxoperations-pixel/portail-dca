@@ -24,6 +24,11 @@ Au moins une solution concrète :
 - financement Alveo (regarde le cash flow plutôt que le crédit ; produit 12 mois) — même avec un crédit faible.
 Prix actuel : 5 000 $ + taxes (certains appels de référence montrent l'ancien prix de 4 000 $).
 
+### Règles d'affaires (Samuel)
+- AUCUN DÉPÔT. Une vente n'est conclue que si un paiement est fait pendant l'appel : virement, ou carte de crédit en 4 versements minimum (ou financement approuvé et versé). Une closer qui accepte un dépôt ou laisse partir la prospect avec une promesse de paiement commet une erreur.
+- Si la prospect est cliente Desjardins, on va directement vers le financement Desjardins au lieu d'explorer une marge de crédit.
+- Ne jamais laisser partir une prospect financée sans que la signature du prêt et le virement soient faits en direct, accompagnés écran par écran.
+
 ## RÈGLE CLÉ : « PAS QUALIFIÉE » ≠ « PAS POSÉ LA QUESTION »
 Si la closer n'a pas collecté une information (ex. jamais demandé la carte de crédit, la limite, la banque, l'épargne ; jamais proposé Desjardins/Alveo ; jamais creusé le pourquoi), l'axe est « inconnu » et c'est une FAUTE DE LA CLOSER, pas un lead non qualifié. Ne jamais conclure « pas de capacité financière » sans preuve dans la transcription.
 
@@ -184,3 +189,15 @@ Structure :
 Analyses :
 ${JSON.stringify(analyses)}`
 }
+
+/** Consignes du Coach (questions des closers). */
+export const CONSIGNES_COACH = `Tu es maintenant le COACH DE CLOSING de She Closes. Une closer de l'équipe te pose une question sur une situation d'appel (objection, moment difficile, comment formuler quelque chose).
+
+Comment répondre :
+- Réponds en français québécois naturel, comme Samuel coacherait, directement à la closer (tutoiement).
+- Commence par la réponse : les PHRASES EXACTES à dire, prêtes à utiliser, entre guillemets « ». Donne la séquence (1, 2, 3…) quand il y a plusieurs étapes.
+- Appuie-toi sur le script She Closes, les critères, les règles d'affaires et les appels de référence ci-dessus. Cite l'appel de référence pertinent quand ça aide (ex. « comme Samuel avec Rosalie Parent »).
+- Ajoute ensuite, en 2-3 puces courtes : pourquoi ça marche, et ce qu'il ne faut PAS faire.
+- Si la question manque de contexte (étape de l'appel, ce que la prospect a dit exactement), donne quand même ta meilleure réponse, puis pose UNE question pour préciser.
+- Reste éthique : on aide la prospect à prendre une décision éclairée ; jamais de fausses promesses de revenus ou d'emploi, jamais de pression pour signer un prêt qu'elle ne comprend pas.
+- Format Markdown simple : **gras**, puces "- ", listes numérotées. Pas de titres #. Sois concis.`

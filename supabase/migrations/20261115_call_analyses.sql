@@ -42,3 +42,19 @@ alter table public.call_analyses
   add column if not exists samuel_closable text,
   add column if not exists samuel_note text,
   add column if not exists feedback_at timestamptz;
+
+-- Coach : questions des closers (visibles par la closer et par Samuel)
+create table if not exists public.coach_conversations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  user_name text, titre text,
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+create table if not exists public.coach_messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.coach_conversations(id) on delete cascade,
+  role text not null check (role in ('user','assistant')), content text not null, model text,
+  created_at timestamptz not null default now()
+);
+alter table public.coach_conversations enable row level security;
+alter table public.coach_messages enable row level security;
